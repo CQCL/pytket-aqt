@@ -23,8 +23,6 @@ and Windows. To install, run:
 This will install `pytket` if it isn't already installed, and add new classes
 and methods into the `pytket.extensions` namespace.
 
-The [example notebooks](https://github.com/CQCL/pytket-aqt/tree/develop/examples) also demonstrate some of the key features of pytket-aqt.
-
 ## Bugs, support and feature requests
 
 Please file bugs and feature requests on the Github
@@ -68,8 +66,8 @@ script requires `mypy` 0.800 or above.
 #### Linting
 
 We use [pylint](https://pypi.org/project/pylint/) on the CI to check compliance
-with a set of style requirements (listed in `modules/.pylintrc`). You should run
-`pylint` over any changed files from the `modules` directory before submitting a
+with a set of style requirements (listed in `.pylintrc`). You should run
+`pylint` over any changed files before submitting a
 PR, to catch any issues.
 
 ### Tests
