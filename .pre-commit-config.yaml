@@ -9,7 +9,7 @@ repos:
         files: "^pytket/.+|^tests/.+|noxfile.py"
       - id: mypy
         name: mypy
-        entry: nox -rs type_checking --
+        entry: nox -rs type_check --
         language: system
         types: [python]
         files: "^pytket/.+|^tests/.+|noxfile.py"

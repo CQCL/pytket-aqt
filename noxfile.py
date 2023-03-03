@@ -8,7 +8,7 @@ locations = "pytket", "tests", "noxfile.py"
 
 
 @nox.session(python=["3.11", "3.10", "3.9", "3.8"])
-def tests(session: nox.sessions.Session) -> None:
+def test(session: nox.sessions.Session) -> None:
     """Run the test suite."""
     args = session.posargs or ["tests"]
     session.install(".")
@@ -27,7 +27,7 @@ def lint(session: nox.sessions.Session) -> None:
 
 
 @nox.session(python=["3.11", "3.10", "3.9", "3.8"])
-def type_checking(session: nox.sessions.Session) -> None:
+def type_check(session: nox.sessions.Session) -> None:
     """Type-check using mypy."""
     args = session.posargs or locations
     session.install(".")
