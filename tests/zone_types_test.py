@@ -1,4 +1,4 @@
-from pytket.extensions.aqt.backends.multi_zone_architecture.zone_type import (
+from pytket.extensions.aqt.backends.multi_zone_architecture.architecture import (
     Operation,
     MultiZoneArchitecture,
     ZoneType,
