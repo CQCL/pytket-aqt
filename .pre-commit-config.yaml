@@ -3,13 +3,13 @@ repos:
     hooks:
       - id: lint
         name: lint
-        entry: nox -rs lint --
+        entry: nox -rs lint -p 3.11 3.9 --
         language: system
         types: [python]
         files: "^pytket/.+|^tests/.+|noxfile.py"
       - id: mypy
         name: mypy
-        entry: nox -rs type_check --
+        entry: nox -rs type_check -p 3.11 3.9 --
         language: system
         types: [python]
         files: "^pytket/.+|^tests/.+|noxfile.py"
