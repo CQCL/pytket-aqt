@@ -79,14 +79,18 @@ multizone = MultiZoneArchitecture(
         ),
     ],
     zones=[
-        Zone(id=0, name="LeftEdge", zone_type_id=0, connectedZones={"RL": 1}),
-        Zone(id=1, name="Interior1", zone_type_id=1, connectedZones={"LR": 0, "RL": 2}),
-        Zone(id=2, name="Interior2", zone_type_id=1, connectedZones={"LR": 1, "RL": 3}),
+        Zone(id=0, name="LeftEdge", zone_type_id=0, connected_zones={"RL": 1}),
+        Zone(
+            id=1, name="Interior1", zone_type_id=1, connected_zones={"LR": 0, "RL": 2}
+        ),
+        Zone(
+            id=2, name="Interior2", zone_type_id=1, connected_zones={"LR": 1, "RL": 3}
+        ),
         Zone(
             id=3,
             name="RightEdge",
             zone_type_id=2,
-            connectedZones={
+            connected_zones={
                 "LR": 2,
             },
         ),

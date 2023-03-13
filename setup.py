@@ -45,7 +45,8 @@ setup(
         "pytket ~= 1.9",
         "requests ~= 2.22",
         "types-requests",
-        "pydantic ~= 1.10"
+        "pydantic ~= 1.10",
+        "networkx ~= 2.8"
     ],
     classifiers=[
         "Environment :: Console",

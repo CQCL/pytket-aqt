@@ -37,7 +37,7 @@ class Zone(BaseModel):
     id: int
     name: str
     zone_type_id: int
-    connectedZones: Dict[str, int]
+    connected_zones: Dict[str, int]
 
 
 class MultiZoneArchitecture(BaseModel):

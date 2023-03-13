@@ -25,9 +25,6 @@ from pytket.backends.backendresult import BackendResult
 from pytket.backends.resulthandle import _ResultIdTuple
 from pytket.backends.backend_exceptions import CircuitNotRunError
 from pytket.circuit import Circuit, Node, OpType, Qubit  # type: ignore
-from pytket.extensions.aqt._metadata import __extension_version__
-
-
 from pytket.passes import (  # type: ignore
     BasePass,
     SequencePass,
@@ -52,6 +49,7 @@ from pytket.predicates import (  # type: ignore
 )
 from pytket.utils import prepare_circuit
 from pytket.utils.outcomearray import OutcomeArray
+from .._metadata import __extension_version__
 from .config import AQTConfig
 
 AQT_URL_PREFIX = "https://gateway.aqt.eu/marmot/"
