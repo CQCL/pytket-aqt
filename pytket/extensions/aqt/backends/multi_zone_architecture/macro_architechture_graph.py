@@ -1,7 +1,7 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import NewType
 
-from networkx import Graph  # type: ignore
+from networkx import Graph, shortest_path  # type: ignore
 
 from .architecture import MultiZoneArchitecture
 
@@ -25,6 +25,17 @@ class MacroZoneData:
 class MultiZoneMacroArch:
     zones: Graph
     qubit_to_zone_map: dict[QubitId, ZoneId]
+    shortest_paths: dict[tuple[ZoneId, ZoneId], list[ZoneId] | None] = field(
+        default_factory=dict
+    )
+
+    def shortest_path(self, zone_1: ZoneId, zone_2: ZoneId) -> list[ZoneId] | None:
+        path = self.shortest_paths.get((zone_1, zone_2))
+        if path:
+            return path
+        path = shortest_path(self.zones, zone_1, zone_2)
+        self.shortest_paths[(zone_1, zone_2)] = path
+        return path
 
 
 def empty_macro_arch_from_backend(
@@ -41,6 +52,6 @@ def empty_macro_arch_from_backend(
         )
         zones.add_node(ZoneId(zone_id), zone_data=zone_data)
     for zone_id, zone in enumerate(architecture.zones):
-        for _, connected_zone_id in zone.connected_zones.items():
+        for connected_zone_id, _ in zone.connected_zones.items():
             zones.add_edge(ZoneId(zone_id), ZoneId(connected_zone_id))
     return MultiZoneMacroArch(zones=zones, qubit_to_zone_map={})

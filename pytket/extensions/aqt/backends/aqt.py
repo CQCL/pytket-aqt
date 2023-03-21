@@ -68,7 +68,14 @@ _DEVICE_INFO = {
     AQT_DEVICE_NOISY_SIM: {"max_n_qubits": 10},
 }
 
-_GATE_SET = {OpType.Rx, OpType.Ry, OpType.XXPhase, OpType.Measure, OpType.Barrier}
+_GATE_SET = {
+    OpType.Rx,
+    OpType.Ry,
+    OpType.Rz,
+    OpType.XXPhase,
+    OpType.Measure,
+    OpType.Barrier,
+}
 
 AQTResult = Tuple[int, List[int]]  # (n_qubits, list of readouts)
 
