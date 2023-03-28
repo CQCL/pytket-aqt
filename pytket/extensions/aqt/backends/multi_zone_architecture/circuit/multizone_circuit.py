@@ -1,9 +1,11 @@
 import itertools
+from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, cast
+from sympy import symbols
 
-from pytket.circuit import Circuit, OpType  # type: ignore
+from pytket.circuit import Circuit, OpType, CustomGateDef  # type: ignore
 
 from ..architecture import (
     MultiZoneArchitecture,
@@ -22,13 +24,32 @@ class QubitPlacementError(Exception):
     pass
 
 
-class ShuttleError(Exception):
+class MoveError(Exception):
+    pass
+
+
+class AcrossZoneOperationError(Exception):
     pass
 
 
 class VirtualZonePosition(Enum):
     VirtualLeft = 0
     VirtualRight = 1
+
+
+a = symbols("a")
+move_barrier_def_circ = Circuit(1)
+move_barrier_def_circ.add_barrier([0])
+move_barrier_gate = CustomGateDef("MOVE_BARRIER", move_barrier_def_circ, [])
+
+move_def_circ = Circuit(1)
+move_gate = CustomGateDef("MOVE", move_def_circ, [a])
+
+shuttle_def_circ = Circuit(1)
+shuttle_gate = CustomGateDef("SHUTTLE", shuttle_def_circ, [a])
+
+swap_def_circ = Circuit(2)
+swap_gate = CustomGateDef("PSWAP", swap_def_circ, [])
 
 
 @dataclass
@@ -39,6 +60,9 @@ class SwapWithinZone:
     def __str__(self) -> str:
         return f"{self.qubit_0}: {self.qubit_1}"
 
+    def append_to_circuit(self, circuit: "MultiZoneCircuit") -> None:
+        circuit.add_custom_gate(swap_gate, [], [self.qubit_0, self.qubit_1])
+
 
 @dataclass
 class Shuttle:
@@ -48,6 +72,9 @@ class Shuttle:
     def __str__(self) -> str:
         return f"{self.qubit}: {self.zone}"
 
+    def append_to_circuit(self, circuit: "MultiZoneCircuit") -> None:
+        circuit.add_custom_gate(shuttle_gate, [self.zone], [self.qubit])
+
 
 @dataclass
 class Init:
@@ -55,7 +82,7 @@ class Init:
     zone: int
 
 
-MZAOperation = SwapWithinZone | Shuttle | Init
+MZAOperation = SwapWithinZone | Shuttle
 
 
 def _swap_left_to_right_through_list(
@@ -124,9 +151,7 @@ class MultiZoneCircuit(Circuit):
 
     def place_qubit(self, zone: int, qubit: int) -> None:
         if qubit in self.qubit_to_zones:
-            raise QubitPlacementError(
-                f"Qubit {qubit} was already placed, move it using shuttle"
-            )
+            raise QubitPlacementError(f"Qubit {qubit} was already placed")
         if (
             self.architecture.get_zone_max_ions(zone)
             < len(self.zone_to_qubits[zone]) + 1
@@ -146,14 +171,16 @@ class MultiZoneCircuit(Circuit):
             raise QubitPlacementError("Cannot shuttle qubit that was never placed")
         old_zone = self.qubit_to_zones[qubit][-1]
         if old_zone == new_zone:
-            return
-
+            raise MoveError(
+                f"Requested move has no effect,"
+                f" qubit {qubit} is already in zone {new_zone}"
+            )
         move_operations = []
         shortest_path = self.macro_arch.shortest_path(
             ZoneId(old_zone), ZoneId(new_zone)
         )
         if not shortest_path:
-            raise ShuttleError(
+            raise MoveError(
                 f"Cannot move ion to zone {new_zone},"
                 f" no path found from current zone {old_zone}"
             )
@@ -168,12 +195,12 @@ class MultiZoneCircuit(Circuit):
                 < n_qubits_in_target_zone + 1
             ):
                 if target_zone == new_zone:
-                    raise ShuttleError(
+                    raise MoveError(
                         f"Cannot move ion to zone {target_zone},"
                         f" maximum ion capacity already reached"
                     )
-                raise ShuttleError(
-                    f"Shuttle requires moving ion through zone {target_zone},"
+                raise MoveError(
+                    f"Move requires shuttling ion through zone {target_zone},"
                     f" but this zone is at maximum capacity"
                 )
 
@@ -195,7 +222,8 @@ class MultiZoneCircuit(Circuit):
             else:
                 position_in_zone = VirtualZonePosition.VirtualLeft
 
-        super().add_barrier([qubit])
+        self.add_custom_gate(move_gate, [new_zone], [qubit])
+        self.add_custom_gate(move_barrier_gate, [], [qubit])
         old_zone_qubits.remove(qubit)
         if position_in_zone is VirtualZonePosition.VirtualLeft:
             self.zone_to_qubits[new_zone].insert(0, qubit)
@@ -205,11 +233,52 @@ class MultiZoneCircuit(Circuit):
         self.multi_zone_operations[qubit].append(move_operations)
 
     def add_gate(self, *args: list, **kwargs: dict) -> Any:
-        if args[0] == OpType.Barrier:
+        if isinstance(args[0], OpType) and args[0] == OpType.Barrier:
             raise ValueError(
-                "Barriers are not currently allowed within MultiZone Circuits"
+                "The manual addition of barriers is not currently"
+                " allowed within Multi Zone Circuits"
             )
         super().add_gate(*args, **kwargs)
 
     def add_barrier(self, *args: list, **kwargs: dict) -> Any:
-        raise ValueError("Barriers are not currently allowed within MultiZone Circuits")
+        raise ValueError(
+            "The manual addition of barriers is not currently"
+            " allowed within Multi Zone Circuits"
+        )
+
+    def copy(self) -> "MultiZoneCircuit":
+        new_circuit = super().copy()
+        new_circuit.architecture = self.architecture
+        new_circuit.macro_arch = self.macro_arch
+        new_circuit.qubit_to_zones = deepcopy(self.qubit_to_zones)
+        new_circuit.zone_to_qubits = deepcopy(self.zone_to_qubits)
+        new_circuit.multi_zone_operations = deepcopy(self.multi_zone_operations)
+        return cast(MultiZoneCircuit, new_circuit)
+
+    def validate(self) -> None:
+        current_multiop_index_per_qubit: dict[int, int] = {
+            k: 0 for k in self.multi_zone_operations.keys()
+        }
+        for i, cmd in enumerate(self):
+            op = cmd.op
+            qubit = cmd.args[0].index[0]
+            if "MOVE_BARRIER" in f"{op}":
+                current_multiop_index = current_multiop_index_per_qubit[qubit]
+                current_multiop_index_per_qubit[qubit] = current_multiop_index + 1
+            else:
+                qubits: list[int] = [q.index[0] for q in cmd.args]
+                cmd_qubit_zones = [
+                    self.qubit_to_zones[q][current_multiop_index_per_qubit[q]]
+                    for q in qubits
+                ]
+                if not all(zone == cmd_qubit_zones[0] for zone in cmd_qubit_zones):
+                    qubit_to_zone_message = " ".join(
+                        [
+                            f"q[{qz[0]}] in zone {qz[1]},"
+                            for qz in zip(qubits, cmd_qubit_zones)
+                        ]
+                    )
+                    raise AcrossZoneOperationError(
+                        f"Operation {i} = {cmd} involved qubits across multiple"
+                        f"zones. {qubit_to_zone_message}"
+                    )

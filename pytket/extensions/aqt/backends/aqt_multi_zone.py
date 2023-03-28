@@ -15,6 +15,7 @@
 import json
 import time
 from ast import literal_eval
+from copy import deepcopy
 from typing import Dict, List, Optional, Sequence, Tuple, Union, cast, Any
 
 from requests import put
@@ -51,6 +52,10 @@ from pytket.utils import prepare_circuit
 from pytket.utils.outcomearray import OutcomeArray
 
 from .multi_zone_architecture.architecture import MultiZoneArchitecture
+from .multi_zone_architecture.circuit.multizone_circuit import (
+    MultiZoneCircuit,
+    move_barrier_gate,
+)
 from .._metadata import __extension_version__
 from .config import AQTConfig
 
@@ -328,6 +333,39 @@ class AQTMultiZoneBackend(Backend):
                     raise RuntimeError(circuit_status.message)
                 time.sleep(cast(float, wait))
             raise RuntimeError(f"Timed out: no results after {timeout} seconds.")
+
+    def get_compiled_circuit(
+        self, circuit: MultiZoneCircuit, optimisation_level: int = 2
+    ) -> MultiZoneCircuit:
+
+        new_circuit = MultiZoneCircuit(
+            circuit.architecture, circuit.n_qubits, circuit.n_bits
+        )
+        compiled_circuit = super().get_compiled_circuit(circuit)
+
+        new_circuit.qubit_to_zones = deepcopy(circuit.qubit_to_zones)
+        new_circuit.zone_to_qubits = deepcopy(circuit.zone_to_qubits)
+        new_circuit.multi_zone_operations = deepcopy(circuit.multi_zone_operations)
+
+        current_multiop_index_per_qubit: dict[int, int] = {
+            k: 0 for k in new_circuit.multi_zone_operations.keys()
+        }
+        for cmd in compiled_circuit:
+            op = cmd.op
+            if op.type == OpType.Barrier:
+                qubit = cmd.args[0].index[0]
+                new_circuit.add_custom_gate(move_barrier_gate, [], [qubit])
+                current_multiop_index = current_multiop_index_per_qubit[qubit]
+                mult_op_bundles = new_circuit.multi_zone_operations[qubit]
+                multi_ops = mult_op_bundles[current_multiop_index]
+                for multi_op in multi_ops:
+                    multi_op.append_to_circuit(new_circuit)
+                current_multiop_index_per_qubit[qubit] = current_multiop_index + 1
+            else:
+                qubits = [q.index[0] for q in cmd.args]
+                new_circuit.add_gate(cmd.op.type, op.params, qubits)
+
+        return new_circuit
 
 
 def _translate_aqt(circ: Circuit) -> Tuple[List[List], str]:

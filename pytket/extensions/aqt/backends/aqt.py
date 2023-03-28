@@ -71,7 +71,6 @@ _DEVICE_INFO = {
 _GATE_SET = {
     OpType.Rx,
     OpType.Ry,
-    OpType.Rz,
     OpType.XXPhase,
     OpType.Measure,
     OpType.Barrier,
