@@ -13,18 +13,14 @@
 # limitations under the License.
 
 import json
-import time
-from ast import literal_eval
 from copy import deepcopy
-from typing import Dict, List, Optional, Sequence, Tuple, Union, cast, Any
+from typing import Dict, List, Optional, Sequence, Tuple, Union, Any
 
-from requests import put
 from pytket.backends import Backend, CircuitStatus, ResultHandle, StatusEnum
 from pytket.backends.backend import KwargTypes
 from pytket.backends.backendinfo import BackendInfo, fully_connected_backendinfo
 from pytket.backends.backendresult import BackendResult
 from pytket.backends.resulthandle import _ResultIdTuple
-from pytket.backends.backend_exceptions import CircuitNotRunError
 from pytket.circuit import Circuit, Node, OpType, Qubit  # type: ignore
 from pytket.passes import (  # type: ignore
     BasePass,
@@ -48,8 +44,6 @@ from pytket.predicates import (  # type: ignore
     NoSymbolsPredicate,
     Predicate,
 )
-from pytket.utils import prepare_circuit
-from pytket.utils.outcomearray import OutcomeArray
 
 from .multi_zone_architecture.architecture import MultiZoneArchitecture
 from .multi_zone_architecture.circuit.multizone_circuit import (
@@ -225,114 +219,22 @@ class AQTMultiZoneBackend(Backend):
         See :py:meth:`pytket.backends.Backend.process_circuits`.
         Supported kwargs: none.
         """
-        circuits = list(circuits)
-        n_shots_list = Backend._get_n_shots_as_list(
-            n_shots,
-            len(circuits),
-            optional=False,
-        )
-
-        if valid_check:
-            self._check_all_circuits(circuits)
-
-        postprocess = kwargs.get("postprocess", False)
-
-        handles = []
-        for i, (c, n_shots) in enumerate(zip(circuits, n_shots_list)):
-            if postprocess:
-                c0, ppcirc = prepare_circuit(c, allow_classical=False, xcirc=_xcirc)
-                ppcirc_rep = ppcirc.to_dict()
-            else:
-                c0, ppcirc_rep = c, None
-            (aqt_circ, measures) = _translate_aqt(c0)
-            if self._MACHINE_DEBUG:
-                handles.append(
-                    ResultHandle(
-                        _DEBUG_HANDLE_PREFIX + str((c.n_qubits, n_shots)),
-                        measures,
-                        json.dumps(ppcirc_rep),
-                    )
-                )
-            else:
-                resp = put(
-                    self._url,
-                    data={
-                        "data": json.dumps(aqt_circ),
-                        "repetitions": n_shots,
-                        "no_qubits": c.n_qubits,
-                        "label": c.name if c.name else f"{self._label}_{i}",
-                    },
-                    headers=self._header,
-                ).json()
-                if "status" not in resp:
-                    raise RuntimeError(resp["message"])
-                if resp["status"] == "error":
-                    raise RuntimeError(resp["ERROR"])
-                handles.append(
-                    ResultHandle(resp["id"], measures, json.dumps(ppcirc_rep))
-                )
-        for handle in handles:
-            self._cache[handle] = dict()
-        return handles
+        raise NotImplementedError
 
     def _update_cache_result(
         self, handle: ResultHandle, result_dict: Dict[str, BackendResult]
     ) -> None:
-        if handle in self._cache:
-            self._cache[handle].update(result_dict)
-        else:
-            self._cache[handle] = result_dict
+        raise NotImplementedError
 
     def circuit_status(self, handle: ResultHandle) -> CircuitStatus:
-        self._check_handle_type(handle)
-        jobid = handle[0]
-        message = ""
-        measure_permutations = json.loads(handle[1])  # type: ignore
-        ppcirc_rep = json.loads(cast(str, handle[2]))
-        ppcirc = Circuit.from_dict(ppcirc_rep) if ppcirc_rep is not None else None
-        if self._MACHINE_DEBUG:
-            n_qubits, n_shots = literal_eval(jobid[len(_DEBUG_HANDLE_PREFIX) :])  # type: ignore
-            empty_ar = OutcomeArray.from_ints([0] * n_shots, n_qubits, big_endian=True)
-            self._update_cache_result(
-                handle, {"result": BackendResult(shots=empty_ar, ppcirc=ppcirc)}
-            )
-            statenum = StatusEnum.COMPLETED
-        else:
-            data = put(self._url, data={"id": jobid}, headers=self._header).json()
-            status = data["status"]
-            if "ERROR" in data:
-                message = data["ERROR"]
-            statenum = _STATUS_MAP.get(status, StatusEnum.ERROR)
-            if statenum is StatusEnum.COMPLETED:
-                shots = OutcomeArray.from_ints(
-                    data["samples"], data["no_qubits"], big_endian=True
-                )
-                shots = shots.choose_indices(measure_permutations)
-                self._update_cache_result(
-                    handle, {"result": BackendResult(shots=shots, ppcirc=ppcirc)}
-                )
-        return CircuitStatus(statenum, message)
+        raise NotImplementedError
 
     def get_result(self, handle: ResultHandle, **kwargs: KwargTypes) -> BackendResult:
         """
         See :py:meth:`pytket.backends.Backend.get_result`.
         Supported kwargs: `timeout`, `wait`.
         """
-        try:
-            return super().get_result(handle)
-        except CircuitNotRunError:
-            timeout = cast(float, kwargs.get("timeout"))
-            wait = kwargs.get("wait", 1.0)
-            # Wait for job to finish; result will then be in the cache.
-            end_time = (time.time() + timeout) if (timeout is not None) else None
-            while (end_time is None) or (time.time() < end_time):
-                circuit_status = self.circuit_status(handle)
-                if circuit_status.status is StatusEnum.COMPLETED:
-                    return cast(BackendResult, self._cache[handle]["result"])
-                if circuit_status.status is StatusEnum.ERROR:
-                    raise RuntimeError(circuit_status.message)
-                time.sleep(cast(float, wait))
-            raise RuntimeError(f"Timed out: no results after {timeout} seconds.")
+        raise NotImplementedError
 
     def get_compiled_circuit(
         self, circuit: MultiZoneCircuit, optimisation_level: int = 2
@@ -368,21 +270,36 @@ class AQTMultiZoneBackend(Backend):
         return new_circuit
 
 
-def _translate_aqt(circ: Circuit) -> Tuple[List[List], str]:
+def _translate_aqt(circ: MultiZoneCircuit) -> Tuple[List[List], str]:
     """Convert a circuit in the AQT gate set to AQT list representation,
     along with a JSON string describing the measure result permutations."""
     gates: List = list()
     measures: List = list()
+    current_index_per_qubit: dict[int, int] = {
+        k: 0 for k in circ.multi_zone_operations.keys()
+    }
     for cmd in circ.get_commands():
         op = cmd.op
         optype = op.type
+        op_string = f"{op}"
         # https://www.aqt.eu/aqt-gate-definitions/
         if optype == OpType.Rx:
             gates.append(["X", op.params[0], [q.index[0] for q in cmd.args]])
         elif optype == OpType.Ry:
             gates.append(["Y", op.params[0], [q.index[0] for q in cmd.args]])
+        elif optype == OpType.Rz:
+            gates.append(["Z", op.params[0], [q.index[0] for q in cmd.args]])
         elif optype == OpType.XXPhase:
             gates.append(["MS", op.params[0], [q.index[0] for q in cmd.args]])
+        elif optype == OpType.CustomGate:
+            if "MOVE_BARRIER" in op_string:
+                qubit = cmd.args[0].index[0]
+                current_index_per_qubit[qubit] = current_index_per_qubit[qubit] + 1
+            elif "SHUTTLE" in op_string:
+                zone = int(op.params[0])
+                gates.append(["SHUTTLE", 1, [q.index[0] for q in cmd.args], zone])
+            elif "PSWAP" in op_string:
+                gates.append(["PSWAP", [q.index[0] for q in cmd.args]])
         elif optype == OpType.Measure:
             # predicate has already checked format is correct, so
             # errors are not handled here
