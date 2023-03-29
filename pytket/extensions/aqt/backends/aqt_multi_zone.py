@@ -48,7 +48,6 @@ from pytket.predicates import (  # type: ignore
 from .multi_zone_architecture.architecture import MultiZoneArchitecture
 from .multi_zone_architecture.circuit.multizone_circuit import (
     MultiZoneCircuit,
-    move_barrier_gate,
 )
 from .._metadata import __extension_version__
 from .config import AQTConfig
@@ -240,12 +239,15 @@ class AQTMultiZoneBackend(Backend):
         self, circuit: MultiZoneCircuit, optimisation_level: int = 2
     ) -> MultiZoneCircuit:
 
+        new_initial_zone_to_qubits = deepcopy(circuit.initial_zone_to_qubits)
         new_circuit = MultiZoneCircuit(
-            circuit.architecture, circuit.n_qubits, circuit.n_bits
+            circuit.architecture,
+            new_initial_zone_to_qubits,
+            circuit.n_qubits,
+            circuit.n_bits,
         )
         compiled_circuit = super().get_compiled_circuit(circuit)
 
-        new_circuit.qubit_to_zones = deepcopy(circuit.qubit_to_zones)
         new_circuit.zone_to_qubits = deepcopy(circuit.zone_to_qubits)
         new_circuit.multi_zone_operations = deepcopy(circuit.multi_zone_operations)
 
@@ -255,13 +257,15 @@ class AQTMultiZoneBackend(Backend):
         for cmd in compiled_circuit:
             op = cmd.op
             if op.type == OpType.Barrier:
+                if len(cmd.args) == len(circuit.all_qubit_list):
+                    continue
                 qubit = cmd.args[0].index[0]
-                new_circuit.add_custom_gate(move_barrier_gate, [], [qubit])
                 current_multiop_index = current_multiop_index_per_qubit[qubit]
                 mult_op_bundles = new_circuit.multi_zone_operations[qubit]
                 multi_ops = mult_op_bundles[current_multiop_index]
                 for multi_op in multi_ops:
                     multi_op.append_to_circuit(new_circuit)
+                new_circuit.add_move_barrier()
                 current_multiop_index_per_qubit[qubit] = current_multiop_index + 1
             else:
                 qubits = [q.index[0] for q in cmd.args]
@@ -275,31 +279,100 @@ def _translate_aqt(circ: MultiZoneCircuit) -> Tuple[List[List], str]:
     along with a JSON string describing the measure result permutations."""
     gates: List = list()
     measures: List = list()
-    current_index_per_qubit: dict[int, int] = {
-        k: 0 for k in circ.multi_zone_operations.keys()
-    }
+    qubit_to_zone_position: dict[int, tuple[int, int]] = {}
+    zone_to_occupancy_offset: dict[int, tuple[int, int]] = {}
+    for zone, qubits in circ.initial_zone_to_qubits.items():
+        for position, qubit in enumerate(qubits):
+            qubit_to_zone_position[qubit] = (zone, position)
+        zone_to_occupancy_offset[zone] = (len(qubits), 0)
+
+    def zop(qubit_: int) -> list[int]:
+        (zone_, position_) = qubit_to_zone_position[qubit_]
+        (occupancy_, offset_) = zone_to_occupancy_offset[zone_]
+        return [zone_, occupancy_, position_ - offset_]
+
+    def swap_position(qubit_1: int, qubit_2: int) -> None:
+        (zone_1, position_1) = qubit_to_zone_position[qubit_1]
+        (zone_2, position_2) = qubit_to_zone_position[qubit_2]
+        if zone_1 != zone_2:
+            raise Exception
+        qubit_to_zone_position[qubit_1] = (zone_2, position_2)
+        qubit_to_zone_position[qubit_2] = (zone_1, position_1)
+
     for cmd in circ.get_commands():
         op = cmd.op
         optype = op.type
         op_string = f"{op}"
         # https://www.aqt.eu/aqt-gate-definitions/
         if optype == OpType.Rx:
-            gates.append(["X", op.params[0], [q.index[0] for q in cmd.args]])
+            gates.append(["X", op.params[0], [zop(q.index[0]) for q in cmd.args]])
         elif optype == OpType.Ry:
-            gates.append(["Y", op.params[0], [q.index[0] for q in cmd.args]])
+            gates.append(["Y", op.params[0], [zop(q.index[0]) for q in cmd.args]])
         elif optype == OpType.Rz:
-            gates.append(["Z", op.params[0], [q.index[0] for q in cmd.args]])
+            gates.append(["Z", op.params[0], [zop(q.index[0]) for q in cmd.args]])
         elif optype == OpType.XXPhase:
-            gates.append(["MS", op.params[0], [q.index[0] for q in cmd.args]])
+            gates.append(["MS", op.params[0], [zop(q.index[0]) for q in cmd.args]])
         elif optype == OpType.CustomGate:
-            if "MOVE_BARRIER" in op_string:
-                qubit = cmd.args[0].index[0]
-                current_index_per_qubit[qubit] = current_index_per_qubit[qubit] + 1
-            elif "SHUTTLE" in op_string:
-                zone = int(op.params[0])
-                gates.append(["SHUTTLE", 1, [q.index[0] for q in cmd.args], zone])
+            if "MOVE" in op_string:
+                pass
             elif "PSWAP" in op_string:
-                gates.append(["PSWAP", [q.index[0] for q in cmd.args]])
+                qubit_1 = cmd.args[0].index[0]
+                qubit_2 = cmd.args[1].index[0]
+                gates.append(["PSWAP", [zop(qubit_1), zop(qubit_2)]])
+                swap_position(qubit_1, qubit_2)
+            elif "SHUTTLE" in op_string:
+                qubit = cmd.args[0].index[0]
+                (source_zone, source_position) = qubit_to_zone_position[qubit]
+                (source_occupancy, source_offset) = zone_to_occupancy_offset[
+                    source_zone
+                ]
+                target_zone = int(op.params[0])
+                (target_occupancy, target_offset) = zone_to_occupancy_offset[
+                    target_zone
+                ]
+                source_edge_encoding = op.params[1]
+                target_edge_encoding = op.params[2]
+                if source_edge_encoding < 0:
+                    zone_to_occupancy_offset[source_zone] = (
+                        source_occupancy - 1,
+                        source_offset + 1,
+                    )
+                else:
+                    zone_to_occupancy_offset[source_zone] = (
+                        source_occupancy - 1,
+                        source_offset,
+                    )
+                if target_edge_encoding < 0:
+                    zone_to_occupancy_offset[target_zone] = (
+                        target_occupancy + 1,
+                        target_offset - 1,
+                    )
+                    qubit_to_zone_position[qubit] = (target_zone, target_offset - 1)
+                else:
+                    zone_to_occupancy_offset[target_zone] = (
+                        target_occupancy + 1,
+                        target_offset,
+                    )
+                    qubit_to_zone_position[qubit] = (
+                        target_zone,
+                        target_occupancy + target_offset,
+                    )
+
+                gates.append(
+                    [
+                        "SHUTTLE",
+                        1,
+                        [
+                            [
+                                source_zone,
+                                source_occupancy,
+                                source_position - source_offset,
+                            ],
+                            zop(qubit),
+                        ],
+                    ]
+                )
+
         elif optype == OpType.Measure:
             # predicate has already checked format is correct, so
             # errors are not handled here

@@ -1,6 +1,6 @@
 import itertools
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, cast
 from sympy import symbols
@@ -37,16 +37,14 @@ class VirtualZonePosition(Enum):
     VirtualRight = 1
 
 
-a = symbols("a")
-move_barrier_def_circ = Circuit(1)
-move_barrier_def_circ.add_barrier([0])
-move_barrier_gate = CustomGateDef("MOVE_BARRIER", move_barrier_def_circ, [])
+dz, se, te = symbols("destination_zone source_edge target_edge")
 
 move_def_circ = Circuit(1)
-move_gate = CustomGateDef("MOVE", move_def_circ, [a])
+move_def_circ.add_barrier([0])
+move_gate = CustomGateDef("MOVE", move_def_circ, [dz])
 
 shuttle_def_circ = Circuit(1)
-shuttle_gate = CustomGateDef("SHUTTLE", shuttle_def_circ, [a])
+shuttle_gate = CustomGateDef("SHUTTLE", shuttle_def_circ, [dz, se, te])
 
 swap_def_circ = Circuit(2)
 swap_gate = CustomGateDef("PSWAP", swap_def_circ, [])
@@ -69,11 +67,30 @@ class Shuttle:
     qubit: int
     zone: int
 
+    source_edge: EdgeType
+    target_edge: EdgeType
+
+    source_edge_int_encoding: int = field(init=False)
+    target_edge_int_encoding: int = field(init=False)
+
+    def __post_init__(self) -> None:
+        """
+        Encode left and right edges as negative or non-negative
+         number for use as tket custom op parameters
+        Yes, this is a hack
+        """
+        self.source_edge_int_encoding = -1 if self.source_edge == EdgeType.Left else 1
+        self.target_edge_int_encoding = -1 if self.target_edge == EdgeType.Left else 1
+
     def __str__(self) -> str:
         return f"{self.qubit}: {self.zone}"
 
     def append_to_circuit(self, circuit: "MultiZoneCircuit") -> None:
-        circuit.add_custom_gate(shuttle_gate, [self.zone], [self.qubit])
+        circuit.add_custom_gate(
+            shuttle_gate,
+            [self.zone, self.source_edge_int_encoding, self.target_edge_int_encoding],
+            [self.qubit],
+        )
 
 
 @dataclass
@@ -102,6 +119,7 @@ def _move_from_zone_position_to_connected_zone_edge(
     zone_qubit_list: list[int],
     position_in_zone: int | VirtualZonePosition,
     source_edge_type: EdgeType,
+    target_edge_type: EdgeType,
     target_zone: int,
 ) -> list[MZAOperation]:
     move_operations = []
@@ -126,7 +144,9 @@ def _move_from_zone_position_to_connected_zone_edge(
             move_operations.extend(
                 _swap_right_to_left_through_list(qubit, zone_qubit_list[:position])
             )
-    move_operations.append(Shuttle(qubit, target_zone))
+    move_operations.append(
+        Shuttle(qubit, target_zone, source_edge_type, target_edge_type)
+    )
     return move_operations
 
 
@@ -135,21 +155,39 @@ class MultiZoneCircuit(Circuit):
     macro_arch: MultiZoneMacroArch
     qubit_to_zones: dict[int, list[int]]
     zone_to_qubits: dict[int, list[int]]
+    initial_zone_to_qubits: dict[int, list[int]]
     multi_zone_operations: dict[int, list[list[MZAOperation]]]
 
     def __init__(
-        self, multi_zone_arch: MultiZoneArchitecture, *args: list, **kwargs: dict
+        self,
+        multi_zone_arch: MultiZoneArchitecture,
+        initial_zone_to_qubits: dict[int, list[int]],
+        *args: list,
+        **kwargs: dict,
     ):
         self.architecture = multi_zone_arch
         self.macro_arch = empty_macro_arch_from_backend(multi_zone_arch)
         super().__init__(*args, **kwargs)
         self.qubit_to_zones = {}
+        self.initial_zone_to_qubits = initial_zone_to_qubits
         self.zone_to_qubits = {zone.id: [] for zone in multi_zone_arch.zones}
         self.multi_zone_operations = {
             qubit: [] for qubit in range(multi_zone_arch.n_qubits_max)
         }
+        for zone, qubits in initial_zone_to_qubits.items():
+            self._place_qubits(zone, qubits)
 
-    def place_qubit(self, zone: int, qubit: int) -> None:
+        self.all_qubit_list = list(range(len(self.qubits)))
+        move_barrier_def_circ = Circuit(len(self.all_qubit_list))
+        move_barrier_def_circ.add_barrier(self.all_qubit_list)
+        self.move_barrier_gate = CustomGateDef(
+            "MOVE_BARRIER", move_barrier_def_circ, []
+        )
+
+    def add_move_barrier(self) -> None:
+        self.add_custom_gate(self.move_barrier_gate, [], self.all_qubit_list)
+
+    def _place_qubit(self, zone: int, qubit: int) -> None:
         if qubit in self.qubit_to_zones:
             raise QubitPlacementError(f"Qubit {qubit} was already placed")
         if (
@@ -162,9 +200,9 @@ class MultiZoneCircuit(Circuit):
         self.qubit_to_zones[qubit] = [zone]
         self.zone_to_qubits[zone].append(qubit)
 
-    def place_qubits(self, zone: int, qubits: list[int]) -> None:
+    def _place_qubits(self, zone: int, qubits: list[int]) -> None:
         for qubit in qubits:
-            self.place_qubit(zone, qubit)
+            self._place_qubit(zone, qubit)
 
     def move_qubit(self, qubit: int, new_zone: int) -> None:
         if qubit not in self.qubit_to_zones:
@@ -214,6 +252,7 @@ class MultiZoneCircuit(Circuit):
                     source_zone_qubits,
                     position_in_zone,
                     source_edge_type(connection_type),
+                    target_edge_type(connection_type),
                     target_zone,
                 )
             )
@@ -223,7 +262,7 @@ class MultiZoneCircuit(Circuit):
                 position_in_zone = VirtualZonePosition.VirtualLeft
 
         self.add_custom_gate(move_gate, [new_zone], [qubit])
-        self.add_custom_gate(move_barrier_gate, [], [qubit])
+        self.add_move_barrier()
         old_zone_qubits.remove(qubit)
         if position_in_zone is VirtualZonePosition.VirtualLeft:
             self.zone_to_qubits[new_zone].insert(0, qubit)
@@ -261,8 +300,10 @@ class MultiZoneCircuit(Circuit):
         }
         for i, cmd in enumerate(self):
             op = cmd.op
-            qubit = cmd.args[0].index[0]
             if "MOVE_BARRIER" in f"{op}":
+                pass
+            elif "MOVE" in f"{op}":
+                qubit = cmd.args[0].index[0]
                 current_multiop_index = current_multiop_index_per_qubit[qubit]
                 current_multiop_index_per_qubit[qubit] = current_multiop_index + 1
             else:
