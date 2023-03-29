@@ -183,6 +183,10 @@ class MultiZoneCircuit(Circuit):
         self.move_barrier_gate = CustomGateDef(
             "MOVE_BARRIER", move_barrier_def_circ, []
         )
+        for zone, qubit_list in initial_zone_to_qubits.items():
+            init_def_circ = Circuit(len(qubit_list))
+            custom_init = CustomGateDef("INIT", init_def_circ, [dz])
+            self.add_custom_gate(custom_init, [zone], qubit_list)
 
     def add_move_barrier(self) -> None:
         self.add_custom_gate(self.move_barrier_gate, [], self.all_qubit_list)

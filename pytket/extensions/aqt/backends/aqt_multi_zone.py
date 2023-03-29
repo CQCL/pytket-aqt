@@ -291,13 +291,13 @@ def _translate_aqt(circ: MultiZoneCircuit) -> Tuple[List[List], str]:
         (occupancy_, offset_) = zone_to_occupancy_offset[zone_]
         return [zone_, occupancy_, position_ - offset_]
 
-    def swap_position(qubit_1: int, qubit_2: int) -> None:
-        (zone_1, position_1) = qubit_to_zone_position[qubit_1]
-        (zone_2, position_2) = qubit_to_zone_position[qubit_2]
+    def swap_position(qubit_1_: int, qubit_2_: int) -> None:
+        (zone_1, position_1) = qubit_to_zone_position[qubit_1_]
+        (zone_2, position_2) = qubit_to_zone_position[qubit_2_]
         if zone_1 != zone_2:
             raise Exception
-        qubit_to_zone_position[qubit_1] = (zone_2, position_2)
-        qubit_to_zone_position[qubit_2] = (zone_1, position_1)
+        qubit_to_zone_position[qubit_1_] = (zone_2, position_2)
+        qubit_to_zone_position[qubit_2_] = (zone_1, position_1)
 
     for cmd in circ.get_commands():
         op = cmd.op
@@ -315,6 +315,9 @@ def _translate_aqt(circ: MultiZoneCircuit) -> Tuple[List[List], str]:
         elif optype == OpType.CustomGate:
             if "MOVE" in op_string:
                 pass
+            elif "INIT" in op_string:
+                target_zone = int(op.params[0])
+                gates.append(["INIT", [target_zone, len(cmd.args)]])
             elif "PSWAP" in op_string:
                 qubit_1 = cmd.args[0].index[0]
                 qubit_2 = cmd.args[1].index[0]
