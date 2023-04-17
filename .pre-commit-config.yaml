@@ -3,16 +3,18 @@ repos:
     hooks:
       - id: lint
         name: lint
-        entry: nox -rs lint -p 3.11 3.9 --
+        entry: nox -rs lint --
         language: system
         types: [python]
         files: "^pytket/.+|^tests/.+|noxfile.py"
+        require_serial: true
       - id: mypy
         name: mypy
-        entry: nox -rs type_check -p 3.11 3.9 --
+        entry: nox -rs type_check --
         language: system
         types: [python]
         files: "^pytket/.+|^tests/.+|noxfile.py"
+        require_serial: true
   - repo: https://github.com/pre-commit/mirrors-prettier
     rev: v2.6.0
     hooks:

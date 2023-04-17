@@ -45,12 +45,12 @@ from pytket.predicates import (  # type: ignore
     Predicate,
 )
 
-from .multi_zone_architecture.architecture import MultiZoneArchitecture
-from .multi_zone_architecture.circuit.multizone_circuit import (
+from ..multi_zone_architecture.architecture import MultiZoneArchitecture
+from ..multi_zone_architecture.circuit.multizone_circuit import (
     MultiZoneCircuit,
 )
 from .._metadata import __extension_version__
-from .config import AQTConfig
+from ..backends.config import AQTConfig
 
 AQT_URL_PREFIX = "https://gateway.aqt.eu/marmot/"
 
@@ -361,20 +361,12 @@ def _translate_aqt(circ: MultiZoneCircuit) -> Tuple[List[List], str]:
                         target_occupancy + target_offset,
                     )
 
-                gates.append(
-                    [
-                        "SHUTTLE",
-                        1,
-                        [
-                            [
-                                source_zone,
-                                source_occupancy,
-                                source_position - source_offset,
-                            ],
-                            zop(qubit),
-                        ],
-                    ]
-                )
+                zop_source = [
+                    source_zone,
+                    source_occupancy,
+                    source_position - source_offset,
+                ]
+                gates.append(["SHUTTLE", 1, [zop_source, zop(qubit)]])
 
         elif optype == OpType.Measure:
             # predicate has already checked format is correct, so

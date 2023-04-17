@@ -162,8 +162,8 @@ class MultiZoneCircuit(Circuit):
         self,
         multi_zone_arch: MultiZoneArchitecture,
         initial_zone_to_qubits: dict[int, list[int]],
-        *args: list,
-        **kwargs: dict,
+        *args: int,
+        **kwargs: str,
     ):
         self.architecture = multi_zone_arch
         self.macro_arch = empty_macro_arch_from_backend(multi_zone_arch)
@@ -210,7 +210,7 @@ class MultiZoneCircuit(Circuit):
 
     def move_qubit(self, qubit: int, new_zone: int) -> None:
         if qubit not in self.qubit_to_zones:
-            raise QubitPlacementError("Cannot shuttle qubit that was never placed")
+            raise QubitPlacementError("Cannot move qubit that was never placed")
         old_zone = self.qubit_to_zones[qubit][-1]
         if old_zone == new_zone:
             raise MoveError(

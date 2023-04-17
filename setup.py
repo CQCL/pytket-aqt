@@ -46,7 +46,7 @@ setup(
         "requests ~= 2.22",
         "types-requests",
         "pydantic ~= 1.10",
-        "networkx ~= 2.8",
+        "networkx ~= 3.0",
         "sympy",
     ],
     classifiers=[

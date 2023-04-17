@@ -12,7 +12,7 @@ standardOperations = [
     Operation(operation_spec="[MS, t, [[self, o, p], [self, o, p]]]", fidelity="0.983"),
 ]
 
-four_in_a_line = MultiZoneArchitecture(
+four_zones_in_a_line = MultiZoneArchitecture(
     n_qubits_max=16,
     n_zones=4,
     zone_types=[
