@@ -100,10 +100,13 @@ class AQTMultiZoneBackend(Backend):
         label: str = "",
     ):
         """
-        Construct a new AQT backend.
+        Construct a new AQT backend for multi zone architectures.
 
-        Requires a valid API key/access token, this can either be provided as a
-        parameter or set in config using :py:meth:`pytket.extensions.aqt.set_aqt_config`
+        This backend currently only supports compilation of circuits
+         of type MultiZoneCircuit.
+        Submission of circuits to a quantum machine is not supported.
+
+        The backend is currently for experimental purposes only.
 
         :param      device_name:  device name (suffix of URL, e.g. "sim/noise-model-1")
         :type       device_name:  string
@@ -380,7 +383,7 @@ def _translate_aqt(circ: MultiZoneCircuit) -> Tuple[List[List], str]:
             assert optype in {OpType.noop, OpType.Barrier}
     if None in measures:
         raise IndexError("Bit index not written to by a measurement.")
-    return (gates, json.dumps(measures))
+    return gates, json.dumps(measures)
 
 
 def _aqt_rebase() -> RebaseCustom:

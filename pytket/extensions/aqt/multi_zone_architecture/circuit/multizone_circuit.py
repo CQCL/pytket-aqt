@@ -118,12 +118,12 @@ def _move_from_zone_position_to_connected_zone_edge(
     qubit: int,
     zone_qubit_list: list[int],
     position_in_zone: int | VirtualZonePosition,
-    source_edge_type: EdgeType,
-    target_edge_type: EdgeType,
+    move_source_edge_type: EdgeType,
+    move_target_edge_type: EdgeType,
     target_zone: int,
 ) -> list[MZAOperation]:
     move_operations = []
-    match (source_edge_type, position_in_zone):
+    match (move_source_edge_type, position_in_zone):
         case (EdgeType.Right, VirtualZonePosition.VirtualLeft):
             move_operations.extend(
                 _swap_left_to_right_through_list(qubit, zone_qubit_list)
@@ -145,7 +145,7 @@ def _move_from_zone_position_to_connected_zone_edge(
                 _swap_right_to_left_through_list(qubit, zone_qubit_list[:position])
             )
     move_operations.append(
-        Shuttle(qubit, target_zone, source_edge_type, target_edge_type)
+        Shuttle(qubit, target_zone, move_source_edge_type, move_target_edge_type)
     )
     return move_operations
 
