@@ -1,4 +1,5 @@
 import itertools
+import logging
 from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import Enum
@@ -157,6 +158,7 @@ class MultiZoneCircuit(Circuit):
     zone_to_qubits: dict[int, list[int]]
     initial_zone_to_qubits: dict[int, list[int]]
     multi_zone_operations: dict[int, list[list[MZAOperation]]]
+    _is_compiled: bool = False
 
     def __init__(
         self,
@@ -187,6 +189,14 @@ class MultiZoneCircuit(Circuit):
             init_def_circ = Circuit(len(qubit_list))
             custom_init = CustomGateDef("INIT", init_def_circ, [dz])
             self.add_custom_gate(custom_init, [zone], qubit_list)
+
+    @property
+    def is_compiled(self) -> bool:
+        return self._is_compiled
+
+    @is_compiled.setter
+    def is_compiled(self, new_value: bool) -> None:
+        self._is_compiled = new_value
 
     def add_move_barrier(self) -> None:
         self.add_custom_gate(self.move_barrier_gate, [], self.all_qubit_list)
@@ -299,6 +309,12 @@ class MultiZoneCircuit(Circuit):
         return cast(MultiZoneCircuit, new_circuit)
 
     def validate(self) -> None:
+        if self._is_compiled:
+            logging.warning(
+                "Skipping requested validation because circuit is already compiled"
+                "MultiZoneCircuit.validate() only validates circuits pre-compilation"
+            )
+            return
         current_multiop_index_per_qubit: dict[int, int] = {
             k: 0 for k in self.multi_zone_operations.keys()
         }

@@ -242,6 +242,7 @@ class AQTMultiZoneBackend(Backend):
         self, circuit: MultiZoneCircuit, optimisation_level: int = 2
     ) -> MultiZoneCircuit:
 
+        circuit.validate()
         new_initial_zone_to_qubits = deepcopy(circuit.initial_zone_to_qubits)
         new_circuit = MultiZoneCircuit(
             circuit.architecture,
@@ -274,7 +275,15 @@ class AQTMultiZoneBackend(Backend):
                 qubits = [q.index[0] for q in cmd.args]
                 new_circuit.add_gate(cmd.op.type, op.params, qubits)
 
+        new_circuit.is_compiled = True
         return new_circuit
+
+
+def get_aqt_json_syntax_for_compiled_circuit(circuit: MultiZoneCircuit) -> List[List]:
+    if not circuit.is_compiled:
+        raise Exception("AQT json syntax can only be generated from compiled circuit")
+    aqt_syntax_operation_list = _translate_aqt(circuit)[0]
+    return aqt_syntax_operation_list
 
 
 def _translate_aqt(circ: MultiZoneCircuit) -> Tuple[List[List], str]:

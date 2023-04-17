@@ -83,7 +83,7 @@ def test_add_barrier_throws_value_error(circuit: MultiZoneCircuit) -> None:
         circuit.add_gate(OpType.Barrier, [0])
 
 
-def test_circuit_with_operation_across_zones_and_validate_throws(
+def test_validation_of_circuit_with_operation_across_zones_throws(
     initial_placement: dict[int, list[int]]
 ) -> None:
     circuit = MultiZoneCircuit(four_zones_in_a_line, initial_placement, 8)
@@ -91,3 +91,7 @@ def test_circuit_with_operation_across_zones_and_validate_throws(
     circuit.measure_all()
     with pytest.raises(AcrossZoneOperationError):
         circuit.validate()
+
+
+def test_validation_of_valid_circuit_does_not_throw(circuit: MultiZoneCircuit) -> None:
+    circuit.validate()
