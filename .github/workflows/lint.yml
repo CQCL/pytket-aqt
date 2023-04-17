@@ -19,7 +19,7 @@ jobs:
       - name: Update pip
         run: pip install --upgrade pip
       - name: Install black and pylint
-        run: pip install -r linting/lint-requirements.txt
+        run: pip install -r .github/workflows/linting/lint-requirements.txt
       - name: Check files are formatted with black
         run: |
           black --check .
