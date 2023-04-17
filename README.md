@@ -13,10 +13,10 @@ executed on AQT's quantum devices and simulators.
 
 ## Getting started
 
-`pytket-aqt` is available for Python 3.8, 3.9 and 3.10, on Linux, MacOS
+`pytket-aqt` is available for Python 3.10 and 3.11, on Linux, MacOS
 and Windows. To install, run:
 
-```pip install pytket-aqt```
+`pip install pytket-aqt`
 
 This will install `pytket` if it isn't already installed, and add new classes
 and methods into the `pytket.extensions` namespace.
@@ -37,6 +37,37 @@ within the `modules` directory, and run:
 pip install -e .
 ```
 
+### Noxfile
+
+[Nox](https://nox.thea.codes/en/stable/) is used to automate various development tasks running in isolated python environments.
+The following nox sessions are provided:
+
+- `test`: run tests for all supported python versions
+- `lint`: run `black` and `pylint` for all supported python versions
+- `type_check`: run `mypy` for all supported python versions
+
+To run a session, install the `nox` command (e.g., using pipx) and run:
+
+```shell
+nox -s <session_name>
+```
+
+To save time, reuse the session virtual environment using the `-r` option, i.e. `nox -rs <session_name>`.
+The checks are designed to conform to
+
+### Pre-commit
+
+[Pre-commit](https://pre-commit.com/) can be used to run a configured set of git pre-commit hooks before each commit. This is recommended.
+To set up the pre-commit hooks, install `pre-commit` (e.g., using pipx) and run:
+
+```shell
+pre-commit install
+```
+
+Afterwards the [pre-configured hooks](.pre-commit-config.yaml) will run automatically before each commit. The commit will be
+rejected if the hooks find errors. Some hooks will correct formatting issues automatically (but will still reject the commit, so that
+the `git commit` command will need to be repeated).
+
 ## Contributing
 
 Pull requests are welcome. To make a PR, first fork the repo, make your proposed
@@ -51,6 +82,15 @@ All code should be formatted using
 [black](https://black.readthedocs.io/en/stable/), with default options. This is
 checked on the CI. The CI is currently using version 20.8b1.
 
+#### Linting
+
+We use [pylint](https://pypi.org/project/pylint/) on the CI to check compliance
+with a set of style requirements (listed in `.pylintrc`). You should run
+`pylint` over any changed files before submitting a PR, to catch any issues.
+
+If you have `nox` installed (see [Noxfile](#noxfile)) use `nox -rs lint` to run
+`black` and `pylint`
+
 #### Type annotation
 
 On the CI, [mypy](https://mypy.readthedocs.io/en/stable/) is used as a static
@@ -61,19 +101,19 @@ complicated, but it should be sufficient to run the script `modules/mypy-check`
 (passing as a single argument the root directory of the module to test). The
 script requires `mypy` 0.800 or above.
 
-#### Linting
-
-We use [pylint](https://pypi.org/project/pylint/) on the CI to check compliance
-with a set of style requirements (listed in `.pylintrc`). You should run
-`pylint` over any changed files before submitting a PR, to catch any issues.
+If you have `nox` installed (see [Noxfile](#noxfile)) use `nox -rs type_check` to run
+`mypy`
 
 ### Tests
 
-To run the tests for a module:
+If you have `nox` installed (see [Noxfile](#noxfile)) use `nox -rs test` to run
+all tests.
+
+Otherwise, to run the tests for a module:
 
 1. `cd` into that module's `tests` directory;
 2. ensure you have installed `pytest`, `hypothesis`, and any modules listed in
-the `test-requirements.txt` file (all via `pip`);
+   the `test-requirements.txt` file (all via `pip`);
 3. run `pytest`.
 
 When adding a new feature, please add a test for it. When fixing a bug, please

@@ -1,6 +1,12 @@
 Changelog
 ~~~~~~~~~
 
+0.26.0 (unreleased)
+----------------------
+
+* Add experimental support for multi zone ion trap architectures
+* Change supported python versions to 3.10 and 3.11
+
 0.25.0 (November 2022)
 ----------------------
 
