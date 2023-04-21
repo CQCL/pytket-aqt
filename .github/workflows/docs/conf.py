@@ -1,3 +1,12 @@
+import re
+from typing import Any, Dict, Optional, Tuple
+from urllib.parse import urljoin
+
+from docutils import nodes
+from docutils.nodes import Element, TextElement
+from sphinx.application import Sphinx
+from sphinx.environment import BuildEnvironment
+
 # -*- coding: utf-8 -*-
 
 # Configuration file for the Sphinx documentation builder.
@@ -44,14 +53,6 @@ autodoc_member_order = "groupwise"
 
 # The following code is for resolving broken hyperlinks in the doc.
 
-import re
-from typing import Any, Dict, List, Optional
-from urllib.parse import urljoin
-
-from docutils import nodes
-from docutils.nodes import Element, TextElement
-from sphinx.application import Sphinx
-from sphinx.environment import BuildEnvironment
 
 # Mappings for broken hyperlinks that intersphinx cannot resolve
 external_url_mapping = {
@@ -90,7 +91,8 @@ custom_internal_mapping = {
 def add_reference(
     app: Sphinx, env: BuildEnvironment, node: Element, contnode: TextElement
 ) -> Optional[nodes.reference]:
-    # Fix references in docstrings that are inherited from the base pytket.backends.Backend class.
+    # Fix references in docstrings that are inherited from the
+    # base pytket.backends.Backend class.
     mapping = app.config.external_url_mapping
     if node.astext() in mapping:
         newnode = nodes.reference(
@@ -113,7 +115,7 @@ def correct_signature(
     options: Dict,
     signature: str,
     return_annotation: str,
-) -> (str, str):
+) -> Tuple[str, str]:
 
     new_signature = signature
     new_return_annotation = return_annotation
@@ -122,7 +124,8 @@ def correct_signature(
             new_signature = new_signature.replace(k, v)
         if return_annotation is not None:
             new_return_annotation = new_return_annotation.replace(k, v)
-    # e.g. Replace <CXConfigType.Snake: 0> by CXConfigType.Snake to avoid silent failure in later stages.
+    # e.g. Replace <CXConfigType.Snake: 0> by
+    # CXConfigType.Snake to avoid silent failure in later stages.
     if new_signature is not None:
         enums_signature = re.findall(r"<.+?\: \d+>", new_signature)
         for e in enums_signature:
@@ -136,7 +139,7 @@ def correct_signature(
     return new_signature, new_return_annotation
 
 
-def setup(app):
+def setup(app: Sphinx) -> None:
     app.add_config_value("custom_internal_mapping", {}, "env")
     app.add_config_value("external_url_mapping", {}, "env")
     app.connect("missing-reference", add_reference)

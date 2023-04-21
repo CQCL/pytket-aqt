@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+from typing import Any
 
 DOCS_DIR = Path(sys.argv[0]).absolute().parent
 MODULES_DIR = DOCS_DIR.parent.parent.parent
@@ -16,17 +17,18 @@ PYTKET_AQT_PYPI_LINK = "https://pypi.org/project/pytket-aqt/"
 PYTKET_AQT_GITHUB = "https://github.com/CQCL/pytket-aqt"
 MODULE = "aqt"
 
-def get_module_version():
+
+def get_module_version() -> Any:
     m = import_module(f"pytket.extensions.{MODULE}")
     return m._metadata.__extension_version__.split(".")
 
 
-def remove_dir(dirpath):
+def remove_dir(dirpath: Path) -> None:
     if dirpath.exists() and dirpath.is_dir():
         shutil.rmtree(dirpath)
 
 
-def fix_links(filepath):
+def fix_links(filepath: Path) -> None:
     with open(filepath, "r", encoding="utf8") as f:
         content = f.read()
     content = content.replace("pytket._tket", "pytket")
@@ -34,7 +36,7 @@ def fix_links(filepath):
         f.write(content)
 
 
-def build_module_docs():
+def build_module_docs() -> None:
     v = get_module_version()
     mod_docs = MODULES_DIR / "docs"
     mod_build = mod_docs / "build"
@@ -51,12 +53,10 @@ def build_module_docs():
         )
         content.append(f"\tpytket <{PYTKET_DOCS_LINK}>\n")
         content.append(f"\tpytket extensions <{PYTKET_EX_DOCS_LINK}>\n")
-        content.append(
-            "\n.. toctree::\n\t:caption: Links:\n\t:maxdepth: 1\n\n"
-        )
+        content.append("\n.. toctree::\n\t:caption: Links:\n\t:maxdepth: 1\n\n")
         content.append(f"\tbug tracker <{PYTKET_AQT_GITHUB}/issues>\n")
         content.append(f"\tGitHub <{PYTKET_AQT_GITHUB}>\n")
-        content.append(f"\tPyPi <{PYTKET_AQT_PYPI_LINK}>\n")        
+        content.append(f"\tPyPi <{PYTKET_AQT_PYPI_LINK}>\n")
 
     with open(index_rst, "w") as f:
         f.writelines(content)
@@ -102,4 +102,4 @@ if __name__ == "__main__":
             MODULES_DIR / "docs" / "build",
             dest,
             dirs_exist_ok=True,
-            )
+        )

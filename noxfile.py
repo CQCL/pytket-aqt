@@ -2,7 +2,14 @@
 
 import nox  # type: ignore
 
-locations = "pytket", "tests", "noxfile.py"
+locations = (
+    "pytket",
+    "tests",
+    "setup.py",
+    ".github/workflows/docs/conf.py",
+    ".github/workflows/docs/build-docs",
+    "noxfile.py",
+)
 
 """Nox sessions."""
 
@@ -33,5 +40,6 @@ def type_check(session: nox.sessions.Session) -> None:
     session.install(".")
     session.install("--upgrade", "--pre", "pytket~=1.0")
     session.install("--pre", "-r", "tests/test-requirements.txt")
+    session.install("--pre", "-r", ".github/workflows/docs/requirements.txt")
     session.install("mypy")
     session.run("mypy", *args)
