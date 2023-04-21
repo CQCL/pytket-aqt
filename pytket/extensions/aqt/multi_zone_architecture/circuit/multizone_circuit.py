@@ -106,12 +106,16 @@ MZAOperation = SwapWithinZone | Shuttle
 def _swap_left_to_right_through_list(
     qubit: int, qubit_list: list[int]
 ) -> list[MZAOperation]:
+    """Generate a list of swap operations moving an ion from left to right
+    through a zone"""
     return [SwapWithinZone(qubit, swap_qubit) for swap_qubit in qubit_list]
 
 
 def _swap_right_to_left_through_list(
     qubit: int, qubit_list: list[int]
 ) -> list[MZAOperation]:
+    """Generate a list of swap operations moving an ion from right to left
+    through a zone"""
     return [SwapWithinZone(swap_qubit, qubit) for swap_qubit in reversed(qubit_list)]
 
 
@@ -123,6 +127,8 @@ def _move_from_zone_position_to_connected_zone_edge(
     move_target_edge_type: EdgeType,
     target_zone: int,
 ) -> list[MZAOperation]:
+    """Generate a list of swap and shuttle operations moving an ion from a
+    given position within a zone to the edge of a target zone"""
     move_operations = []
     match (move_source_edge_type, position_in_zone):
         case (EdgeType.Right, VirtualZonePosition.VirtualLeft):
@@ -152,6 +158,16 @@ def _move_from_zone_position_to_connected_zone_edge(
 
 
 class MultiZoneCircuit(Circuit):
+    """Circuit for AQT Multi-Zone architectures
+
+    Adds operations for initialisation of ions within zones and
+    movement of ions between zones.
+
+    Also validates correctness of circuit with respect to the
+    architecture constraints
+
+    """
+
     architecture: MultiZoneArchitecture
     macro_arch: MultiZoneMacroArch
     qubit_to_zones: dict[int, list[int]]
@@ -219,6 +235,13 @@ class MultiZoneCircuit(Circuit):
             self._place_qubit(zone, qubit)
 
     def move_qubit(self, qubit: int, new_zone: int) -> None:
+        """Move a qubit from its current zone to new_zone
+
+        Calculates the needs "PSWAP" and "SHUTTLE" operations to implement move.
+        Adds custom gates to underlying Circuit to signify move and prevent optimisation
+        through the move.
+        Raises error is move is not possible
+        """
         if qubit not in self.qubit_to_zones:
             raise QubitPlacementError("Cannot move qubit that was never placed")
         old_zone = self.qubit_to_zones[qubit][-1]

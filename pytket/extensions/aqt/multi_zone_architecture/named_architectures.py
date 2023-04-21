@@ -1,3 +1,5 @@
+"""Pre-defined named multi-zone architectures for use in multi-zone circuits"""
+
 from .architecture import (
     MultiZoneArchitecture,
     ZoneType,

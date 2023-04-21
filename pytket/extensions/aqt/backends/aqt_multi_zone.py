@@ -241,6 +241,15 @@ class AQTMultiZoneBackend(Backend):
     def get_compiled_circuit(
         self, circuit: MultiZoneCircuit, optimisation_level: int = 2
     ) -> MultiZoneCircuit:
+        """Compile a MultiZoneCircuit to run on an AQT multi-zone architecture
+
+        Compiles the underlying PyTKET Circuit first according to the chosen
+        optimisation level. The barriers within the Circuit mark move points
+        which should not be optimised through.
+
+        Afterwards, the precomputed "PSWAP" and "SHUTTLE" operations are added
+        at the appropriate barrier points.
+        """
 
         circuit.validate()
         new_initial_zone_to_qubits = deepcopy(circuit.initial_zone_to_qubits)
@@ -280,8 +289,9 @@ class AQTMultiZoneBackend(Backend):
 
 
 def get_aqt_json_syntax_for_compiled_circuit(circuit: MultiZoneCircuit) -> List[List]:
+    """Get python List object containing circuit instructions in AQT JSON Syntax"""
     if not circuit.is_compiled:
-        raise Exception("AQT json syntax can only be generated from compiled circuit")
+        raise Exception("AQT json syntax can only be generated from a compiled circuit")
     aqt_syntax_operation_list = _translate_aqt(circuit)[0]
     return aqt_syntax_operation_list
 

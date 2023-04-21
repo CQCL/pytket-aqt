@@ -5,11 +5,31 @@ from pydantic import BaseModel
 
 
 class EdgeType(str, Enum):
+    """Type of given zone edge
+
+    Each zone has two edges that support connections,
+    with a linear arrangement of ions between these edges
+
+    This enum class identifies an edge as being a "right" or "left" type.
+    The use of the terms "right" and "left" is not significant, only that
+    the two edges are distinct. The terms come from the picture of the zone
+    being a linear arrangement of ions on a horizontal line, with shuttling
+    capabilities from the left or right side.
+
+    """
+
     Right = "Right"
     Left = "Left"
 
 
 class ConnectionType(str, Enum):
+    """Type of connection between zones
+
+    This enum class is used to classify a connection as connecting
+    a right or left edge of the "source" zone to the right or left edge of
+    the "target" zone
+    """
+
     RightToRight = "RightToRight"
     RightToLeft = "RightToLeft"
     LeftToRight = "LeftToRight"
@@ -17,6 +37,7 @@ class ConnectionType(str, Enum):
 
 
 def source_edge_type(connection_type: ConnectionType) -> EdgeType:
+    """Retrieves the "source" EdgeType from the ConnectionType"""
     if (
         connection_type == ConnectionType.RightToLeft
         or connection_type == ConnectionType.RightToRight
@@ -26,6 +47,7 @@ def source_edge_type(connection_type: ConnectionType) -> EdgeType:
 
 
 def target_edge_type(connection_type: ConnectionType) -> EdgeType:
+    """Retrieves the "target" EdgeType from the ConnectionType"""
     if (
         connection_type == ConnectionType.LeftToRight
         or connection_type == ConnectionType.RightToRight
@@ -35,6 +57,13 @@ def target_edge_type(connection_type: ConnectionType) -> EdgeType:
 
 
 class ZoneConnection(BaseModel):
+    """A connection between two zones
+
+    The connection allows shuttling between the zones
+    according to the connection type and transfer limit (max
+    number of ions per shuttle)
+    """
+
     connection_type: ConnectionType
     max_transfer: int
 
@@ -43,11 +72,24 @@ class ZoneConnection(BaseModel):
 
 
 class Operation(BaseModel):
+    """Describes an allowed operation and its associated fidelity
+
+    Currently not used
+    """
+
     operation_spec: str
     fidelity: Union[float, str]
 
 
 class ZoneType(BaseModel):
+    """A general zone type
+
+    A zone type is a template that can be used to "instantiate" an
+    actual zone.
+
+    The connections are placeholders for connections to actual zones
+    """
+
     id: int
     name: str
     max_ions: int
@@ -57,6 +99,8 @@ class ZoneType(BaseModel):
 
 
 class Zone(BaseModel):
+    """Processor Zone within the architecture"""
+
     id: int
     name: str
     zone_type_id: int
@@ -64,6 +108,8 @@ class Zone(BaseModel):
 
 
 class MultiZoneArchitecture(BaseModel):
+    """Class that determines the entire Multi-Zone Architecture"""
+
     n_qubits_max: int
     n_zones: int
     zone_types: List[ZoneType]
