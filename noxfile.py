@@ -18,7 +18,7 @@ locations = (
 def test(session: nox.sessions.Session) -> None:
     """Run the test suite."""
     args = session.posargs or ["tests"]
-    session.install(".")
+    session.install("-e", ".")
     session.install("--upgrade", "--pre", "pytket~=1.0")
     session.install("--pre", "-r", "tests/test-requirements.txt")
     session.run("pytest", *args)
@@ -37,7 +37,7 @@ def lint(session: nox.sessions.Session) -> None:
 def type_check(session: nox.sessions.Session) -> None:
     """Type-check using mypy."""
     args = session.posargs or locations
-    session.install(".")
+    session.install("-e", ".")
     session.install("--upgrade", "--pre", "pytket~=1.0")
     session.install("--pre", "-r", "tests/test-requirements.txt")
     session.install("--pre", "-r", ".github/workflows/docs/requirements.txt")
