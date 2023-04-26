@@ -4,6 +4,8 @@ Changelog
 0.26.0 (unreleased)
 -------------------
 
+* Change default optimisation level to 2
+* Add Rz gate to aqt backend
 * Add experimental support for multi zone ion trap architectures
 * Dropped support for python 3.8 and 3.9, added support for 3.11
 

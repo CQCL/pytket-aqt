@@ -71,6 +71,7 @@ _DEVICE_INFO = {
 _GATE_SET = {
     OpType.Rx,
     OpType.Ry,
+    OpType.Rz,
     OpType.XXPhase,
     OpType.Measure,
     OpType.Barrier,
@@ -185,7 +186,7 @@ class AQTBackend(Backend):
             preds.append(MaxNQubitsPredicate(self._backend_info.n_nodes))
         return preds
 
-    def default_compilation_pass(self, optimisation_level: int = 1) -> BasePass:
+    def default_compilation_pass(self, optimisation_level: int = 2) -> BasePass:
         assert optimisation_level in range(3)
         if optimisation_level == 0:
             return SequencePass(
@@ -363,6 +364,8 @@ def _translate_aqt(circ: Circuit) -> Tuple[List[List], str]:
             gates.append(["X", op.params[0], [q.index[0] for q in cmd.args]])
         elif optype == OpType.Ry:
             gates.append(["Y", op.params[0], [q.index[0] for q in cmd.args]])
+        elif optype == OpType.Rz:
+            gates.append(["Z", op.params[0], [q.index[0] for q in cmd.args]])
         elif optype == OpType.XXPhase:
             gates.append(["MS", op.params[0], [q.index[0] for q in cmd.args]])
         elif optype == OpType.Measure:
