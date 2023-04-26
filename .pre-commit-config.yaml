@@ -1,0 +1,34 @@
+repos:
+  - repo: local
+    hooks:
+      - id: lint
+        name: lint
+        entry: nox -rs lint --
+        language: system
+        types: [python]
+        files: "^pytket/.+|^tests/.+|.github/workflows/docs/.+|setup.py|noxfile.py"
+        require_serial: true
+      - id: mypy
+        name: mypy
+        entry: nox -rs type_check --
+        language: system
+        types: [python]
+        files: "^pytket/.+|^tests/.+|.github/workflows/docs/.+|setup.py|noxfile.py"
+        require_serial: true
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v2.7.1
+    hooks:
+      - id: prettier
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: check-yaml
+      - id: check-toml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-added-large-files
+        exclude: ^docs/
+      - id: check-executables-have-shebangs
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: no-commit-to-branch

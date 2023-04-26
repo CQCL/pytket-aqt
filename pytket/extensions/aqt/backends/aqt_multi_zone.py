@@ -13,17 +13,14 @@
 # limitations under the License.
 
 import json
-import time
-from ast import literal_eval
-from typing import Dict, List, Optional, Sequence, Tuple, Union, cast, Any
+from copy import deepcopy
+from typing import Dict, List, Optional, Sequence, Tuple, Union, Any
 
-from requests import put
 from pytket.backends import Backend, CircuitStatus, ResultHandle, StatusEnum
 from pytket.backends.backend import KwargTypes
 from pytket.backends.backendinfo import BackendInfo, fully_connected_backendinfo
 from pytket.backends.backendresult import BackendResult
 from pytket.backends.resulthandle import _ResultIdTuple
-from pytket.backends.backend_exceptions import CircuitNotRunError
 from pytket.circuit import Circuit, Node, OpType, Qubit  # type: ignore
 from pytket.passes import (  # type: ignore
     BasePass,
@@ -47,26 +44,17 @@ from pytket.predicates import (  # type: ignore
     NoSymbolsPredicate,
     Predicate,
 )
-from pytket.utils import prepare_circuit
-from pytket.utils.outcomearray import OutcomeArray
+
+from ..multi_zone_architecture.architecture import MultiZoneArchitecture
+from ..multi_zone_architecture.circuit.multizone_circuit import (
+    MultiZoneCircuit,
+)
 from .._metadata import __extension_version__
-from .config import AQTConfig
+from ..backends.config import AQTConfig
 
 AQT_URL_PREFIX = "https://gateway.aqt.eu/marmot/"
 
-AQT_DEVICE_QC = "lint"
-AQT_DEVICE_SIM = "sim"
-AQT_DEVICE_NOISY_SIM = "sim/noise-model-1"
-
 _DEBUG_HANDLE_PREFIX = "_MACHINE_DEBUG_"
-
-# Hard-coded for now as there is no API to retrieve these.
-# All devices are fully connected.
-_DEVICE_INFO = {
-    AQT_DEVICE_QC: {"max_n_qubits": 4},
-    AQT_DEVICE_SIM: {"max_n_qubits": 10},
-    AQT_DEVICE_NOISY_SIM: {"max_n_qubits": 10},
-}
 
 _GATE_SET = {
     OpType.Rx,
@@ -94,9 +82,9 @@ class AqtAuthenticationError(Exception):
         super().__init__("No AQT access token provided or found in config file.")
 
 
-class AQTBackend(Backend):
+class AQTMultiZoneBackend(Backend):
     """
-    Interface to an AQT device or simulator.
+    Interface to an AQT device with multiple compute zones.
     """
 
     _supports_shots = True
@@ -106,15 +94,19 @@ class AQTBackend(Backend):
 
     def __init__(
         self,
-        device_name: str = AQT_DEVICE_SIM,
+        architecture: MultiZoneArchitecture,
+        device_name: str = "multi_zone",
         access_token: Optional[str] = None,
         label: str = "",
     ):
         """
-        Construct a new AQT backend.
+        Construct a new AQT backend for multi zone architectures.
 
-        Requires a valid API key/access token, this can either be provided as a
-        parameter or set in config using :py:meth:`pytket.extensions.aqt.set_aqt_config`
+        This backend currently only supports compilation of circuits
+         of type MultiZoneCircuit.
+        Submission of circuits to a quantum machine is not supported.
+
+        The backend is currently for experimental purposes only.
 
         :param      device_name:  device name (suffix of URL, e.g. "sim/noise-model-1")
         :type       device_name:  string
@@ -136,18 +128,15 @@ class AQTBackend(Backend):
         self._header = {"Ocp-Apim-Subscription-Key": access_token, "SDK": "pytket"}
         self._backend_info: Optional[BackendInfo] = None
         self._qm: Dict[Qubit, Node] = {}
-        if device_name in _DEVICE_INFO:
-            self._backend_info = fully_connected_backendinfo(
-                type(self).__name__,
-                device_name,
-                __extension_version__,
-                _DEVICE_INFO[device_name]["max_n_qubits"],
-                _GATE_SET,
-            )
-            self._qm = {
-                Qubit(i): node for i, node in enumerate(self._backend_info.nodes)
-            }
-        self._MACHINE_DEBUG = False
+        self._backend_info = fully_connected_backendinfo(
+            type(self).__name__,
+            device_name,
+            __extension_version__,
+            architecture.n_qubits_max,
+            _GATE_SET,
+        )
+        self._qm = {Qubit(i): node for i, node in enumerate(self._backend_info.nodes)}
+        self._MACHINE_DEBUG = True
 
     def rebase_pass(self) -> BasePass:
         return _aqt_rebase()
@@ -162,16 +151,7 @@ class AQTBackend(Backend):
         See :py:meth:`pytket.backends.Backend.available_devices`.
         Supported kwargs: none.
         """
-        return [
-            fully_connected_backendinfo(
-                cls.__name__,
-                key,
-                __extension_version__,
-                value["max_n_qubits"],
-                _GATE_SET,
-            )
-            for key, value in _DEVICE_INFO.items()
-        ]
+        return []
 
     @property
     def required_predicates(self) -> List[Predicate]:
@@ -241,133 +221,175 @@ class AQTBackend(Backend):
         See :py:meth:`pytket.backends.Backend.process_circuits`.
         Supported kwargs: none.
         """
-        circuits = list(circuits)
-        n_shots_list = Backend._get_n_shots_as_list(
-            n_shots,
-            len(circuits),
-            optional=False,
-        )
-
-        if valid_check:
-            self._check_all_circuits(circuits)
-
-        postprocess = kwargs.get("postprocess", False)
-
-        handles = []
-        for i, (c, n_shots) in enumerate(zip(circuits, n_shots_list)):
-            if postprocess:
-                c0, ppcirc = prepare_circuit(c, allow_classical=False, xcirc=_xcirc)
-                ppcirc_rep = ppcirc.to_dict()
-            else:
-                c0, ppcirc_rep = c, None
-            (aqt_circ, measures) = _translate_aqt(c0)
-            if self._MACHINE_DEBUG:
-                handles.append(
-                    ResultHandle(
-                        _DEBUG_HANDLE_PREFIX + str((c.n_qubits, n_shots)),
-                        measures,
-                        json.dumps(ppcirc_rep),
-                    )
-                )
-            else:
-                resp = put(
-                    self._url,
-                    data={
-                        "data": json.dumps(aqt_circ),
-                        "repetitions": n_shots,
-                        "no_qubits": c.n_qubits,
-                        "label": c.name if c.name else f"{self._label}_{i}",
-                    },
-                    headers=self._header,
-                ).json()
-                if "status" not in resp:
-                    raise RuntimeError(resp["message"])
-                if resp["status"] == "error":
-                    raise RuntimeError(resp["ERROR"])
-                handles.append(
-                    ResultHandle(resp["id"], measures, json.dumps(ppcirc_rep))
-                )
-        for handle in handles:
-            self._cache[handle] = dict()
-        return handles
+        raise NotImplementedError
 
     def _update_cache_result(
         self, handle: ResultHandle, result_dict: Dict[str, BackendResult]
     ) -> None:
-        if handle in self._cache:
-            self._cache[handle].update(result_dict)
-        else:
-            self._cache[handle] = result_dict
+        raise NotImplementedError
 
     def circuit_status(self, handle: ResultHandle) -> CircuitStatus:
-        self._check_handle_type(handle)
-        jobid = handle[0]
-        message = ""
-        measure_permutations = json.loads(handle[1])  # type: ignore
-        ppcirc_rep = json.loads(cast(str, handle[2]))
-        ppcirc = Circuit.from_dict(ppcirc_rep) if ppcirc_rep is not None else None
-        if self._MACHINE_DEBUG:
-            n_qubits, n_shots = literal_eval(jobid[len(_DEBUG_HANDLE_PREFIX) :])  # type: ignore
-            empty_ar = OutcomeArray.from_ints([0] * n_shots, n_qubits, big_endian=True)
-            self._update_cache_result(
-                handle, {"result": BackendResult(shots=empty_ar, ppcirc=ppcirc)}
-            )
-            statenum = StatusEnum.COMPLETED
-        else:
-            data = put(self._url, data={"id": jobid}, headers=self._header).json()
-            status = data["status"]
-            if "ERROR" in data:
-                message = data["ERROR"]
-            statenum = _STATUS_MAP.get(status, StatusEnum.ERROR)
-            if statenum is StatusEnum.COMPLETED:
-                shots = OutcomeArray.from_ints(
-                    data["samples"], data["no_qubits"], big_endian=True
-                )
-                shots = shots.choose_indices(measure_permutations)
-                self._update_cache_result(
-                    handle, {"result": BackendResult(shots=shots, ppcirc=ppcirc)}
-                )
-        return CircuitStatus(statenum, message)
+        raise NotImplementedError
 
     def get_result(self, handle: ResultHandle, **kwargs: KwargTypes) -> BackendResult:
         """
         See :py:meth:`pytket.backends.Backend.get_result`.
         Supported kwargs: `timeout`, `wait`.
         """
-        try:
-            return super().get_result(handle)
-        except CircuitNotRunError:
-            timeout = cast(float, kwargs.get("timeout"))
-            wait = kwargs.get("wait", 1.0)
-            # Wait for job to finish; result will then be in the cache.
-            end_time = (time.time() + timeout) if (timeout is not None) else None
-            while (end_time is None) or (time.time() < end_time):
-                circuit_status = self.circuit_status(handle)
-                if circuit_status.status is StatusEnum.COMPLETED:
-                    return cast(BackendResult, self._cache[handle]["result"])
-                if circuit_status.status is StatusEnum.ERROR:
-                    raise RuntimeError(circuit_status.message)
-                time.sleep(cast(float, wait))
-            raise RuntimeError(f"Timed out: no results after {timeout} seconds.")
+        raise NotImplementedError
+
+    def get_compiled_circuit(
+        self, circuit: MultiZoneCircuit, optimisation_level: int = 2
+    ) -> MultiZoneCircuit:
+        """Compile a MultiZoneCircuit to run on an AQT multi-zone architecture
+
+        Compiles the underlying PyTKET Circuit first according to the chosen
+        optimisation level. The barriers within the Circuit mark move points
+        which should not be optimised through.
+
+        Afterwards, the precomputed "PSWAP" and "SHUTTLE" operations are added
+        at the appropriate barrier points.
+        """
+
+        circuit.validate()
+        new_initial_zone_to_qubits = deepcopy(circuit.initial_zone_to_qubits)
+        new_circuit = MultiZoneCircuit(
+            circuit.architecture,
+            new_initial_zone_to_qubits,
+            circuit.n_qubits,
+            circuit.n_bits,
+        )
+        compiled_circuit = super().get_compiled_circuit(circuit)
+
+        new_circuit.zone_to_qubits = deepcopy(circuit.zone_to_qubits)
+        new_circuit.multi_zone_operations = deepcopy(circuit.multi_zone_operations)
+
+        current_multiop_index_per_qubit: dict[int, int] = {
+            k: 0 for k in new_circuit.multi_zone_operations.keys()
+        }
+        for cmd in compiled_circuit:
+            op = cmd.op
+            if op.type == OpType.Barrier:
+                if len(cmd.args) == len(circuit.all_qubit_list):
+                    continue
+                qubit = cmd.args[0].index[0]
+                current_multiop_index = current_multiop_index_per_qubit[qubit]
+                mult_op_bundles = new_circuit.multi_zone_operations[qubit]
+                multi_ops = mult_op_bundles[current_multiop_index]
+                for multi_op in multi_ops:
+                    multi_op.append_to_circuit(new_circuit)
+                new_circuit.add_move_barrier()
+                current_multiop_index_per_qubit[qubit] = current_multiop_index + 1
+            else:
+                qubits = [q.index[0] for q in cmd.args]
+                new_circuit.add_gate(cmd.op.type, op.params, qubits)
+
+        new_circuit.is_compiled = True
+        return new_circuit
 
 
-def _translate_aqt(circ: Circuit) -> Tuple[List[List], str]:
+def get_aqt_json_syntax_for_compiled_circuit(circuit: MultiZoneCircuit) -> List[List]:
+    """Get python List object containing circuit instructions in AQT JSON Syntax"""
+    if not circuit.is_compiled:
+        raise Exception("AQT json syntax can only be generated from a compiled circuit")
+    aqt_syntax_operation_list = _translate_aqt(circuit)[0]
+    return aqt_syntax_operation_list
+
+
+def _translate_aqt(circ: MultiZoneCircuit) -> Tuple[List[List], str]:
     """Convert a circuit in the AQT gate set to AQT list representation,
     along with a JSON string describing the measure result permutations."""
     gates: List = list()
     measures: List = list()
+    qubit_to_zone_position: dict[int, tuple[int, int]] = {}
+    zone_to_occupancy_offset: dict[int, tuple[int, int]] = {}
+    for zone, qubits in circ.initial_zone_to_qubits.items():
+        for position, qubit in enumerate(qubits):
+            qubit_to_zone_position[qubit] = (zone, position)
+        zone_to_occupancy_offset[zone] = (len(qubits), 0)
+
+    def zop(qubit_: int) -> list[int]:
+        (zone_, position_) = qubit_to_zone_position[qubit_]
+        (occupancy_, offset_) = zone_to_occupancy_offset[zone_]
+        return [zone_, occupancy_, position_ - offset_]
+
+    def swap_position(qubit_1_: int, qubit_2_: int) -> None:
+        (zone_1, position_1) = qubit_to_zone_position[qubit_1_]
+        (zone_2, position_2) = qubit_to_zone_position[qubit_2_]
+        if zone_1 != zone_2:
+            raise Exception
+        qubit_to_zone_position[qubit_1_] = (zone_2, position_2)
+        qubit_to_zone_position[qubit_2_] = (zone_1, position_1)
+
     for cmd in circ.get_commands():
         op = cmd.op
         optype = op.type
+        op_string = f"{op}"
         # https://www.aqt.eu/aqt-gate-definitions/
         if optype == OpType.Rx:
-            gates.append(["X", op.params[0], [q.index[0] for q in cmd.args]])
+            gates.append(["X", op.params[0], [zop(q.index[0]) for q in cmd.args]])
         elif optype == OpType.Ry:
-            gates.append(["Y", op.params[0], [q.index[0] for q in cmd.args]])
+            gates.append(["Y", op.params[0], [zop(q.index[0]) for q in cmd.args]])
         elif optype == OpType.Rz:
-            gates.append(["Z", op.params[0], [q.index[0] for q in cmd.args]])
+            gates.append(["Z", op.params[0], [zop(q.index[0]) for q in cmd.args]])
         elif optype == OpType.XXPhase:
-            gates.append(["MS", op.params[0], [q.index[0] for q in cmd.args]])
+            gates.append(["MS", op.params[0], [zop(q.index[0]) for q in cmd.args]])
+        elif optype == OpType.CustomGate:
+            if "MOVE" in op_string:
+                pass
+            elif "INIT" in op_string:
+                target_zone = int(op.params[0])
+                gates.append(["INIT", [target_zone, len(cmd.args)]])
+            elif "PSWAP" in op_string:
+                qubit_1 = cmd.args[0].index[0]
+                qubit_2 = cmd.args[1].index[0]
+                gates.append(["PSWAP", [zop(qubit_1), zop(qubit_2)]])
+                swap_position(qubit_1, qubit_2)
+            elif "SHUTTLE" in op_string:
+                qubit = cmd.args[0].index[0]
+                (source_zone, source_position) = qubit_to_zone_position[qubit]
+                (source_occupancy, source_offset) = zone_to_occupancy_offset[
+                    source_zone
+                ]
+                target_zone = int(op.params[0])
+                (target_occupancy, target_offset) = zone_to_occupancy_offset[
+                    target_zone
+                ]
+                source_edge_encoding = op.params[1]
+                target_edge_encoding = op.params[2]
+                if source_edge_encoding < 0:
+                    zone_to_occupancy_offset[source_zone] = (
+                        source_occupancy - 1,
+                        source_offset + 1,
+                    )
+                else:
+                    zone_to_occupancy_offset[source_zone] = (
+                        source_occupancy - 1,
+                        source_offset,
+                    )
+                if target_edge_encoding < 0:
+                    zone_to_occupancy_offset[target_zone] = (
+                        target_occupancy + 1,
+                        target_offset - 1,
+                    )
+                    qubit_to_zone_position[qubit] = (target_zone, target_offset - 1)
+                else:
+                    zone_to_occupancy_offset[target_zone] = (
+                        target_occupancy + 1,
+                        target_offset,
+                    )
+                    qubit_to_zone_position[qubit] = (
+                        target_zone,
+                        target_occupancy + target_offset,
+                    )
+
+                zop_source = [
+                    source_zone,
+                    source_occupancy,
+                    source_position - source_offset,
+                ]
+                gates.append(["SHUTTLE", 1, [zop_source, zop(qubit)]])
+
         elif optype == OpType.Measure:
             # predicate has already checked format is correct, so
             # errors are not handled here
@@ -380,7 +402,7 @@ def _translate_aqt(circ: Circuit) -> Tuple[List[List], str]:
             assert optype in {OpType.noop, OpType.Barrier}
     if None in measures:
         raise IndexError("Bit index not written to by a measurement.")
-    return (gates, json.dumps(measures))
+    return gates, json.dumps(measures)
 
 
 def _aqt_rebase() -> RebaseCustom:
