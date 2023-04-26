@@ -53,6 +53,8 @@ swap_gate = CustomGateDef("PSWAP", swap_def_circ, [])
 
 @dataclass
 class SwapWithinZone:
+    """This class holds all information for defining a PSWAP"""
+
     qubit_0: int
     qubit_1: int
 
@@ -65,6 +67,8 @@ class SwapWithinZone:
 
 @dataclass
 class Shuttle:
+    """This class holds all information for defining a SHUTTLE operation"""
+
     qubit: int
     zone: int
 
@@ -215,6 +219,12 @@ class MultiZoneCircuit(Circuit):
         self._is_compiled = new_value
 
     def add_move_barrier(self) -> None:
+        """Add custom gate MOVE_BARRIER
+
+        This is internally a barrier over all qubits
+        It is necessary to prevent reordering of shuttling
+        during compilation
+        """
         self.add_custom_gate(self.move_barrier_gate, [], self.all_qubit_list)
 
     def _place_qubit(self, zone: int, qubit: int) -> None:
