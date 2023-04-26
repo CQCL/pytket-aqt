@@ -46,7 +46,7 @@ The following nox sessions are provided:
 - `lint`: run `black` and `pylint` for all supported python versions
 - `type_check`: run `mypy` for all supported python versions
 
-To run a session, install the `nox` command (e.g., using pipx) and run:
+To run a session, install the `nox` command (e.g., using `pipx`) and run:
 
 ```shell
 nox -s <session_name>
@@ -58,7 +58,7 @@ The checks are designed to conform to
 ### Pre-commit
 
 [Pre-commit](https://pre-commit.com/) can be used to run a configured set of git pre-commit hooks before each commit. This is recommended.
-To set up the pre-commit hooks, install `pre-commit` (e.g., using pipx) and run:
+To set up the pre-commit hooks, install `pre-commit` (e.g., using `pipx`) and run:
 
 ```shell
 pre-commit install
@@ -67,6 +67,8 @@ pre-commit install
 Afterwards the [pre-configured hooks](.pre-commit-config.yaml) will run automatically before each commit. The commit will be
 rejected if the hooks find errors. Some hooks will correct formatting issues automatically (but will still reject the commit, so that
 the `git commit` command will need to be repeated).
+
+Note that some pre-commit hooks require that `nox` is installed (e.g., using `pipx`)
 
 ## Contributing
 
