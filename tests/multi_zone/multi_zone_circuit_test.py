@@ -1,6 +1,6 @@
 import pytest
 
-from pytket import OpType
+from pytket.circuit import OpType  # type: ignore
 
 from pytket.extensions.aqt.multi_zone_architecture.circuit.multizone_circuit import (
     MultiZoneCircuit,
