@@ -42,4 +42,10 @@ def type_check(session: nox.sessions.Session) -> None:
     session.install("--pre", "-r", "tests/test-requirements.txt")
     session.install("--pre", "-r", ".github/workflows/docs/requirements.txt")
     session.install("mypy")
-    session.run("mypy", "--config-file=mypy.ini", "--no-incremental", *args)
+    session.run(
+        "mypy",
+        "--config-file=mypy.ini",
+        "--no-incremental",
+        "--explicit-package-bases",
+        *args
+    )
