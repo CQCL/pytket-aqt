@@ -42,7 +42,7 @@ setup(
     packages=find_namespace_packages(include=["pytket.*"]),
     include_package_data=True,
     install_requires=[
-        "pytket ~= 1.15",
+        "pytket ~= 1.16",
         "requests ~= 2.22",
         "types-requests",
         "pydantic ~= 1.10",
