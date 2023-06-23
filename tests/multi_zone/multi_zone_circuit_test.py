@@ -1,12 +1,16 @@
 import pytest
-
 from pytket.circuit import OpType  # type: ignore
-
+from pytket.extensions.aqt.multi_zone_architecture.circuit.multizone_circuit import (
+    AcrossZoneOperationError,
+)
+from pytket.extensions.aqt.multi_zone_architecture.circuit.multizone_circuit import (
+    MoveError,
+)
 from pytket.extensions.aqt.multi_zone_architecture.circuit.multizone_circuit import (
     MultiZoneCircuit,
-    MoveError,
+)
+from pytket.extensions.aqt.multi_zone_architecture.circuit.multizone_circuit import (
     QubitPlacementError,
-    AcrossZoneOperationError,
 )
 from pytket.extensions.aqt.multi_zone_architecture.named_architectures import (
     four_zones_in_a_line,

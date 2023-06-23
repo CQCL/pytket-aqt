@@ -1,7 +1,6 @@
 from pytket.extensions.aqt.multi_zone_architecture.architecture import (
     MultiZoneArchitecture,
 )
-
 from pytket.extensions.aqt.multi_zone_architecture.named_architectures import (
     four_zones_in_a_line,
 )

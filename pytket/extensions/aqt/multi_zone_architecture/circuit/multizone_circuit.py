@@ -1,24 +1,24 @@
 import itertools
 import logging
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field
 from enum import Enum
-from typing import Any, cast
+from typing import Any
+from typing import cast
 from sympy import symbols
 
-from pytket.circuit import Circuit, OpType, CustomGateDef  # type: ignore
+from pytket.circuit import Circuit
+from pytket.circuit import CustomGateDef
+from pytket.circuit import OpType
 
-from ..architecture import (
-    MultiZoneArchitecture,
-    EdgeType,
-    source_edge_type,
-    target_edge_type,
-)
-from ..macro_architechture_graph import (
-    MultiZoneMacroArch,
-    empty_macro_arch_from_backend,
-    ZoneId,
-)
+from ..architecture import EdgeType
+from ..architecture import MultiZoneArchitecture
+from ..architecture import source_edge_type
+from ..architecture import target_edge_type
+from ..macro_architechture_graph import empty_macro_arch_from_backend
+from ..macro_architechture_graph import MultiZoneMacroArch
+from ..macro_architechture_graph import ZoneId
 
 
 class QubitPlacementError(Exception):

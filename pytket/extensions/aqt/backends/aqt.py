@@ -11,44 +11,54 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import json
 import time
 from ast import literal_eval
-from typing import Dict, List, Optional, Sequence, Tuple, Union, cast, Any
-
+from typing import Any
+from typing import cast
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Sequence
+from typing import Tuple
+from typing import Union
 from requests import put
-from pytket.backends import Backend, CircuitStatus, ResultHandle, StatusEnum
+
+from pytket.backends import Backend
+from pytket.backends import CircuitStatus
+from pytket.backends import ResultHandle
+from pytket.backends import StatusEnum
 from pytket.backends.backend import KwargTypes
-from pytket.backends.backendinfo import BackendInfo, fully_connected_backendinfo
+from pytket.backends.backend_exceptions import CircuitNotRunError
+from pytket.backends.backendinfo import BackendInfo
+from pytket.backends.backendinfo import fully_connected_backendinfo
 from pytket.backends.backendresult import BackendResult
 from pytket.backends.resulthandle import _ResultIdTuple
-from pytket.backends.backend_exceptions import CircuitNotRunError
-from pytket.circuit import Circuit, Node, OpType, Qubit  # type: ignore
-from pytket.passes import (  # type: ignore
-    BasePass,
-    SequencePass,
-    SynthesiseTket,
-    FullPeepholeOptimise,
-    FlattenRegisters,
-    RebaseCustom,
-    EulerAngleReduction,
-    DecomposeBoxes,
-    RenameQubitsPass,
-    SimplifyInitial,
-    auto_rebase_pass,
-)
-from pytket.predicates import (  # type: ignore
-    GateSetPredicate,
-    MaxNQubitsPredicate,
-    NoClassicalControlPredicate,
-    NoFastFeedforwardPredicate,
-    NoMidMeasurePredicate,
-    NoSymbolsPredicate,
-    Predicate,
-)
+from pytket.circuit import Circuit
+from pytket.circuit import Node
+from pytket.circuit import OpType
+from pytket.circuit import Qubit
+from pytket.passes import auto_rebase_pass
+from pytket.passes import BasePass
+from pytket.passes import DecomposeBoxes
+from pytket.passes import EulerAngleReduction
+from pytket.passes import FlattenRegisters
+from pytket.passes import FullPeepholeOptimise
+from pytket.passes import RebaseCustom
+from pytket.passes import RenameQubitsPass
+from pytket.passes import SequencePass
+from pytket.passes import SimplifyInitial
+from pytket.passes import SynthesiseTket
+from pytket.predicates import GateSetPredicate
+from pytket.predicates import MaxNQubitsPredicate
+from pytket.predicates import NoClassicalControlPredicate
+from pytket.predicates import NoFastFeedforwardPredicate
+from pytket.predicates import NoMidMeasurePredicate
+from pytket.predicates import NoSymbolsPredicate
+from pytket.predicates import Predicate
 from pytket.utils import prepare_circuit
 from pytket.utils.outcomearray import OutcomeArray
+
 from .._metadata import __extension_version__
 from .config import AQTConfig
 

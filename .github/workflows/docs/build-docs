@@ -1,12 +1,11 @@
 #!/usr/bin/env python
-
 import argparse
 import datetime
-from importlib import import_module
-from pathlib import Path
 import shutil
 import subprocess
 import sys
+from importlib import import_module
+from pathlib import Path
 from typing import Any
 
 DOCS_DIR = Path(sys.argv[0]).absolute().parent
@@ -29,7 +28,7 @@ def remove_dir(dirpath: Path) -> None:
 
 
 def fix_links(filepath: Path) -> None:
-    with open(filepath, "r", encoding="utf8") as f:
+    with open(filepath, encoding="utf8") as f:
         content = f.read()
     content = content.replace("pytket._tket", "pytket")
     with open(filepath, "w", encoding="utf8") as f:
@@ -48,7 +47,7 @@ def build_module_docs() -> None:
     shutil.copy(DOCS_DIR / "Quantinuum_logo_white.png", logo_copy_white)
     remove_dir(mod_build)
     index_rst = mod_docs / "index.rst"
-    with open(mod_docs / "intro.txt", "r") as f:
+    with open(mod_docs / "intro.txt") as f:
         content = f.readlines()
         content.append(
             "\n.. toctree::\n\t:caption: More documentation:\n\t:maxdepth: 1\n\n"

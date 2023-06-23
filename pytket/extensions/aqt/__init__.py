@@ -11,11 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""Backends for processing pytket circuits with AQT devices
-"""
-
-# _metadata.py is copied to the folder after installation.
-from ._metadata import __extension_version__, __extension_name__  # type: ignore
+"""Backends for processing pytket circuits with AQT devices."""
 from .backends import AQTBackend
-from .backends.config import AQTConfig, set_aqt_config
+from .backends.config import AQTConfig
+from .backends.config import set_aqt_config
