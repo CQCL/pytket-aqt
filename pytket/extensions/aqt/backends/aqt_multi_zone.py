@@ -53,12 +53,12 @@ from pytket.predicates import NoMidMeasurePredicate
 from pytket.predicates import NoSymbolsPredicate
 from pytket.predicates import Predicate
 
-from .._metadata import __extension_version__
 from ..backends.config import AQTConfig
 from ..multi_zone_architecture.architecture import MultiZoneArchitecture
 from ..multi_zone_architecture.circuit.multizone_circuit import (
     MultiZoneCircuit,
 )
+from ..extension_version import __extension_version__
 
 AQT_URL_PREFIX = "https://gateway.aqt.eu/marmot/"
 

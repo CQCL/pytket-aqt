@@ -11,7 +11,6 @@ dist
 obj
 docs/extensions
 .ipynb_checkpoints
-pytket/extensions/aqt/_metadata.py
 /.python-version
 .nox
 .pytest_cache

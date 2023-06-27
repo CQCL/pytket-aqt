@@ -59,8 +59,10 @@ from pytket.predicates import Predicate
 from pytket.utils import prepare_circuit
 from pytket.utils.outcomearray import OutcomeArray
 
-from .._metadata import __extension_version__
+
 from .config import AQTConfig
+
+from ..extension_version import __extension_version__
 
 AQT_URL_PREFIX = "https://gateway.aqt.eu/marmot/"
 
