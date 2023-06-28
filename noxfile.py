@@ -234,25 +234,11 @@ def coverage(session: nox.Session) -> None:
     session.run("coverage", *args)
 
 
-@nox.session(python=python_versions)
-def xdoctest(session: nox.Session) -> None:
-    """Run examples with xdoctest."""
-    args = session.posargs or ["all"]
-    install(session, groups=["xdoctest"])
-    session.run("python", "-m", "xdoctest", package, *args)
-
-
 @nox.session(name="docs-build", python="3.10")
 def docs_build(session: nox.Session) -> None:
     """Build the documentation."""
-    args = session.posargs or ["docs", "docs/_build"]
     install(session, groups=["docs"])
-
-    build_dir = Path("docs", "_build")
-    if build_dir.exists():
-        shutil.rmtree(build_dir)
-
-    session.run("sphinx-build", *args)
+    session.run("./docs/build-docs", external=True)
 
 
 @nox.session(python="3.10")
