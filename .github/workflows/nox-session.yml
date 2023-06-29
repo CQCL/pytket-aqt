@@ -14,7 +14,7 @@ on:
         required: true
   workflow_dispatch:
     inputs:
-      python:
+      python-version:
         description: "Python version to use"
         type: choice
         default: "3.10"
