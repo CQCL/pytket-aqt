@@ -1,0 +1,126 @@
+name: Run nox session
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        type: string
+        required: true
+      os:
+        type: string
+        required: true
+      nox-session:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      python:
+        description: "Python version to use"
+        type: choice
+        default: "3.10"
+        required: true
+        options:
+          - "3.10"
+          - "3.11"
+      os:
+        description: "Runner OS"
+        type: choice
+        default: "ubuntu-22.04"
+        required: true
+        options:
+          - "ubuntu-22.04"
+          - "macos-12"
+          - "windows-2022"
+      nox-session:
+        description: "Nox session to run"
+        type: choice
+        required: true
+        options:
+          - tests
+          - mypy
+          - pre-commit
+          - docs-build
+
+jobs:
+  tests:
+    name: ${{ inputs.nox-session }} ${{ inputs.python-version }} / ${{ inputs.os }}
+    runs-on: ${{ inputs.os }}
+    env:
+      NOXSESSION: ${{ inputs.session }}
+      FORCE_COLOR: "1"
+      PRE_COMMIT_COLOR: "always"
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python ${{ inputs.python-version }}
+        uses: actions/setup-python@v4.5.0
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Upgrade pip
+        run: |
+          pip install --upgrade pip
+          pip --version
+
+      - name: Upgrade pip in virtual environments
+        shell: python
+        run: |
+          import os
+          import pip
+
+          with open(os.environ["GITHUB_ENV"], mode="a") as io:
+              print(f"VIRTUALENV_PIP={pip.__version__}", file=io)
+
+      - name: Install Poetry
+        run: |
+          pipx install --pip-args=--constraint=dev-requirements.txt poetry
+          poetry --version
+
+      - name: Install Nox
+        run: |
+          pipx install --pip-args=--constraint=dev-requirements.txt nox
+          nox --version
+
+      - name: Compute pre-commit cache key
+        if: inputs.session == 'pre-commit'
+        id: pre-commit-cache
+        shell: python
+        run: |
+          import hashlib
+          import sys
+
+          python = "py{}.{}".format(*sys.version_info[:2])
+          payload = sys.version.encode() + sys.executable.encode()
+          digest = hashlib.sha256(payload).hexdigest()
+          result = "${{ runner.os }}-{}-{}-pre-commit".format(python, digest[:8])
+
+          print("::set-output name=result::{}".format(result))
+
+      - name: Restore pre-commit cache
+        uses: actions/cache@v3
+        if: inputs.session == 'pre-commit'
+        with:
+          path: ~/.cache/pre-commit
+          key: ${{ steps.pre-commit-cache.outputs.result }}-${{ hashFiles('.pre-commit-config.yaml') }}
+          restore-keys: |
+            ${{ steps.pre-commit-cache.outputs.result }}-
+
+      - name: Run Nox
+        run: |
+          nox --python=${{ inputs.python-version }}
+
+#      - name: Upload coverage data
+#        if: always() && inputs.session == 'tests'
+#        uses: "actions/upload-artifact@v3"
+#        with:
+#          name: coverage-data
+#          path: ".coverage.*"
+#
+#      - name: Upload documentation
+#        if: inputs.session == 'docs-build'
+#        uses: actions/upload-artifact@v3
+#        with:
+#          name: docs
+#          path: docs/_build
