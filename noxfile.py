@@ -1,31 +1,88 @@
 """Nox sessions."""
 import os
 import shlex
-import shutil
 import sys
 from pathlib import Path
 from textwrap import dedent
 from typing import Iterable
-from typing import Iterator
 
 import nox
-
 
 package = "pytket_aqt"
 python_versions = ["3.11", "3.10"]
 nox.needs_version = ">= 2021.10.1"
 nox.options.sessions = (
     "pre-commit",
-    "safety",
     "mypy",
     "tests",
-    "typeguard",
-    "xdoctest",
     "docs-build",
+    "coverage",
 )
 
 
-def install(session: nox.Session, *, groups: Iterable[str], root: bool = True) -> None:
+@nox.session(name="pre-commit", python="3.10")
+def precommit(session: nox.Session) -> None:
+    """Lint using pre-commit."""
+    args = session.posargs or ["run", "--all-files", "--show-diff-on-failure"]
+    poetry_install(session, groups=["pre-commit"], root=False)
+    session.run("pre-commit", *args)
+    if args and args[0] == "install":
+        activate_virtualenv_in_precommit_hooks(session)
+
+
+@nox.session(python=python_versions)
+def tests(session: nox.Session) -> None:
+    """Run the test suite."""
+    poetry_install(session, groups=["coverage", "tests"])
+    if session.python == "3.10":
+        # Workaround an unidentified issue in Poetry 1.2.0a2.
+        session.install("coverage[toml]==6.1.2")
+    try:
+        session.run("coverage", "run", "--parallel", "-m", "pytest", *session.posargs)
+    finally:
+        if session.interactive:
+            session.notify("coverage", posargs=[])
+
+
+@nox.session(python=python_versions)
+def mypy(session: nox.Session) -> None:
+    """Type-check using mypy."""
+    args = session.posargs or ["pytket", "tests", "docs/conf.py", "docs/build-docs"]
+    poetry_install(session, groups=["mypy", "tests", "docs"])
+    session.run(
+        "mypy",
+        "--config-file=mypy.ini",
+        "--no-incremental",
+        "--explicit-package-bases",
+        *args,
+    )
+    if not session.posargs:
+        session.run(
+            "mypy", f"--python-executable={sys.executable}", "noxfile.py"
+        )  # needed because nox not
+        # installed in poetry virtual environment
+
+
+@nox.session
+def coverage(session: nox.Session) -> None:
+    """Produce the coverage report."""
+    args = session.posargs or ["report"]
+    poetry_install(session, groups=["coverage"], root=False)
+    if not session.posargs and any(Path().glob(".coverage.*")):
+        session.run("coverage", "combine")
+    session.run("coverage", *args)
+
+
+@nox.session(name="docs-build", python="3.10")
+def docs_build(session: nox.Session) -> None:
+    """Build the documentation."""
+    poetry_install(session, groups=["docs"])
+    session.run("./docs/build-docs", external=True)
+
+
+def poetry_install(
+    session: nox.Session, *, groups: Iterable[str], root: bool = True
+) -> None:
     """Install the dependency groups using Poetry.
 
     This function installs the given dependency groups into the session's
@@ -51,55 +108,6 @@ def install(session: nox.Session, *, groups: Iterable[str], root: bool = True) -
     )
     if root:
         session.install(".")
-
-
-def export_requirements(session: nox.Session, *, extras: Iterable[str] = ()) -> Path:
-    """Export a requirements file from Poetry.
-
-    This function uses ``poetry export`` to generate a requirements file
-    containing the default dependencies at the versions specified in
-    ``poetry.lock``.
-
-    Args:
-        session: The Session object.
-        extras: Extras supported by the project.
-
-    Returns:
-        The path to the requirements file.
-    """
-    # XXX Use poetry-export-plugin with dependency groups
-    output = session.run_always(
-        "poetry",
-        "export",
-        "--format=requirements.txt",
-        "--without-hashes",
-        *[f"--extras={extra}" for extra in extras],
-        external=True,
-        silent=True,
-        stderr=None,
-    )
-
-    if output is None:
-        session.skip(
-            "The command `poetry export` was not executed"
-            " (a possible cause is specifying `--no-install`)"
-        )
-
-    assert isinstance(output, str)  # noqa: S101
-
-    def _stripwarnings(lines: Iterable[str]) -> Iterator[str]:
-        for line in lines:
-            if line.startswith("Warning:"):
-                print(line, file=sys.stderr)
-                continue
-            yield line
-
-    text = "".join(_stripwarnings(output.splitlines(keepends=True)))
-
-    path = session.cache_dir / "requirements.txt"
-    path.write_text(text)
-
-    return path
 
 
 def activate_virtualenv_in_precommit_hooks(session: nox.Session) -> None:
@@ -174,81 +182,3 @@ def activate_virtualenv_in_precommit_hooks(session: nox.Session) -> None:
                 lines.insert(1, dedent(header))
                 hook.write_text("\n".join(lines))
                 break
-
-
-@nox.session(name="pre-commit", python="3.10")
-def precommit(session: nox.Session) -> None:
-    """Lint using pre-commit."""
-    args = session.posargs or ["run", "--all-files", "--show-diff-on-failure"]
-    install(session, groups=["pre-commit"], root=False)
-    session.run("pre-commit", *args)
-    if args and args[0] == "install":
-        activate_virtualenv_in_precommit_hooks(session)
-
-
-@nox.session(python="3.10")
-def safety(session: nox.Session) -> None:
-    """Scan dependencies for insecure packages."""
-    # NOTE: Pass `extras` to `export_requirements` if the project supports any.
-    requirements = export_requirements(session)
-    install(session, groups=["safety"], root=False)
-    session.run("safety", "check", "--full-report", f"--file={requirements}")
-
-
-@nox.session(python=python_versions)
-def mypy(session: nox.Session) -> None:
-    """Type-check using mypy."""
-    args = session.posargs or ["src", "tests", "docs/conf.py"]
-    install(session, groups=["mypy", "tests"])
-    session.run("mypy", *args)
-    if not session.posargs:
-        session.run("mypy", f"--python-executable={sys.executable}", "noxfile.py")
-
-
-@nox.session(python=python_versions)
-def tests(session: nox.Session) -> None:
-    """Run the test suite."""
-    install(session, groups=["coverage", "tests"])
-
-    if session.python == "3.10":
-        # Workaround an unidentified issue in Poetry 1.2.0a2.
-        session.install("coverage[toml]==6.1.2")
-
-    try:
-        session.run("coverage", "run", "--parallel", "-m", "pytest", *session.posargs)
-    finally:
-        if session.interactive:
-            session.notify("coverage", posargs=[])
-
-
-@nox.session
-def coverage(session: nox.Session) -> None:
-    """Produce the coverage report."""
-    args = session.posargs or ["report"]
-
-    install(session, groups=["coverage"], root=False)
-
-    if not session.posargs and any(Path().glob(".coverage.*")):
-        session.run("coverage", "combine")
-
-    session.run("coverage", *args)
-
-
-@nox.session(name="docs-build", python="3.10")
-def docs_build(session: nox.Session) -> None:
-    """Build the documentation."""
-    install(session, groups=["docs"])
-    session.run("./docs/build-docs", external=True)
-
-
-@nox.session(python="3.10")
-def docs(session: nox.Session) -> None:
-    """Build and serve the documentation with live reloading on file changes."""
-    args = session.posargs or ["--open-browser", "docs", "docs/_build"]
-    install(session, groups=["docs"])
-
-    build_dir = Path("docs", "_build")
-    if build_dir.exists():
-        shutil.rmtree(build_dir)
-
-    session.run("sphinx-autobuild", *args)

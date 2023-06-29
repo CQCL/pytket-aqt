@@ -31,27 +31,27 @@ from pytket.backends.backendinfo import fully_connected_backendinfo
 from pytket.backends.backendresult import BackendResult
 from pytket.backends.resulthandle import _ResultIdTuple
 from pytket.circuit import Circuit
-from pytket.circuit import Node
-from pytket.circuit import OpType
-from pytket.circuit import Qubit
+from pytket.circuit import Node  # type: ignore
+from pytket.circuit import OpType  # type: ignore
+from pytket.circuit import Qubit  # type: ignore
 from pytket.passes import auto_rebase_pass
-from pytket.passes import BasePass
-from pytket.passes import DecomposeBoxes
-from pytket.passes import EulerAngleReduction
-from pytket.passes import FlattenRegisters
-from pytket.passes import FullPeepholeOptimise
-from pytket.passes import RebaseCustom
-from pytket.passes import RenameQubitsPass
-from pytket.passes import SequencePass
-from pytket.passes import SimplifyInitial
-from pytket.passes import SynthesiseTket
-from pytket.predicates import GateSetPredicate
-from pytket.predicates import MaxNQubitsPredicate
-from pytket.predicates import NoClassicalControlPredicate
-from pytket.predicates import NoFastFeedforwardPredicate
-from pytket.predicates import NoMidMeasurePredicate
-from pytket.predicates import NoSymbolsPredicate
-from pytket.predicates import Predicate
+from pytket.passes import BasePass  # type: ignore
+from pytket.passes import DecomposeBoxes  # type: ignore
+from pytket.passes import EulerAngleReduction  # type: ignore
+from pytket.passes import FlattenRegisters  # type: ignore
+from pytket.passes import FullPeepholeOptimise  # type: ignore
+from pytket.passes import RebaseCustom  # type: ignore
+from pytket.passes import RenameQubitsPass  # type: ignore
+from pytket.passes import SequencePass  # type: ignore
+from pytket.passes import SimplifyInitial  # type: ignore
+from pytket.passes import SynthesiseTket  # type: ignore
+from pytket.predicates import GateSetPredicate  # type: ignore
+from pytket.predicates import MaxNQubitsPredicate  # type: ignore
+from pytket.predicates import NoClassicalControlPredicate  # type: ignore
+from pytket.predicates import NoFastFeedforwardPredicate  # type: ignore
+from pytket.predicates import NoMidMeasurePredicate  # type: ignore
+from pytket.predicates import NoSymbolsPredicate  # type: ignore
+from pytket.predicates import Predicate  # type: ignore
 
 from ..backends.config import AQTConfig
 from ..multi_zone_architecture.architecture import MultiZoneArchitecture

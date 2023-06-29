@@ -43,6 +43,12 @@ hypothesis = "*"
 requests_mock = "*"
 numpy = "*"
 
+[tool.poetry.group.mypy]
+optional = true
+
+[tool.poetry.group.mypy.dependencies]
+mypy = "*"
+
 [tool.poetry.group.coverage]
 optional = true
 

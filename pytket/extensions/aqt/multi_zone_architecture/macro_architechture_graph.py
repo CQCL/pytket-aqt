@@ -2,8 +2,8 @@ from dataclasses import dataclass
 from dataclasses import field
 from typing import NewType
 
-from networkx import Graph
-from networkx import shortest_path
+from networkx import Graph  # type: ignore
+from networkx import shortest_path  # type: ignore
 
 from .architecture import MultiZoneArchitecture
 

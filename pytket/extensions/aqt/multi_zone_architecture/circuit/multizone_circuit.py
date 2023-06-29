@@ -9,8 +9,8 @@ from typing import cast
 from sympy import symbols
 
 from pytket.circuit import Circuit
-from pytket.circuit import CustomGateDef
-from pytket.circuit import OpType
+from pytket.circuit import CustomGateDef  # type: ignore
+from pytket.circuit import OpType  # type: ignore
 
 from ..architecture import EdgeType
 from ..architecture import MultiZoneArchitecture
