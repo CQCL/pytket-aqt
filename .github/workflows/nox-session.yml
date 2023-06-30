@@ -46,7 +46,7 @@ jobs:
     name: ${{ inputs.nox-session }} ${{ inputs.python-version }} / ${{ inputs.os }}
     runs-on: ${{ inputs.os }}
     env:
-      NOXSESSION: ${{ inputs.session }}
+      NOXSESSION: ${{ inputs.nox-session }}
       FORCE_COLOR: "1"
       PRE_COMMIT_COLOR: "always"
 
@@ -84,7 +84,7 @@ jobs:
           nox --version
 
       - name: Compute pre-commit cache key
-        if: inputs.session == 'pre-commit'
+        if: inputs.nox-session == 'pre-commit'
         id: pre-commit-cache
         shell: python
         run: |
@@ -100,7 +100,7 @@ jobs:
 
       - name: Restore pre-commit cache
         uses: actions/cache@v3
-        if: inputs.session == 'pre-commit'
+        if: inputs.nox-session == 'pre-commit'
         with:
           path: ~/.cache/pre-commit
           key: ${{ steps.pre-commit-cache.outputs.result }}-${{ hashFiles('.pre-commit-config.yaml') }}
@@ -112,14 +112,14 @@ jobs:
           nox --python=${{ inputs.python-version }}
 
 #      - name: Upload coverage data
-#        if: always() && inputs.session == 'tests'
+#        if: always() && inputs.nox-session == 'tests'
 #        uses: "actions/upload-artifact@v3"
 #        with:
 #          name: coverage-data
 #          path: ".coverage.*"
 #
 #      - name: Upload documentation
-#        if: inputs.session == 'docs-build'
+#        if: inputs.nox-session == 'docs-build'
 #        uses: actions/upload-artifact@v3
 #        with:
 #          name: docs
