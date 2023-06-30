@@ -1,11 +1,12 @@
-name: Tests
+name: All checks
+run-name: "[${{ github.ref_name }}] All checks"
 
 on:
   - workflow_dispatch
 
 jobs:
   tests:
-    name: ${{ matrix.session }} ${{ matrix.python }} / ${{ matrix.os }}
+    name: Run ${{ matrix.session }}
     strategy:
       fail-fast: false
       matrix:

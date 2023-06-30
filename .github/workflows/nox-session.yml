@@ -1,5 +1,5 @@
 name: Run nox session
-run-name: Nox run ${{ inputs.nox-session }}-python-${{ inputs.python-version }} on ${{ inputs.os }} for branch/tag ${{ github.ref_name }}
+run-name: "[${{ github.ref_name }}] Run ${{ inputs.nox-session }} - python ${{ inputs.python-version }} - ${{ inputs.os }}"
 
 on:
   workflow_call:
@@ -43,8 +43,8 @@ on:
           - docs-build
 
 jobs:
-  tests:
-    name: ${{ inputs.nox-session }} ${{ inputs.python-version }} / ${{ inputs.os }}
+  nox-session:
+    name: python ${{ inputs.python-version }} - ${{ inputs.os }}
     runs-on: ${{ inputs.os }}
     env:
       NOXSESSION: ${{ inputs.nox-session }}
