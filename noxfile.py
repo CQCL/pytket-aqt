@@ -20,7 +20,7 @@ nox.options.sessions = (
 )
 
 
-@nox.session(name="pre-commit", python="3.10")
+@nox.session(name="pre-commit", python=python_versions)
 def precommit(session: nox.Session) -> None:
     """Lint using pre-commit."""
     args = session.posargs or ["run", "--all-files", "--show-diff-on-failure"]
@@ -63,7 +63,7 @@ def mypy(session: nox.Session) -> None:
         # installed in poetry virtual environment
 
 
-@nox.session
+@nox.session(python=python_versions)
 def coverage(session: nox.Session) -> None:
     """Produce the coverage report."""
     args = session.posargs or ["report"]
@@ -73,7 +73,7 @@ def coverage(session: nox.Session) -> None:
     session.run("coverage", *args)
 
 
-@nox.session(name="docs-build", python="3.10")
+@nox.session(name="docs-build", python=python_versions)
 def docs_build(session: nox.Session) -> None:
     """Build the documentation."""
     poetry_install(session, groups=["docs"])
