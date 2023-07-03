@@ -2,7 +2,11 @@ name: All checks
 run-name: "[${{ github.ref_name }}] All checks"
 
 on:
-  - workflow_dispatch
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+      - develop
 
 jobs:
   tests:

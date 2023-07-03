@@ -34,9 +34,6 @@ def precommit(session: nox.Session) -> None:
 def tests(session: nox.Session) -> None:
     """Run the test suite."""
     poetry_install(session, groups=["coverage", "tests"])
-    if session.python == "3.10":
-        # Workaround an unidentified issue in Poetry 1.2.0a2.
-        session.install("coverage[toml]==6.1.2")
     try:
         session.run("coverage", "run", "--parallel", "-m", "pytest", *session.posargs)
     finally:
