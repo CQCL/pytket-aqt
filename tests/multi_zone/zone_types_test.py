@@ -9,4 +9,4 @@ multizone = four_zones_in_a_line
 
 
 def test_zone_types() -> None:
-    assert MultiZoneArchitecture(**multizone.dict()) == multizone
+    assert MultiZoneArchitecture(**multizone.model_dump()) == multizone
