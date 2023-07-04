@@ -69,7 +69,7 @@ jobs:
         timeout-minutes: 20
         run: |
           mkdir docs/extensions
-          nox -s build-docs --python=${{ env.PYTHON_VERSION }} -- -d  docs/extensions/api
+          nox -s docs-build --python=${{ env.PYTHON_VERSION }} -- -d  docs/extensions/api
 
       - name: Upload docs as artefact
         uses: actions/upload-pages-artifact@v1
