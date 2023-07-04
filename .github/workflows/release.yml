@@ -76,6 +76,7 @@ jobs:
 
   publish-package:
     name: Publish Package
+    if: github.event_name == 'release'
     needs: build
     runs-on: ubuntu-22.04
     steps:
@@ -88,7 +89,6 @@ jobs:
         run: |
           ls -la dist
       - name: Publish wheels
-        if: github.event_name == 'release'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           user: __token__
