@@ -74,6 +74,30 @@ sphinx-copybutton = "*"
 docutils = "*"
 types-docutils = "*"
 
+[tool.mypy]
+warn_unused_configs = true
+disallow_untyped_decorators = false
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+no_implicit_optional = true
+strict_optional = true
+namespace_packages = true
+check_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = false
+warn_no_return = false
+warn_return_any = true
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = [
+    'mypy-pytest.*',
+    'mypy-lark.*'
+]
+ignore_missing_imports = true
+ignore_errors = true
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

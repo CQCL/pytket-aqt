@@ -48,8 +48,6 @@ def mypy(session: nox.Session) -> None:
     poetry_install(session, groups=["mypy", "tests", "docs"])
     session.run(
         "mypy",
-        "--config-file=mypy.ini",
-        "--no-incremental",
         "--explicit-package-bases",
         *args,
     )
