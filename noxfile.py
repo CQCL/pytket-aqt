@@ -74,7 +74,7 @@ def coverage(session: nox.Session) -> None:
 def docs_build(session: nox.Session) -> None:
     """Build the documentation."""
     poetry_install(session, groups=["docs"])
-    session.run("./docs/build-docs", external=True)
+    session.run("./docs/build-docs", *session.posargs, external=True)
 
 
 def poetry_install(

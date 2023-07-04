@@ -1,0 +1,111 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - develop
+      - "wheel/**"
+  release:
+    types:
+      - created
+      - edited
+  schedule:
+    # 04:00 every Tuesday morning
+    - cron: "0 4 * * 2"
+
+env:
+  PYTHON_VERSION: "3.10"
+
+jobs:
+  build:
+    name: AQT - Build and publish module
+    runs-on: "ubuntu-22.04"
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: "0"
+      - run: git fetch --depth=1 origin +refs/tags/*:refs/tags/* +refs/heads/*:refs/remotes/origin/*
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Upgrade pip
+        run: |
+          pip install --upgrade pip
+          pip --version
+
+      - name: Upgrade pip in virtual environments
+        shell: python
+        run: |
+          import os
+          import pip
+
+          with open(os.environ["GITHUB_ENV"], mode="a") as io:
+              print(f"VIRTUALENV_PIP={pip.__version__}", file=io)
+
+      - name: Install Poetry
+        run: |
+          pipx install --pip-args=--constraint=dev-requirements.txt poetry
+          poetry --version
+
+      - name: Install Nox
+        run: |
+          pipx install --pip-args=--constraint=dev-requirements.txt nox
+          nox --version
+
+      - name: Build wheel
+        shell: bash
+        run: |
+          poetry build --format wheel --ansi
+
+      - uses: actions/upload-artifact@v3
+        if: github.event_name == 'release' || contains(github.ref, 'refs/heads/wheel')
+        with:
+          name: aqt-wheels
+          path: dist/
+
+      - name: Build docs
+        timeout-minutes: 20
+        run: |
+          mkdir docs/extensions
+          nox -s build-docs --python=${{ env.PYTHON_VERSION }} -- -d  docs/extensions/api
+
+      - name: Upload docs as artefact
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: docs/extensions
+
+  publish-package:
+    name: Publish to pypi
+    if: github.event_name == 'release'
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download all wheels
+        uses: actions/download-artifact@v3
+        with:
+          name: aqt-wheels
+          path: dist
+      - name: Publish wheels
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_PYTKET_AQT_API_TOKEN }}
+          verbose: true
+
+  publish-docs:
+    name: Publish docs
+    if: github.event_name == 'release'
+    needs: publish-package
+    runs-on: ubuntu-22.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2
