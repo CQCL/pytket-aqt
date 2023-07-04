@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - develop
-      - "wheel/**"
   release:
     types:
       - created
@@ -19,7 +18,7 @@ env:
 
 jobs:
   build:
-    name: AQT - Build and publish module
+    name: AQT - Build and Upload Package and Docs
     runs-on: "ubuntu-22.04"
     steps:
       - uses: actions/checkout@v3
@@ -60,7 +59,6 @@ jobs:
           poetry build --format wheel --ansi
 
       - uses: actions/upload-artifact@v3
-        if: github.event_name == 'release' || contains(github.ref, 'refs/heads/wheel')
         with:
           name: aqt-wheels
           path: dist/
@@ -77,8 +75,7 @@ jobs:
           path: docs/extensions
 
   publish-package:
-    name: Publish to pypi
-    if: github.event_name == 'release'
+    name: Publish Package
     needs: build
     runs-on: ubuntu-22.04
     steps:
@@ -87,7 +84,11 @@ jobs:
         with:
           name: aqt-wheels
           path: dist
+      - name: Show dist dir
+        run: |
+          ls -la dist
       - name: Publish wheels
+        if: github.event_name == 'release'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           user: __token__
@@ -95,7 +96,7 @@ jobs:
           verbose: true
 
   publish-docs:
-    name: Publish docs
+    name: Publish Docs
     if: github.event_name == 'release'
     needs: publish-package
     runs-on: ubuntu-22.04
