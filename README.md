@@ -30,45 +30,78 @@ There is also a Slack channel for discussion and support. Click [here](https://t
 
 ## Development
 
-To install an extension in editable mode, simply change to its subdirectory
-within the `modules` directory, and run:
+This project uses [poetry](https://python-poetry.org/) for packaging and dependency management and
+[Nox](https://nox.thea.codes/en/stable/) for task automation.
+
+### Recommended development setup
+
+Create a python virtual environment within the project root directory:
 
 ```shell
-pip install -e .
+python -m venv .venv
 ```
 
-### Noxfile
+Activate it:
 
-[Nox](https://nox.thea.codes/en/stable/) is used to automate various development tasks running in isolated python environments.
+```shell
+#Unix systems
+source .venv/bin/activate
+```
+
+```shell
+#Windows
+venv\Scripts\activate
+```
+
+Install development tools (e.g., Poetry, Nox):
+
+```shell
+pip install -r dev-tool-requirements.txt
+```
+
+### Local development with Nox (recommended)
+
+[Nox](https://nox.thea.codes/en/stable/) can be used to automate various development tasks running in isolated python environments.
 The following nox sessions are provided:
 
-- `test`: run tests for all supported python versions
-- `lint`: run `black` and `pylint` for all supported python versions
-- `type_check`: run `mypy` for all supported python versions
+- `pre-commit`: run the configured pre-commit hooks within [.pre-commit-config.yaml](.pre-commit-config.yaml), this includes linting with black and pylint
+- `mypy`: run type checks using mypy
+- `tests`: run the unit tests
+- `docs-build`: build the documentation
 
-To run a session, install the `nox` command (e.g., using `pipx`) and run:
+To run a session use:
 
 ```shell
 nox -s <session_name>
 ```
 
-To save time, reuse the session virtual environment using the `-r` option, i.e. `nox -rs <session_name>`.
-The checks are designed to conform to
+To save time, reuse the session virtual environment using the `-r` option, i.e. `nox -rs <session_name>` (may cause errors after a dependency update).
 
-### Pre-commit
-
-[Pre-commit](https://pre-commit.com/) can be used to run a configured set of git pre-commit hooks before each commit. This is recommended.
-To set up the pre-commit hooks, install `pre-commit` (e.g., using `pipx`) and run:
+[Pre-commit](https://pre-commit.com/) can be used to run the pre-commit hooks before each commit. This is recommended.
+To set up the pre-commit hooks to run automatically on each commit run:
 
 ```shell
-pre-commit install
+nox -s pre-commit -- install
 ```
 
-Afterwards the [pre-configured hooks](.pre-commit-config.yaml) will run automatically before each commit. The commit will be
+Afterward, the [pre-configured hooks](.pre-commit-config.yaml) will run on all changed files in a commit and the commit will be
 rejected if the hooks find errors. Some hooks will correct formatting issues automatically (but will still reject the commit, so that
 the `git commit` command will need to be repeated).
 
-Note that some pre-commit hooks require that `nox` is installed (e.g., using `pipx`)
+### Local development without Nox
+
+To install the local package, its dependencies and various development dependencies run:
+
+```shell
+poetry install --with tests,docs,mypy,pre-commit
+```
+
+from within the previously configured virtual environment.
+
+- Run tests: `pytest tests`
+- Run mypy: `mypy --explicit-package-bases pytket tests docs/conf.py docs/build-docs`
+- Run pre-commit checks: `pre-commit run --all-files --show-diff-on-failure`
+- Build docs: `./docs/build-docs`
 
 ## Contributing
 

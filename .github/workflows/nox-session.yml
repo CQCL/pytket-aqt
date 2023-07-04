@@ -76,12 +76,12 @@ jobs:
 
       - name: Install Poetry
         run: |
-          pipx install --pip-args=--constraint=dev-requirements.txt poetry
+          pipx install --pip-args=--constraint=dev-tool-requirements.txt poetry
           poetry --version
 
       - name: Install Nox
         run: |
-          pipx install --pip-args=--constraint=dev-requirements.txt nox
+          pipx install --pip-args=--constraint=dev-tool-requirements.txt nox
           nox --version
 
       - name: Compute pre-commit cache key
