@@ -14,3 +14,5 @@ docs/extensions
 /.python-version
 .nox
 .pytest_cache
+.coverage
+poetry.lock
