@@ -1,10 +1,14 @@
-name: Release
-run-name: "[${{ github.ref_name }}] Release"
+name: Release (preparation)
+run-name: "[${{ github.ref_name }}] Release (prep)"
 
 on:
   workflow_dispatch:
   push:
     branches:
+      - develop
+  pull_request:
+    branches:
+      - main
       - develop
   release:
     types:
