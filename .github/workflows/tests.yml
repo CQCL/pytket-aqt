@@ -37,11 +37,14 @@ jobs:
     name: Check for pytket pre-release
     runs-on: "ubuntu-22.04"
     outputs:
-      pre-release-exists: ${{ steps.filter.outputs.PRE_RELEASE_EXISTS }}
+      pre-release-exists: ${{ steps.check-pytket-prerelease.outputs.PRE_RELEASE_EXISTS }}
     steps:
-      - name: Compute pre-commit cache key
+      - name: Version checks
         id: check-pytket-prerelease
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -eo pipefail
           pip install lastversion
           LATEST_STABLE_RELEASE=$(lastversion CQCL/tket --at github)
           LATEST_RELEASE=$(lastversion --pre CQCL/tket --at github)
@@ -56,7 +59,7 @@ jobs:
           fi
 
   tests-pre-release:
-    name: Run ${{ matrix.session }}
+    name: Run ${{ matrix.session }} (pre-release)
     needs: check-for-pytket-pre-release
     if: needs.check-for-pytket-pre-release.outputs.pre-release-exists == 'true'
     strategy:

@@ -121,7 +121,7 @@ jobs:
       - name: Use latest pytket pre-release
         if: ${{ inputs.pytket-use-latest-pre-release }}
         run: |
-          poetry add pytket@latest --allow-prereleases
+          poetry add pytket@latest --allow-prereleases --lock
 
       - name: Run Nox
         run: |
