@@ -32,3 +32,42 @@ jobs:
       python-version: ${{ matrix.python }}
       os: ${{ matrix.os }}
       nox-session: ${{ matrix.session }}
+
+  check-for-pytket-pre-release:
+    name: Check for pytket pre-release
+    runs-on: "ubuntu-22.04"
+    outputs:
+      pre-release-exists: ${{ steps.filter.outputs.PRE_RELEASE_EXISTS }}
+    steps:
+      - name: Compute pre-commit cache key
+        id: check-pytket-prerelease
+        run: |
+          pip install lastversion
+          LATEST_STABLE_RELEASE=$(lastversion CQCL/tket --at github)
+          LATEST_RELEASE=$(lastversion --pre CQCL/tket --at github)
+          if [ ${LATEST_STABLE_RELEASE} == ${LATEST_RELEASE} ]; then
+            echo "PRE_RELEASE_EXISTS=false" >> $GITHUB_OUTPUT
+          else
+            echo "PRE_RELEASE_EXISTS=true" >> $GITHUB_OUTPUT
+          fi
+
+  tests-pre-release:
+    name: Run ${{ matrix.session }}
+    needs: check-for-pytket-pre-release
+    if: needs.check-for-pytket-pre-release.outputs.pre-release-exists == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { python: "3.10", os: "windows-2022", session: "tests" }
+          - { python: "3.10", os: "ubuntu-22.04", session: "tests" }
+          - { python: "3.10", os: "macos-12", session: "tests" }
+          - { python: "3.11", os: "windows-2022", session: "tests" }
+          - { python: "3.11", os: "ubuntu-22.04", session: "tests" }
+          - { python: "3.11", os: "macos-12", session: "tests" }
+    uses: ./.github/workflows/nox-session.yml
+    with:
+      python-version: ${{ matrix.python }}
+      os: ${{ matrix.os }}
+      nox-session: ${{ matrix.session }}
+      pytket-use-latest-pre-release: true

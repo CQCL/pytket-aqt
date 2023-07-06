@@ -13,6 +13,10 @@ on:
       nox-session:
         type: string
         required: true
+      pytket-use-latest-pre-release:
+        type: boolean
+        default: false
+
   workflow_dispatch:
     inputs:
       python-version:
@@ -41,6 +45,10 @@ on:
           - mypy
           - pre-commit
           - docs-build
+      pytket-use-latest-pre-release:
+        description: Update pytket to latest pre-release
+        type: boolean
+        default: false
 
 jobs:
   nox-session:
@@ -109,6 +117,11 @@ jobs:
           key: ${{ steps.pre-commit-cache.outputs.result }}-${{ hashFiles('.pre-commit-config.yaml') }}
           restore-keys: |
             ${{ steps.pre-commit-cache.outputs.result }}-
+
+      - name: Use latest pytket pre-release
+        if: ${{ inputs.pytket-use-latest-pre-release }}
+        run: |
+          poetry add pytket@latest --allow-prereleases
 
       - name: Run Nox
         run: |
