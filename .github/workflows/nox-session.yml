@@ -127,16 +127,9 @@ jobs:
         run: |
           nox --python=${{ inputs.python-version }}
 
-#      - name: Upload coverage data
-#        if: always() && inputs.nox-session == 'tests'
-#        uses: "actions/upload-artifact@v3"
-#        with:
-#          name: coverage-data
-#          path: ".coverage.*"
-#
-#      - name: Upload documentation
-#        if: inputs.nox-session == 'docs-build'
-#        uses: actions/upload-artifact@v3
-#        with:
-#          name: docs
-#          path: docs/_build
+      - name: Upload coverage data
+        if: always() && inputs.nox-session == 'tests'
+        uses: "actions/upload-artifact@v3"
+        with:
+          name: coverage-data
+          path: ".coverage.*"
