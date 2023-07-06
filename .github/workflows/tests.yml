@@ -3,6 +3,9 @@ run-name: "[${{ github.ref_name }}] All checks"
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - develop
   pull_request:
     branches:
       - main
