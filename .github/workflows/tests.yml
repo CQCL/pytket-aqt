@@ -94,3 +94,25 @@ jobs:
       os: ${{ matrix.os }}
       nox-session: ${{ matrix.session }}
       pytket-use-latest-pre-release: true
+
+  all-test-jobs-succeeded:
+    name: All tests succeeded
+    needs:
+      - tests
+      - tests-with-coverage
+      - check-for-pytket-pre-release
+      - tests-pre-release
+    if: always()
+    runs-on: ubuntu-22.04
+    steps:
+      - shell: python
+        name: Check job results
+        run: |
+          results = [
+              "${{ needs.tests.result }}",
+              "${{ needs.tests-with-coverage.result }}",
+              "${{ needs.check-for-pytket-pre-release.result }}",
+              "${{ needs.tests-pre-release.result }}"
+          ]
+          if "failure" in results or "cancelled" in results:
+              raise Exception
