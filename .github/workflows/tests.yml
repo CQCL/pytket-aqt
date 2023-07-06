@@ -45,9 +45,13 @@ jobs:
           pip install lastversion
           LATEST_STABLE_RELEASE=$(lastversion CQCL/tket --at github)
           LATEST_RELEASE=$(lastversion --pre CQCL/tket --at github)
+          echo "Latest pytket release: ${LATEST_RELEASE}"
+          echo "Latest stable release: ${LATEST_STABLE_RELEASE}"
           if [ ${LATEST_STABLE_RELEASE} == ${LATEST_RELEASE} ]; then
+            echo "Latest version is not a pre-release. Skipping pre-release checks"
             echo "PRE_RELEASE_EXISTS=false" >> $GITHUB_OUTPUT
           else
+            echo "Latest pytket version is a pre-release. Running pre-release checks"
             echo "PRE_RELEASE_EXISTS=true" >> $GITHUB_OUTPUT
           fi
 
