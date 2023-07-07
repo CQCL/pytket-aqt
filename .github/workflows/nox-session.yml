@@ -18,7 +18,7 @@ on:
         default: false
       pytket-use-latest-pre-release:
         type: boolean
-        default: false
+        default: true
 
   workflow_dispatch:
     inputs:
@@ -55,7 +55,7 @@ on:
       pytket-use-latest-pre-release:
         description: Update pytket to latest pre-release
         type: boolean
-        default: false
+        default: true
 
 jobs:
   nox-session:

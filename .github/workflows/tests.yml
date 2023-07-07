@@ -34,6 +34,7 @@ jobs:
       python-version: ${{ matrix.python }}
       os: ${{ matrix.os }}
       nox-session: ${{ matrix.session }}
+      pytket-use-latest-pre-release: false
 
   tests-with-coverage:
     name: Run ${{ matrix.session }}
@@ -48,6 +49,7 @@ jobs:
       os: ${{ matrix.os }}
       nox-session: ${{ matrix.session }}
       generate-coverage-report: true
+      pytket-use-latest-pre-release: false
 
   check-for-pytket-pre-release:
     name: Check for pytket pre-release
