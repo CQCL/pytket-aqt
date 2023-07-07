@@ -47,7 +47,7 @@ numpy = "*"
 optional = true
 
 [tool.poetry.group.mypy.dependencies]
-mypy = "*"
+mypy = "^1.0"
 
 [tool.poetry.group.coverage]
 optional = true
