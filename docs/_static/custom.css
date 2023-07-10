@@ -1,6 +1,6 @@
 .wy-side-nav-search,
 .wy-nav-top {
-    background: #5A46BE;
+  background: #5a46be;
 }
 
 .wy-grid-for-nav,
@@ -9,11 +9,11 @@
 .wy-side-scroll,
 .wy-menu,
 .wy-menu-vertical {
-    background-color: #FFFFFF;
+  background-color: #ffffff;
 }
 
 .wy-menu-vertical a:hover {
-    background-color: #d9d9d9;
+  background-color: #d9d9d9;
 }
 
 .btn-link:visited,
@@ -26,10 +26,10 @@ a:visited,
 .wy-menu-vertical ul,
 .span.pre,
 .sig-param,
-html[data-theme=light] {
-    --pst-color-inline-code: rgb(199, 37, 78) !important;
+html[data-theme="light"] {
+  --pst-color-inline-code: rgb(199, 37, 78) !important;
 }
 
 .sig-name {
-    font-size: 1.25rem;
+  font-size: 1.25rem;
 }

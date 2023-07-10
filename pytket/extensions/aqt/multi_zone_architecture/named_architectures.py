@@ -1,13 +1,10 @@
 """Pre-defined named multi-zone architectures for use in multi-zone circuits"""
-
-from .architecture import (
-    MultiZoneArchitecture,
-    ZoneType,
-    ZoneConnection,
-    ConnectionType,
-    Operation,
-    Zone,
-)
+from .architecture import ConnectionType
+from .architecture import MultiZoneArchitecture
+from .architecture import Operation
+from .architecture import Zone
+from .architecture import ZoneConnection
+from .architecture import ZoneType
 
 standardOperations = [
     Operation(operation_spec="[X, t, [self, o, p]]", fidelity="0.993"),

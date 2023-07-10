@@ -11,11 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """AQT config."""
-
-from typing import Any, Dict, Optional, Type, ClassVar
 from dataclasses import dataclass
+from typing import Any
+from typing import ClassVar
+from typing import Dict
+from typing import Optional
+from typing import Type
+
 from pytket.config import PytketExtConfig
 
 

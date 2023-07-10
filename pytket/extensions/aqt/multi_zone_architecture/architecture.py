@@ -1,7 +1,9 @@
 from enum import Enum
-from typing import Union, Dict, List
+from typing import Dict
+from typing import List
+from typing import Union
 
-from pydantic import BaseModel
+from pydantic import ConfigDict, BaseModel
 
 
 class EdgeType(str, Enum):
@@ -66,9 +68,7 @@ class ZoneConnection(BaseModel):
 
     connection_type: ConnectionType
     max_transfer: int
-
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
 
 
 class Operation(BaseModel):
