@@ -11,46 +11,54 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import json
 from copy import deepcopy
-from typing import Dict, List, Optional, Sequence, Tuple, Union, Any
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Sequence
+from typing import Tuple
+from typing import Union
 
-from pytket.backends import Backend, CircuitStatus, ResultHandle, StatusEnum
+from pytket.backends import Backend
+from pytket.backends import CircuitStatus
+from pytket.backends import ResultHandle
+from pytket.backends import StatusEnum
 from pytket.backends.backend import KwargTypes
-from pytket.backends.backendinfo import BackendInfo, fully_connected_backendinfo
+from pytket.backends.backendinfo import BackendInfo
+from pytket.backends.backendinfo import fully_connected_backendinfo
 from pytket.backends.backendresult import BackendResult
 from pytket.backends.resulthandle import _ResultIdTuple
-from pytket.circuit import Circuit, Node, OpType, Qubit  # type: ignore
-from pytket.passes import (  # type: ignore
-    BasePass,
-    SequencePass,
-    SynthesiseTket,
-    FullPeepholeOptimise,
-    FlattenRegisters,
-    RebaseCustom,
-    EulerAngleReduction,
-    DecomposeBoxes,
-    RenameQubitsPass,
-    SimplifyInitial,
-    auto_rebase_pass,
-)
-from pytket.predicates import (  # type: ignore
-    GateSetPredicate,
-    MaxNQubitsPredicate,
-    NoClassicalControlPredicate,
-    NoFastFeedforwardPredicate,
-    NoMidMeasurePredicate,
-    NoSymbolsPredicate,
-    Predicate,
-)
+from pytket.circuit import Circuit
+from pytket.circuit import Node  # type: ignore
+from pytket.circuit import OpType  # type: ignore
+from pytket.circuit import Qubit  # type: ignore
+from pytket.passes import auto_rebase_pass
+from pytket.passes import BasePass  # type: ignore
+from pytket.passes import DecomposeBoxes  # type: ignore
+from pytket.passes import EulerAngleReduction  # type: ignore
+from pytket.passes import FlattenRegisters  # type: ignore
+from pytket.passes import FullPeepholeOptimise  # type: ignore
+from pytket.passes import RebaseCustom  # type: ignore
+from pytket.passes import RenameQubitsPass  # type: ignore
+from pytket.passes import SequencePass  # type: ignore
+from pytket.passes import SimplifyInitial  # type: ignore
+from pytket.passes import SynthesiseTket  # type: ignore
+from pytket.predicates import GateSetPredicate  # type: ignore
+from pytket.predicates import MaxNQubitsPredicate  # type: ignore
+from pytket.predicates import NoClassicalControlPredicate  # type: ignore
+from pytket.predicates import NoFastFeedforwardPredicate  # type: ignore
+from pytket.predicates import NoMidMeasurePredicate  # type: ignore
+from pytket.predicates import NoSymbolsPredicate  # type: ignore
+from pytket.predicates import Predicate  # type: ignore
 
+from ..backends.config import AQTConfig
 from ..multi_zone_architecture.architecture import MultiZoneArchitecture
 from ..multi_zone_architecture.circuit.multizone_circuit import (
     MultiZoneCircuit,
 )
-from .._metadata import __extension_version__
-from ..backends.config import AQTConfig
+from ..extension_version import __extension_version__
 
 AQT_URL_PREFIX = "https://gateway.aqt.eu/marmot/"
 

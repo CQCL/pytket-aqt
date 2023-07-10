@@ -1,15 +1,14 @@
 import pytest
 from pytket.backends import ResultHandle
-
+from pytket.extensions.aqt.backends.aqt_multi_zone import AQTMultiZoneBackend
 from pytket.extensions.aqt.backends.aqt_multi_zone import (
-    AQTMultiZoneBackend,
     get_aqt_json_syntax_for_compiled_circuit,
-)
-from pytket.extensions.aqt.multi_zone_architecture.named_architectures import (
-    four_zones_in_a_line,
 )
 from pytket.extensions.aqt.multi_zone_architecture.circuit.multizone_circuit import (
     MultiZoneCircuit,
+)
+from pytket.extensions.aqt.multi_zone_architecture.named_architectures import (
+    four_zones_in_a_line,
 )
 
 

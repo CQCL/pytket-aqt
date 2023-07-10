@@ -1,0 +1,120 @@
+name: All checks
+run-name: "[${{ github.ref_name }}] All checks"
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  schedule:
+    # 04:00 every Tuesday morning
+    - cron: "0 4 * * 2"
+
+jobs:
+  tests:
+    name: Run ${{ matrix.session }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { python: "3.10", os: "ubuntu-22.04", session: "pre-commit" }
+          - { python: "3.10", os: "macos-12", session: "mypy" }
+          - { python: "3.10", os: "windows-2022", session: "tests" }
+          - { python: "3.10", os: "macos-12", session: "tests" }
+          - { python: "3.11", os: "windows-2022", session: "tests" }
+          - { python: "3.11", os: "ubuntu-22.04", session: "tests" }
+          - { python: "3.11", os: "macos-12", session: "tests" }
+          - { python: "3.10", os: "ubuntu-22.04", session: "docs-build" }
+    uses: ./.github/workflows/nox-session.yml
+    with:
+      python-version: ${{ matrix.python }}
+      os: ${{ matrix.os }}
+      nox-session: ${{ matrix.session }}
+      pytket-use-latest-pre-release: false
+
+  tests-with-coverage:
+    name: Run ${{ matrix.session }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { python: "3.10", os: "ubuntu-22.04", session: "tests" }
+    uses: ./.github/workflows/nox-session.yml
+    with:
+      python-version: ${{ matrix.python }}
+      os: ${{ matrix.os }}
+      nox-session: ${{ matrix.session }}
+      generate-coverage-report: true
+      pytket-use-latest-pre-release: false
+
+  check-for-pytket-pre-release:
+    name: Check for pytket pre-release
+    runs-on: "ubuntu-22.04"
+    outputs:
+      pre-release-exists: ${{ steps.check-pytket-prerelease.outputs.PRE_RELEASE_EXISTS }}
+    steps:
+      - name: Version checks
+        id: check-pytket-prerelease
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eo pipefail
+          pip install lastversion
+          LATEST_STABLE_RELEASE=$(lastversion CQCL/tket --at github)
+          LATEST_RELEASE=$(lastversion --pre CQCL/tket --at github)
+          echo "Latest pytket release: ${LATEST_RELEASE}"
+          echo "Latest stable release: ${LATEST_STABLE_RELEASE}"
+          if [ ${LATEST_STABLE_RELEASE} == ${LATEST_RELEASE} ]; then
+            echo "Latest version is not a pre-release. Skipping pre-release checks"
+            echo "PRE_RELEASE_EXISTS=false" >> $GITHUB_OUTPUT
+          else
+            echo "Latest pytket version is a pre-release. Running pre-release checks"
+            echo "PRE_RELEASE_EXISTS=true" >> $GITHUB_OUTPUT
+          fi
+
+  tests-pre-release:
+    name: Run ${{ matrix.session }} (pre-release)
+    needs: check-for-pytket-pre-release
+    if: needs.check-for-pytket-pre-release.outputs.pre-release-exists == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { python: "3.10", os: "windows-2022", session: "tests" }
+          - { python: "3.10", os: "ubuntu-22.04", session: "tests" }
+          - { python: "3.10", os: "macos-12", session: "tests" }
+          - { python: "3.11", os: "windows-2022", session: "tests" }
+          - { python: "3.11", os: "ubuntu-22.04", session: "tests" }
+          - { python: "3.11", os: "macos-12", session: "tests" }
+    uses: ./.github/workflows/nox-session.yml
+    with:
+      python-version: ${{ matrix.python }}
+      os: ${{ matrix.os }}
+      nox-session: ${{ matrix.session }}
+      pytket-use-latest-pre-release: true
+
+  all-test-jobs-succeeded:
+    name: All tests succeeded
+    needs:
+      - tests
+      - tests-with-coverage
+      - check-for-pytket-pre-release
+      - tests-pre-release
+    if: always()
+    runs-on: ubuntu-22.04
+    steps:
+      - shell: python
+        name: Check job results
+        run: |
+          results = [
+              "${{ needs.tests.result }}",
+              "${{ needs.tests-with-coverage.result }}",
+              "${{ needs.check-for-pytket-pre-release.result }}",
+              "${{ needs.tests-pre-release.result }}"
+          ]
+          if "failure" in results or "cancelled" in results:
+              raise Exception
