@@ -111,7 +111,7 @@ jobs:
       id-token: write
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url }}api/index.html
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
