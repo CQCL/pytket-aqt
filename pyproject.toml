@@ -38,7 +38,7 @@ optional = true
 
 [tool.poetry.group.tests.dependencies]
 pytest = "*"
-pytest-timeout = "^1.4.2"
+pytest-timeout = ">=1.4.2,<3.0.0"
 hypothesis = "*"
 requests_mock = "*"
 numpy = "*"
