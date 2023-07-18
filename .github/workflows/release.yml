@@ -76,7 +76,7 @@ jobs:
           nox -s docs-build --python=${{ env.PYTHON_VERSION }} -- -d  docs/extensions/api
 
       - name: Upload docs as artefact
-        uses: actions/upload-pages-artifact@v1
+        uses: actions/upload-pages-artifact@v2
         with:
           path: docs/extensions
 
