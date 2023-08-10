@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - develop
+      - "runci/**"
   pull_request:
     branches:
       - main
