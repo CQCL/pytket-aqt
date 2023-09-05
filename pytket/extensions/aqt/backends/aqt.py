@@ -35,27 +35,25 @@ from pytket.backends.backendinfo import fully_connected_backendinfo
 from pytket.backends.backendresult import BackendResult
 from pytket.backends.resulthandle import _ResultIdTuple
 from pytket.circuit import Circuit
-from pytket.circuit import Node  # type: ignore
-from pytket.circuit import OpType  # type: ignore
-from pytket.circuit import Qubit  # type: ignore
-from pytket.passes import auto_rebase_pass  # type: ignore
-from pytket.passes import BasePass  # type: ignore
-from pytket.passes import DecomposeBoxes  # type: ignore
-from pytket.passes import EulerAngleReduction  # type: ignore
-from pytket.passes import FlattenRegisters  # type: ignore
-from pytket.passes import FullPeepholeOptimise  # type: ignore
-from pytket.passes import RebaseCustom  # type: ignore
-from pytket.passes import RenameQubitsPass  # type: ignore
-from pytket.passes import SequencePass  # type: ignore
-from pytket.passes import SimplifyInitial  # type: ignore
-from pytket.passes import SynthesiseTket  # type: ignore
-from pytket.predicates import GateSetPredicate  # type: ignore
-from pytket.predicates import MaxNQubitsPredicate  # type: ignore
-from pytket.predicates import NoClassicalControlPredicate  # type: ignore
-from pytket.predicates import NoFastFeedforwardPredicate  # type: ignore
-from pytket.predicates import NoMidMeasurePredicate  # type: ignore
-from pytket.predicates import NoSymbolsPredicate  # type: ignore
-from pytket.predicates import Predicate  # type: ignore
+from pytket.circuit import OpType
+from pytket.circuit import Qubit
+from pytket.passes import auto_rebase_pass
+from pytket.passes import BasePass
+from pytket.passes import DecomposeBoxes
+from pytket.passes import EulerAngleReduction
+from pytket.passes import FlattenRegisters
+from pytket.passes import FullPeepholeOptimise
+from pytket.passes import RenameQubitsPass
+from pytket.passes import SequencePass
+from pytket.passes import SimplifyInitial
+from pytket.passes import SynthesiseTket
+from pytket.predicates import GateSetPredicate
+from pytket.predicates import MaxNQubitsPredicate
+from pytket.predicates import NoClassicalControlPredicate
+from pytket.predicates import NoFastFeedforwardPredicate
+from pytket.predicates import NoMidMeasurePredicate
+from pytket.predicates import NoSymbolsPredicate
+from pytket.predicates import Predicate
 from pytket.utils import prepare_circuit
 from pytket.utils.outcomearray import OutcomeArray
 
@@ -138,7 +136,7 @@ class AQTBackend(Backend):
         super().__init__()
         self._url = AQT_URL_PREFIX + device_name
         self._label = label
-        config = AQTConfig.from_default_config_file()
+        config = cast(AQTConfig, AQTConfig.from_default_config_file())
 
         if access_token is None:
             access_token = config.access_token
@@ -147,7 +145,7 @@ class AQTBackend(Backend):
 
         self._header = {"Ocp-Apim-Subscription-Key": access_token, "SDK": "pytket"}
         self._backend_info: Optional[BackendInfo] = None
-        self._qm: Dict[Qubit, Node] = {}
+        self._qm: Dict[Qubit, Qubit] = {}
         if device_name in _DEVICE_INFO:
             self._backend_info = fully_connected_backendinfo(
                 type(self).__name__,
@@ -157,7 +155,8 @@ class AQTBackend(Backend):
                 _GATE_SET,
             )
             self._qm = {
-                Qubit(i): node for i, node in enumerate(self._backend_info.nodes)
+                Qubit(i): cast(Qubit, node)
+                for i, node in enumerate(self._backend_info.nodes)
             }
         self._MACHINE_DEBUG = False
 
@@ -395,7 +394,7 @@ def _translate_aqt(circ: Circuit) -> Tuple[List[List], str]:
     return (gates, json.dumps(measures))
 
 
-def _aqt_rebase() -> RebaseCustom:
+def _aqt_rebase() -> BasePass:
     return auto_rebase_pass({OpType.XXPhase, OpType.Rx, OpType.Ry})
 
 
