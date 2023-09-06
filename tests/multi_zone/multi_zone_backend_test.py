@@ -28,13 +28,13 @@ def test_not_implemented_functionality_throws(backend: AQTMultiZoneBackend) -> N
     }
     circuit = MultiZoneCircuit(four_zones_in_a_line, initial_placement, 16)
     with pytest.raises(NotImplementedError):
-        backend.process_circuits([circuit])
+        backend.process_circuits([circuit])  # type: ignore
     with pytest.raises(NotImplementedError):
-        backend.process_circuit(circuit)
+        backend.process_circuit(circuit)  # type: ignore
     with pytest.raises(NotImplementedError):
-        backend.run_circuits([circuit])
+        backend.run_circuits([circuit])  # type: ignore
     with pytest.raises(NotImplementedError):
-        backend.run_circuit(circuit)
+        backend.run_circuit(circuit)  # type: ignore
     with pytest.raises(NotImplementedError):
         backend.circuit_status(ResultHandle())
     with pytest.raises(NotImplementedError):
@@ -57,7 +57,7 @@ def test_valid_circuit_compiles(backend: AQTMultiZoneBackend) -> None:
     circuit.move_qubit(0, 1)
     circuit.CX(1, 2).CX(3, 4).CX(5, 6).CX(7, 0)
     circuit.measure_all()
-    circuit = backend.get_compiled_circuit(circuit)
+    circuit = backend.get_compiled_circuit_mz(circuit)
 
 
 def test_invalid_circuit_does_not_compile(backend: AQTMultiZoneBackend) -> None:
@@ -75,7 +75,7 @@ def test_invalid_circuit_does_not_compile(backend: AQTMultiZoneBackend) -> None:
     circuit.CX(1, 2).CX(3, 4).CX(5, 6).CX(7, 0)
     circuit.measure_all()
     with pytest.raises(Exception):
-        backend.get_compiled_circuit(circuit)
+        backend.get_compiled_circuit_mz(circuit)
 
 
 def test_try_get_aqt_syntax_on_uncompiled_circuit_raises(
@@ -106,7 +106,7 @@ def test_compiled_circuit_has_correct_syntax(backend: AQTMultiZoneBackend) -> No
     circuit.move_qubit(0, 1)
     circuit.CX(1, 2).CX(3, 4).CX(5, 6).CX(7, 0)
     circuit.measure_all()
-    circuit = backend.get_compiled_circuit(circuit)
+    circuit = backend.get_compiled_circuit_mz(circuit)
     aqt_operation_list = get_aqt_json_syntax_for_compiled_circuit(circuit)
 
     initialized_zones: list[int] = []

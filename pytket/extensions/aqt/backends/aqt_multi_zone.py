@@ -13,7 +13,7 @@
 # limitations under the License.
 import json
 from copy import deepcopy
-from typing import Any
+from typing import Any, cast
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -31,27 +31,25 @@ from pytket.backends.backendinfo import fully_connected_backendinfo
 from pytket.backends.backendresult import BackendResult
 from pytket.backends.resulthandle import _ResultIdTuple
 from pytket.circuit import Circuit
-from pytket.circuit import Node  # type: ignore
-from pytket.circuit import OpType  # type: ignore
-from pytket.circuit import Qubit  # type: ignore
+from pytket.circuit import OpType
+from pytket.circuit import Qubit
 from pytket.passes import auto_rebase_pass
-from pytket.passes import BasePass  # type: ignore
-from pytket.passes import DecomposeBoxes  # type: ignore
-from pytket.passes import EulerAngleReduction  # type: ignore
-from pytket.passes import FlattenRegisters  # type: ignore
-from pytket.passes import FullPeepholeOptimise  # type: ignore
-from pytket.passes import RebaseCustom  # type: ignore
-from pytket.passes import RenameQubitsPass  # type: ignore
-from pytket.passes import SequencePass  # type: ignore
-from pytket.passes import SimplifyInitial  # type: ignore
-from pytket.passes import SynthesiseTket  # type: ignore
-from pytket.predicates import GateSetPredicate  # type: ignore
-from pytket.predicates import MaxNQubitsPredicate  # type: ignore
-from pytket.predicates import NoClassicalControlPredicate  # type: ignore
-from pytket.predicates import NoFastFeedforwardPredicate  # type: ignore
-from pytket.predicates import NoMidMeasurePredicate  # type: ignore
-from pytket.predicates import NoSymbolsPredicate  # type: ignore
-from pytket.predicates import Predicate  # type: ignore
+from pytket.passes import BasePass
+from pytket.passes import DecomposeBoxes
+from pytket.passes import EulerAngleReduction
+from pytket.passes import FlattenRegisters
+from pytket.passes import FullPeepholeOptimise
+from pytket.passes import RenameQubitsPass
+from pytket.passes import SequencePass
+from pytket.passes import SimplifyInitial
+from pytket.passes import SynthesiseTket
+from pytket.predicates import GateSetPredicate
+from pytket.predicates import MaxNQubitsPredicate
+from pytket.predicates import NoClassicalControlPredicate
+from pytket.predicates import NoFastFeedforwardPredicate
+from pytket.predicates import NoMidMeasurePredicate
+from pytket.predicates import NoSymbolsPredicate
+from pytket.predicates import Predicate
 
 from ..backends.config import AQTConfig
 from ..multi_zone_architecture.architecture import MultiZoneArchitecture
@@ -126,7 +124,7 @@ class AQTMultiZoneBackend(Backend):
         super().__init__()
         self._url = AQT_URL_PREFIX + device_name
         self._label = label
-        config = AQTConfig.from_default_config_file()
+        config = cast(AQTConfig, AQTConfig.from_default_config_file())
 
         if access_token is None:
             access_token = config.access_token
@@ -135,7 +133,7 @@ class AQTMultiZoneBackend(Backend):
 
         self._header = {"Ocp-Apim-Subscription-Key": access_token, "SDK": "pytket"}
         self._backend_info: Optional[BackendInfo] = None
-        self._qm: Dict[Qubit, Node] = {}
+        self._qm: Dict[Qubit, Qubit] = {}
         self._backend_info = fully_connected_backendinfo(
             type(self).__name__,
             device_name,
@@ -143,7 +141,10 @@ class AQTMultiZoneBackend(Backend):
             architecture.n_qubits_max,
             _GATE_SET,
         )
-        self._qm = {Qubit(i): node for i, node in enumerate(self._backend_info.nodes)}
+        self._qm = {
+            Qubit(i): cast(Qubit, node)
+            for i, node in enumerate(self._backend_info.nodes)
+        }
         self._MACHINE_DEBUG = True
 
     def rebase_pass(self) -> BasePass:
@@ -174,7 +175,7 @@ class AQTMultiZoneBackend(Backend):
             preds.append(MaxNQubitsPredicate(self._backend_info.n_nodes))
         return preds
 
-    def default_compilation_pass(self, optimisation_level: int = 2) -> BasePass:
+    def default_compilation_pass(self, optimisation_level: int = 2) -> SequencePass:
         assert optimisation_level in range(3)
         if optimisation_level == 0:
             return SequencePass(
@@ -247,6 +248,11 @@ class AQTMultiZoneBackend(Backend):
         raise NotImplementedError
 
     def get_compiled_circuit(
+        self, circuit: Circuit, optimisation_level: int = 2
+    ) -> Circuit:
+        raise NotImplementedError("Use get_compiled_circuit_mz for Multizone Circuits")
+
+    def get_compiled_circuit_mz(
         self, circuit: MultiZoneCircuit, optimisation_level: int = 2
     ) -> MultiZoneCircuit:
         """Compile a MultiZoneCircuit to run on an AQT multi-zone architecture
@@ -264,10 +270,12 @@ class AQTMultiZoneBackend(Backend):
         new_circuit = MultiZoneCircuit(
             circuit.architecture,
             new_initial_zone_to_qubits,
-            circuit.n_qubits,
-            circuit.n_bits,
+            circuit.pytket_circuit.n_qubits,
+            circuit.pytket_circuit.n_bits,
         )
-        compiled_circuit = super().get_compiled_circuit(circuit)
+        compiled_circuit = super().get_compiled_circuit(
+            circuit.pytket_circuit, optimisation_level
+        )
 
         new_circuit.zone_to_qubits = deepcopy(circuit.zone_to_qubits)
         new_circuit.multi_zone_operations = deepcopy(circuit.multi_zone_operations)
@@ -290,7 +298,7 @@ class AQTMultiZoneBackend(Backend):
                 current_multiop_index_per_qubit[qubit] = current_multiop_index + 1
             else:
                 qubits = [q.index[0] for q in cmd.args]
-                new_circuit.add_gate(cmd.op.type, op.params, qubits)
+                new_circuit.add_gate(cmd.op.type, qubits, op.params)
 
         new_circuit.is_compiled = True
         return new_circuit
@@ -329,7 +337,7 @@ def _translate_aqt(circ: MultiZoneCircuit) -> Tuple[List[List], str]:
         qubit_to_zone_position[qubit_1_] = (zone_2, position_2)
         qubit_to_zone_position[qubit_2_] = (zone_1, position_1)
 
-    for cmd in circ.get_commands():
+    for cmd in circ.pytket_circuit.get_commands():
         op = cmd.op
         optype = op.type
         op_string = f"{op}"
@@ -413,7 +421,7 @@ def _translate_aqt(circ: MultiZoneCircuit) -> Tuple[List[List], str]:
     return gates, json.dumps(measures)
 
 
-def _aqt_rebase() -> RebaseCustom:
+def _aqt_rebase() -> BasePass:
     return auto_rebase_pass({OpType.XXPhase, OpType.Rx, OpType.Ry})
 
 
