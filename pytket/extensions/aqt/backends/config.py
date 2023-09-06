@@ -13,7 +13,7 @@
 # limitations under the License.
 """AQT config."""
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 from typing import ClassVar
 from typing import Dict
 from typing import Optional
@@ -41,7 +41,7 @@ def set_aqt_config(
     access_token: Optional[str] = None,
 ) -> None:
     """Set default value for AQT API token."""
-    config = AQTConfig.from_default_config_file()
+    config = cast(AQTConfig, AQTConfig.from_default_config_file())
     if access_token is not None:
         config.access_token = access_token
     config.update_default_config_file()

@@ -37,7 +37,7 @@ def test_circuit_has_correct_init_gates_at_beginning(
     circuit: MultiZoneCircuit, initial_placement: dict[int, list[int]]
 ) -> None:
     circuit_placement = {}
-    for gate in circuit:
+    for gate in circuit.pytket_circuit:
         op = gate.op
         if "INIT" not in op.__str__():
             break
@@ -51,7 +51,7 @@ def test_circuit_contains_correct_number_of_moves_shuttles_swaps(
     circuit: MultiZoneCircuit,
 ) -> None:
     move_barriers, moves, shuttles, swaps = 0, 0, 0, 0
-    for gate in circuit:
+    for gate in circuit.pytket_circuit:
         op = gate.op
         if "MOVE_BARRIER" in op.__str__():
             move_barriers += 1
@@ -81,8 +81,6 @@ def test_move_on_missing_qubit_raises_placement_error(
 
 
 def test_add_barrier_throws_value_error(circuit: MultiZoneCircuit) -> None:
-    with pytest.raises(ValueError):
-        circuit.add_barrier([0])
     with pytest.raises(ValueError):
         circuit.add_gate(OpType.Barrier, [0])
 
