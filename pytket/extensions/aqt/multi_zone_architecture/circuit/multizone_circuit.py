@@ -10,8 +10,8 @@ from sympy import symbols, Expr
 
 from pytket.circuit import UnitID
 from pytket.circuit import Circuit
-from pytket.circuit import CustomGateDef  # type: ignore
-from pytket.circuit import OpType  # type: ignore
+from pytket.circuit import CustomGateDef
+from pytket.circuit import OpType
 
 from ..architecture import EdgeType
 from ..architecture import MultiZoneArchitecture
