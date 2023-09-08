@@ -17,9 +17,9 @@ from ..architecture import EdgeType
 from ..architecture import MultiZoneArchitecture
 from ..architecture import source_edge_type
 from ..architecture import target_edge_type
-from ..macro_architechture_graph import empty_macro_arch_from_backend
-from ..macro_architechture_graph import MultiZoneMacroArch
-from ..macro_architechture_graph import ZoneId
+from ..macro_architecture_graph import empty_macro_arch_from_backend
+from ..macro_architecture_graph import MultiZoneMacroArch
+from ..macro_architecture_graph import ZoneId
 
 ParamType = Expr | float
 
@@ -216,6 +216,13 @@ class MultiZoneCircuit:
             custom_init = CustomGateDef("INIT", init_def_circ, [dz])
             self.pytket_circuit.add_custom_gate(custom_init, [zone], qubit_list)
 
+    def __iter__(self):
+        self._iter = iter(self.pytket_circuit)
+        return self
+
+    def __next__(self):
+        return next(self._iter)
+
     @property
     def is_compiled(self) -> bool:
         return self._is_compiled
@@ -252,7 +259,7 @@ class MultiZoneCircuit:
         for qubit in qubits:
             self._place_qubit(zone, qubit)
 
-    def move_qubit(self, qubit: int, new_zone: int) -> None:
+    def move_qubit(self, qubit: int, new_zone: int, precompiled: bool = False) -> None:
         """Move a qubit from its current zone to new_zone
 
         Calculates the needs "PSWAP" and "SHUTTLE" operations to implement move.
@@ -316,8 +323,9 @@ class MultiZoneCircuit:
             else:
                 position_in_zone = VirtualZonePosition.VirtualLeft
 
-        self.pytket_circuit.add_custom_gate(move_gate, [new_zone], [qubit])
-        self.add_move_barrier()
+        if not precompiled:
+            self.pytket_circuit.add_custom_gate(move_gate, [new_zone], [qubit])
+            self.add_move_barrier()
         old_zone_qubits.remove(qubit)
         if position_in_zone is VirtualZonePosition.VirtualLeft:
             self.zone_to_qubits[new_zone].insert(0, qubit)
@@ -325,6 +333,9 @@ class MultiZoneCircuit:
             self.zone_to_qubits[new_zone].append(qubit)
         self.qubit_to_zones[qubit].append(new_zone)
         self.multi_zone_operations[qubit].append(move_operations)
+        if precompiled:
+            for multi_op in move_operations:
+                multi_op.append_to_circuit(self)
 
     def add_gate(
         self,

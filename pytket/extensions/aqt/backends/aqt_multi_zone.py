@@ -21,6 +21,7 @@ from typing import Sequence
 from typing import Tuple
 from typing import Union
 
+from pytket._tket.unit_id import UnitID
 from pytket.backends import Backend
 from pytket.backends import CircuitStatus
 from pytket.backends import ResultHandle
@@ -57,6 +58,7 @@ from ..multi_zone_architecture.circuit.multizone_circuit import (
     MultiZoneCircuit,
 )
 from ..extension_version import __extension_version__
+from ..multi_zone_architecture.circuit_routing.route_zones import route_circuit
 
 AQT_URL_PREFIX = "https://gateway.aqt.eu/marmot/"
 
@@ -134,6 +136,7 @@ class AQTMultiZoneBackend(Backend):
         self._header = {"Ocp-Apim-Subscription-Key": access_token, "SDK": "pytket"}
         self._backend_info: Optional[BackendInfo] = None
         self._qm: Dict[Qubit, Qubit] = {}
+        self._architecture = architecture
         self._backend_info = fully_connected_backendinfo(
             type(self).__name__,
             device_name,
@@ -249,11 +252,76 @@ class AQTMultiZoneBackend(Backend):
 
     def get_compiled_circuit(
         self, circuit: Circuit, optimisation_level: int = 2
-    ) -> Circuit:
-        raise NotImplementedError("Use get_compiled_circuit_mz for Multizone Circuits")
+    ) -> MultiZoneCircuit:
+        assert circuit.is_simple
+        compiled = super().get_compiled_circuit(circuit, optimisation_level)
+        qubit_map = {
+            cast(UnitID, qubit): cast(UnitID, Qubit(qubit.index[0]))
+            for qubit in compiled.qubits
+        }
+        compiled.rename_units(qubit_map)
+        assert compiled.is_simple
+        routed = route_circuit(compiled, self._architecture)
+        routed.is_compiled = True
+        return routed
 
     def get_compiled_circuit_mz(
-        self, circuit: MultiZoneCircuit, optimisation_level: int = 2
+        self,
+        circuit: MultiZoneCircuit,
+        optimisation_level: int = 2,
+    ) -> MultiZoneCircuit:
+        """Compile a MultiZoneCircuit to run on an AQT multi-zone architecture
+
+        Compiles the underlying PyTKET Circuit first according to the chosen
+        optimisation level. The barriers within the Circuit mark move points
+        which should not be optimised through.
+
+        Afterwards, the precomputed "PSWAP" and "SHUTTLE" operations are added
+        at the appropriate barrier points.
+        """
+
+        circuit.validate()
+        new_initial_zone_to_qubits = deepcopy(circuit.initial_zone_to_qubits)
+        new_circuit = MultiZoneCircuit(
+            circuit.architecture,
+            new_initial_zone_to_qubits,
+            circuit.pytket_circuit.n_qubits,
+            circuit.pytket_circuit.n_bits,
+        )
+        compiled_circuit = super().get_compiled_circuit(
+            circuit.pytket_circuit, optimisation_level
+        )
+
+        new_circuit.zone_to_qubits = deepcopy(circuit.zone_to_qubits)
+        new_circuit.multi_zone_operations = deepcopy(circuit.multi_zone_operations)
+
+        current_multiop_index_per_qubit: dict[int, int] = {
+            k: 0 for k in new_circuit.multi_zone_operations.keys()
+        }
+        for cmd in compiled_circuit:
+            op = cmd.op
+            if op.type == OpType.Barrier:
+                if len(cmd.args) == len(circuit.all_qubit_list):
+                    continue
+                qubit = cmd.args[0].index[0]
+                current_multiop_index = current_multiop_index_per_qubit[qubit]
+                mult_op_bundles = new_circuit.multi_zone_operations[qubit]
+                multi_ops = mult_op_bundles[current_multiop_index]
+                for multi_op in multi_ops:
+                    multi_op.append_to_circuit(new_circuit)
+                new_circuit.add_move_barrier()
+                current_multiop_index_per_qubit[qubit] = current_multiop_index + 1
+            else:
+                qubits = [q.index[0] for q in cmd.args]
+                new_circuit.add_gate(cmd.op.type, qubits, op.params)
+
+        new_circuit.is_compiled = True
+        return new_circuit
+
+    def get_compiled_circuit_mz_manually_routed(
+        self,
+        circuit: MultiZoneCircuit,
+        optimisation_level: int = 2,
     ) -> MultiZoneCircuit:
         """Compile a MultiZoneCircuit to run on an AQT multi-zone architecture
 

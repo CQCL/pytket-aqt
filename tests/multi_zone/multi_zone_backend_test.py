@@ -1,4 +1,5 @@
 import pytest
+from pytket import Circuit
 from pytket.backends import ResultHandle
 from pytket.extensions.aqt.backends.aqt_multi_zone import AQTMultiZoneBackend
 from pytket.extensions.aqt.backends.aqt_multi_zone import (
@@ -57,7 +58,20 @@ def test_valid_circuit_compiles(backend: AQTMultiZoneBackend) -> None:
     circuit.move_qubit(0, 1)
     circuit.CX(1, 2).CX(3, 4).CX(5, 6).CX(7, 0)
     circuit.measure_all()
-    circuit = backend.get_compiled_circuit_mz(circuit)
+    circuit = backend.get_compiled_circuit_mz_manually_routed(circuit)
+
+
+def test_circuit_compiles(backend: AQTMultiZoneBackend) -> None:
+    circuit = Circuit(8)
+    circuit.CX(0, 1).CX(2, 3).CX(4, 5).CX(6, 7)
+    circuit.CX(1, 2).CX(3, 4).CX(5, 6).CX(7, 0)
+    circuit.CX(0, 1).CX(2, 3).CX(4, 5).CX(6, 7)
+    circuit.CX(1, 2).CX(3, 4).CX(5, 6).CX(7, 0)
+    circuit.measure_all()
+    compiled = backend.get_compiled_circuit(circuit)
+    aqt_operation_list = get_aqt_json_syntax_for_compiled_circuit(compiled)
+    for operation in aqt_operation_list:
+        print(operation)
 
 
 def test_invalid_circuit_does_not_compile(backend: AQTMultiZoneBackend) -> None:
@@ -75,7 +89,7 @@ def test_invalid_circuit_does_not_compile(backend: AQTMultiZoneBackend) -> None:
     circuit.CX(1, 2).CX(3, 4).CX(5, 6).CX(7, 0)
     circuit.measure_all()
     with pytest.raises(Exception):
-        backend.get_compiled_circuit_mz(circuit)
+        backend.get_compiled_circuit_mz_manually_routed(circuit)
 
 
 def test_try_get_aqt_syntax_on_uncompiled_circuit_raises(
@@ -106,7 +120,7 @@ def test_compiled_circuit_has_correct_syntax(backend: AQTMultiZoneBackend) -> No
     circuit.move_qubit(0, 1)
     circuit.CX(1, 2).CX(3, 4).CX(5, 6).CX(7, 0)
     circuit.measure_all()
-    circuit = backend.get_compiled_circuit_mz(circuit)
+    circuit = backend.get_compiled_circuit_mz_manually_routed(circuit)
     aqt_operation_list = get_aqt_json_syntax_for_compiled_circuit(circuit)
 
     initialized_zones: list[int] = []
