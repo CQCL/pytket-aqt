@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Optional, Iterator
 
 from sympy import symbols, Expr
 
@@ -216,12 +216,8 @@ class MultiZoneCircuit:
             custom_init = CustomGateDef("INIT", init_def_circ, [dz])
             self.pytket_circuit.add_custom_gate(custom_init, [zone], qubit_list)
 
-    def __iter__(self):
-        self._iter = iter(self.pytket_circuit)
-        return self
-
-    def __next__(self):
-        return next(self._iter)
+    def __iter__(self) -> Iterator:
+        return self.pytket_circuit.__iter__()
 
     @property
     def is_compiled(self) -> bool:

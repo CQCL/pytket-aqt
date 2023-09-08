@@ -20,7 +20,7 @@ def _make_necessary_moves(
     current_qubit_to_zone: dict[int, int],
     current_placement: ZonePlacement,
 ) -> None:
-    def _move_qubit(qubit_to_move: int, starting_zone: int, target_zone: int):
+    def _move_qubit(qubit_to_move: int, starting_zone: int, target_zone: int) -> None:
         mz_circ.move_qubit(qubit_to_move, target_zone, precompiled=True)
         current_placement[starting_zone].remove(qubit_to_move)
         current_placement[target_zone].append(qubit_to_move)
