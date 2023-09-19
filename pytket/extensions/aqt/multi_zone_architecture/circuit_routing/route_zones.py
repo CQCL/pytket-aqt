@@ -51,7 +51,6 @@ def _make_necessary_moves(
             _move_qubit(uninvolved_qubit, zone1, zone0)
             # send qubit0 to zone1
             _move_qubit(qubits[0], zone0, zone1)
-            raise NotImplementedError
         case (a, b) if a < 0 or b < 0:
             raise ValueError("Should never be negative")
         case (free0, free1) if free0 >= free1:
