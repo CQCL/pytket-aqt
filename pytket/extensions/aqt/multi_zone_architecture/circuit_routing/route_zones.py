@@ -20,6 +20,18 @@ def _make_necessary_moves(
     current_qubit_to_zone: dict[int, int],
     current_placement: ZonePlacement,
 ) -> None:
+    """
+    This routine performs the necessary operations within a multi-zone circuit
+     to move two qubits into the same zone
+
+    :param qubits: tuple of two qubits
+    :param mz_circ: the MultiZoneCircuit
+    :param current_qubit_to_zone: dictionary containing the current
+     mapping of qubits to zones (may be altered)
+    :param current_placement: dictionary the current mapping of zones
+     to lists of qubits contained within them (may be altered)
+    """
+
     def _move_qubit(qubit_to_move: int, starting_zone: int, target_zone: int) -> None:
         mz_circ.move_qubit(qubit_to_move, target_zone, precompiled=True)
         current_placement[starting_zone].remove(qubit_to_move)
@@ -64,6 +76,21 @@ def route_circuit(
     arch: MultiZoneArchitecture,
     initial_placement: Optional[ZonePlacement] = None,
 ) -> MultiZoneCircuit:
+    """
+    Route a Circuit to a given MultiZoneArchitecture by adding
+     physical operations where needed
+
+    The Circuit provided cannot have more qubits than allowed by
+     the architecture. If no initial placement of qubits into
+    the architecture zones is provided, the qubits will be
+     placed using an internal algorithm in a "balanced" way across
+    the available zones.
+
+    :param circuit: A pytket Circuit to be routed
+    :param arch: MultiZoneArchitecture to route into
+    :param initial_placement: An optional initial mapping of architecture
+     zones to lists of qubits to use
+    """
     n_qubits = circuit.n_qubits
     if not initial_placement:
         initial_placement = _calc_initial_placement(n_qubits, arch)
@@ -95,6 +122,12 @@ def route_circuit(
 def _calc_initial_placement(
     n_qubits: int, arch: MultiZoneArchitecture
 ) -> ZonePlacement:
+    """
+    Calculate an initial mapping of zones to qubit lists
+
+    :param n_qubits: number of qubits to be placed
+    :param arch: MultiZoneArchitecture to place into
+    """
     n_qubits_max = arch.n_qubits_max
     n_zones = arch.n_zones
     if n_qubits > n_qubits_max:

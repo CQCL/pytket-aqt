@@ -259,6 +259,12 @@ class AQTMultiZoneBackend(Backend):
         initial_placement: Optional[ZonePlacement] = None,
         optimisation_level: int = 2,
     ) -> MultiZoneCircuit:
+        """
+        Compile a pytket Circuit and route it to the backend architecture
+
+        Returns a MultiZoneCircuit that conforms to the backend architecture
+
+        """
         assert circuit.is_simple
         compiled = super().get_compiled_circuit(circuit, optimisation_level)
         qubit_map = {
