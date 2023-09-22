@@ -276,6 +276,20 @@ class MultiZoneCircuit:
         Adds custom gates to underlying Circuit to signify move and prevent optimisation
         through the move.
         Raises error is move is not possible
+
+        If precompiled=False, the needed "PSWAP" and "SHUTTLE" operations are added to
+        lists for each qubit and "MoveBarriers" are added to underlying pytket circuit.
+        The "MoveBarriers" serve as markers to add the physical operations to the
+        circuit after compilation
+
+        If precompiled=True (should not be used for manual routing), the underlying
+        circuit is assumed to already be compiled (but not yet routed). the "PSWAP"
+        and "SHUTTLE" operations will be added to the circuit directly.
+
+        :param qubit: qubit to move
+        :param new_zone: zone to move it too
+        :param precompiled: whether the underlying pytket circuit has already been
+         compiled (but not yet routed)
         """
         if qubit not in self.qubit_to_zones:
             raise QubitPlacementError("Cannot move qubit that was never placed")
