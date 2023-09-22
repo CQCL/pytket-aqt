@@ -147,7 +147,9 @@ def _calc_initial_placement(
             current_zone = 0
         else:
             current_zone += 1
-    # rearrange
+    # rearrange initial_zone_to_qubits so that qubit label integers are in numerical
+    # order, and qubit label integers increase with increasing zone number
+    # i.e., for two zones and four total qubits: [1,3]-[2,4] -> [1,2]-[3,4]
     current_qubit = 0
     for zone in range(n_zones):
         for zone_position in range(len(initial_zone_to_qubits[zone])):

@@ -1,3 +1,17 @@
+# Copyright 2020-2023 Cambridge Quantum Computing
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import itertools
 import logging
 from copy import deepcopy
@@ -365,6 +379,26 @@ class MultiZoneCircuit:
         new_circuit.zone_to_qubits = deepcopy(self.zone_to_qubits)
         new_circuit.multi_zone_operations = deepcopy(self.multi_zone_operations)
         return new_circuit
+
+    def get_n_shuttles(self) -> int:
+        count = 0
+        for cmd in self.pytket_circuit.get_commands():
+            op = cmd.op
+            optype = op.type
+            op_string = f"{op}"
+            if optype == OpType.CustomGate and "SHUTTLE" in op_string:
+                count += 1
+        return count
+
+    def get_n_pswaps(self) -> int:
+        count = 0
+        for cmd in self.pytket_circuit.get_commands():
+            op = cmd.op
+            optype = op.type
+            op_string = f"{op}"
+            if optype == OpType.CustomGate and "PSWAP" in op_string:
+                count += 1
+        return count
 
     def validate(self) -> None:
         if self._is_compiled:

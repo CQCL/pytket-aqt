@@ -265,14 +265,15 @@ class AQTMultiZoneBackend(Backend):
         Returns a MultiZoneCircuit that conforms to the backend architecture
 
         """
-        assert circuit.is_simple
+        if not circuit.is_simple:
+            raise ValueError(f"{type(self).__name__} only supports simple circuits")
         compiled = super().get_compiled_circuit(circuit, optimisation_level)
+        # compilation renames qbit register to "fcNode" so rename back to "q"
         qubit_map = {
             cast(UnitID, qubit): cast(UnitID, Qubit(qubit.index[0]))
             for qubit in compiled.qubits
         }
         compiled.rename_units(qubit_map)
-        assert compiled.is_simple
         routed = route_circuit(compiled, self._architecture, initial_placement)
         routed.is_compiled = True
         return routed
