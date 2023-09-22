@@ -172,10 +172,16 @@ def test_automatically_routed_circuit_has_correct_syntax(
     circuit.CX(1, 2).CX(3, 4).CX(5, 6).CX(7, 0)
     circuit.measure_all()
     mz_circuit = backend.compile_circuit_with_routing(circuit, initial_placement)
+
+    n_shuttles = mz_circuit.get_n_shuttles()
+    n_pswaps = mz_circuit.get_n_pswaps()
+
     aqt_operation_list = get_aqt_json_syntax_for_compiled_circuit(mz_circuit)
 
     initialized_zones: list[int] = []
     number_initialized_qubits: int = 0
+    aqt_shuttles = 0
+    aqt_pswaps = 0
     for i, operation in enumerate(aqt_operation_list):
         if i < 2:
             assert operation[0] == "INIT"
@@ -203,14 +209,18 @@ def test_automatically_routed_circuit_has_correct_syntax(
             assert _zop_addresses_in_different_zones(operation[2][0], operation[2][1])
             assert _is_valid_zop(operation[2][0], initialized_zones)
             assert _is_valid_zop(operation[2][1], initialized_zones)
+            aqt_shuttles += 1
         elif operation[0] in ["PSWAP"]:
             assert len(operation) == 2
             assert len(operation[1]) == 2
             assert _zop_addresses_in_same_zone(operation[1][0], operation[1][1])
             assert _is_valid_zop(operation[1][0], initialized_zones)
             assert _is_valid_zop(operation[1][1], initialized_zones)
+            aqt_pswaps += 1
         else:
             raise Exception(f"Detected invalid operation type: {operation[0]}")
+    assert n_pswaps == aqt_pswaps
+    assert n_shuttles == aqt_shuttles
     assert initialized_zones == [zone for zone in initial_placement]
     assert number_initialized_qubits == 8
 
