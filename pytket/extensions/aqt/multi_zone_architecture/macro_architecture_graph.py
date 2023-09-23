@@ -54,7 +54,7 @@ class MultiZoneMacroArch:
         return path
 
 
-def empty_macro_arch_from_backend(
+def empty_macro_arch_from_architecture(
     architecture: MultiZoneArchitecture,
 ) -> MultiZoneMacroArch:
     zones = Graph()

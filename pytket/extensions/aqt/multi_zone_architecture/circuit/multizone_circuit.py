@@ -31,7 +31,7 @@ from ..architecture import EdgeType
 from ..architecture import MultiZoneArchitecture
 from ..architecture import source_edge_type
 from ..architecture import target_edge_type
-from ..macro_architecture_graph import empty_macro_arch_from_backend
+from ..macro_architecture_graph import empty_macro_arch_from_architecture
 from ..macro_architecture_graph import MultiZoneMacroArch
 from ..macro_architecture_graph import ZoneId
 
@@ -208,11 +208,13 @@ class MultiZoneCircuit:
         **kwargs: str,
     ):
         self.architecture = multi_zone_arch
-        self.macro_arch = empty_macro_arch_from_backend(multi_zone_arch)
+        self.macro_arch = empty_macro_arch_from_architecture(multi_zone_arch)
         self.pytket_circuit = Circuit(*args, **kwargs)
         self.qubit_to_zones = {}
         self.initial_zone_to_qubits = initial_zone_to_qubits
-        self.zone_to_qubits = {zone.id: [] for zone in multi_zone_arch.zones}
+        self.zone_to_qubits = {
+            zone_id: [] for zone_id, _ in enumerate(multi_zone_arch.zones)
+        }
         self.multi_zone_operations = {
             qubit: [] for qubit in range(multi_zone_arch.n_qubits_max)
         }
