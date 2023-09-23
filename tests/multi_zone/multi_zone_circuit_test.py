@@ -114,18 +114,10 @@ def test_validation_of_valid_circuit_does_not_throw(circuit: MultiZoneCircuit) -
 
 
 def test_circuit_routing(circuit_precompile: Circuit) -> None:
-    routed_circuit = route_circuit(circuit_precompile, four_zones_in_a_line)
-    print("\n")
-    for cmd in routed_circuit.pytket_circuit:
-        print(cmd)
+    route_circuit(circuit_precompile, four_zones_in_a_line)
 
 
 def test_circuit_routing_with_initial_placement(
     circuit_precompile: Circuit, initial_placement: dict[int, list[int]]
 ) -> None:
-    routed_circuit = route_circuit(
-        circuit_precompile, four_zones_in_a_line, initial_placement
-    )
-    print("\n")
-    for cmd in routed_circuit.pytket_circuit:
-        print(cmd)
+    route_circuit(circuit_precompile, four_zones_in_a_line, initial_placement)
