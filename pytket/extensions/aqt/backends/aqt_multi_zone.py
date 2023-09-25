@@ -360,6 +360,15 @@ def get_aqt_json_syntax_for_compiled_circuit(
 def _get_initial_zone_to_qubit_data(
     circ: Circuit,
 ) -> Tuple[dict[int, tuple[int, int]], dict[int, tuple[int, int]]]:
+    """
+    From the initialization operations at the beginning of a circuit
+    routed to a MultiZoneArchitecture, determine the initial mapping of
+    qubits to a (zone, position) tuple and the initial mapping of zones
+    to an (occupancy, offset) tuple.
+
+    These mappings are used in the translations
+    from Circuit commands to AQT API commands
+    """
     qubit_to_zone_position: dict[int, tuple[int, int]] = {}
     zone_to_occupancy_offset: dict[int, tuple[int, int]] = {}
     for cmd in circ.get_commands():
