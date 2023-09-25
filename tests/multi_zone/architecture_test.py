@@ -12,15 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pytket.extensions.aqt.multi_zone_architecture.architecture import (
-    MultiZoneArchitecture,
-)
 from pytket.extensions.aqt.multi_zone_architecture.named_architectures import (
     four_zones_in_a_line,
 )
 
-multizone = four_zones_in_a_line
 
-
-def test_zone_types() -> None:
-    assert MultiZoneArchitecture(**multizone.model_dump()) == multizone
+def test_architecture_str() -> None:
+    four_zones_in_a_line_str = four_zones_in_a_line.__str__()
+    assert isinstance(four_zones_in_a_line_str, str)

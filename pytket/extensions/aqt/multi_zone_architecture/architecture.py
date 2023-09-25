@@ -161,6 +161,6 @@ class MultiZoneArchitecture(BaseModel):
                     connection_name
                 ].connection_type
                 arch_spec_lines.append(
-                    f"       {connection_type} <-> Zone {connected_zone}"
+                    f"       {connection_type}: Zone {connected_zone}"
                 )
         return f"{os.linesep}".join(arch_spec_lines)
