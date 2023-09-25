@@ -19,7 +19,7 @@ from typing import Tuple
 import numpy as np
 import pytest
 from pytket.circuit import Circuit
-from pytket.circuit import OpType  # type: ignore
+from pytket.circuit import OpType
 from pytket.extensions.aqt.backends.aqt import _aqt_rebase
 from pytket.extensions.aqt.backends.aqt import _translate_aqt
 from pytket.extensions.aqt.backends.aqt import AQTBackend

@@ -19,7 +19,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies
 from pytket.backends import StatusEnum
-from pytket.circuit import Circuit  # type: ignore
+from pytket.circuit import Circuit
 from pytket.extensions.aqt import AQTBackend
 from pytket.extensions.aqt.backends.aqt import _DEVICE_INFO
 
