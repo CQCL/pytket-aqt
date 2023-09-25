@@ -13,8 +13,7 @@
 # limitations under the License.
 
 import pytest
-from pytket import Circuit
-from pytket.circuit import OpType
+from pytket.circuit import Circuit, OpType
 from pytket.extensions.aqt.multi_zone_architecture.circuit.multizone_circuit import (
     AcrossZoneOperationError,
 )
