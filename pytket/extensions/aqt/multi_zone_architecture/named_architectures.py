@@ -173,16 +173,16 @@ four_zones_diamond_pattern = MultiZoneArchitecture(
         ),
     ],
     zones=[
-        Zone(name="LeftEdge", zone_type_id=0, connected_zones={1: "RL", 2: "RL2"}),
-        Zone(name="Interior1", zone_type_id=1, connected_zones={0: "LR", 3: "RL"}),
-        Zone(name="Interior2", zone_type_id=1, connected_zones={0: "LR", 3: "RL"}),
+        Zone(name="LeftEdge", zone_type_id=0, connected_zones={1: "RL", 3: "RL2"}),
+        Zone(name="Interior1", zone_type_id=1, connected_zones={0: "LR", 2: "RL"}),
         Zone(
             name="RightEdge",
             zone_type_id=2,
             connected_zones={
                 1: "LR",
-                2: "LR2",
+                3: "LR2",
             },
         ),
+        Zone(name="Interior2", zone_type_id=1, connected_zones={0: "LR", 2: "RL"}),
     ],
 )
