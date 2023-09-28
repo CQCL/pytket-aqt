@@ -1,6 +1,11 @@
 Changelog
 ~~~~~~~~~
 
+(unreleased)
+------------
+
+* Add simple automatic placement and routing for multi-zone architectures
+
 0.29.0rc0 (July 2023)
 ---------------------
 

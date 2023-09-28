@@ -1,5 +1,19 @@
+# Copyright 2020-2023 Cambridge Quantum Computing
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import pytest
-from pytket.circuit import OpType
+from pytket.circuit import Circuit, OpType
 from pytket.extensions.aqt.multi_zone_architecture.circuit.multizone_circuit import (
     AcrossZoneOperationError,
 )
@@ -16,6 +30,10 @@ from pytket.extensions.aqt.multi_zone_architecture.named_architectures import (
     four_zones_in_a_line,
 )
 
+from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.route_zones import (
+    route_circuit,
+)
+
 
 @pytest.fixture()
 def initial_placement() -> dict[int, list[int]]:
@@ -28,6 +46,15 @@ def circuit(initial_placement: dict[int, list[int]]) -> MultiZoneCircuit:
     circuit.CX(0, 1).CX(2, 3).CX(4, 5).CX(6, 7)
     circuit.move_qubit(3, 1)
     circuit.move_qubit(0, 1)
+    circuit.CX(1, 2).CX(3, 4).CX(5, 6).CX(7, 0)
+    circuit.measure_all()
+    return circuit
+
+
+@pytest.fixture()
+def circuit_precompile() -> Circuit:
+    circuit = Circuit(8)
+    circuit.CX(0, 1).CX(2, 3).CX(4, 5).CX(6, 7)
     circuit.CX(1, 2).CX(3, 4).CX(5, 6).CX(7, 0)
     circuit.measure_all()
     return circuit
@@ -97,3 +124,13 @@ def test_validation_of_circuit_with_operation_across_zones_throws(
 
 def test_validation_of_valid_circuit_does_not_throw(circuit: MultiZoneCircuit) -> None:
     circuit.validate()
+
+
+def test_circuit_routing(circuit_precompile: Circuit) -> None:
+    route_circuit(circuit_precompile, four_zones_in_a_line)
+
+
+def test_circuit_routing_with_initial_placement(
+    circuit_precompile: Circuit, initial_placement: dict[int, list[int]]
+) -> None:
+    route_circuit(circuit_precompile, four_zones_in_a_line, initial_placement)

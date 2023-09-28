@@ -21,6 +21,7 @@ from typing import Sequence
 from typing import Tuple
 from typing import Union
 
+from pytket._tket.unit_id import UnitID
 from pytket.backends import Backend
 from pytket.backends import CircuitStatus
 from pytket.backends import ResultHandle
@@ -57,6 +58,10 @@ from ..multi_zone_architecture.circuit.multizone_circuit import (
     MultiZoneCircuit,
 )
 from ..extension_version import __extension_version__
+from ..multi_zone_architecture.circuit_routing.route_zones import (
+    route_circuit,
+    ZonePlacement,
+)
 
 AQT_URL_PREFIX = "https://gateway.aqt.eu/marmot/"
 
@@ -134,6 +139,7 @@ class AQTMultiZoneBackend(Backend):
         self._header = {"Ocp-Apim-Subscription-Key": access_token, "SDK": "pytket"}
         self._backend_info: Optional[BackendInfo] = None
         self._qm: Dict[Qubit, Qubit] = {}
+        self._architecture = architecture
         self._backend_info = fully_connected_backendinfo(
             type(self).__name__,
             device_name,
@@ -247,13 +253,35 @@ class AQTMultiZoneBackend(Backend):
         """
         raise NotImplementedError
 
-    def get_compiled_circuit(
-        self, circuit: Circuit, optimisation_level: int = 2
-    ) -> Circuit:
-        raise NotImplementedError("Use get_compiled_circuit_mz for Multizone Circuits")
+    def compile_circuit_with_routing(
+        self,
+        circuit: Circuit,
+        initial_placement: Optional[ZonePlacement] = None,
+        optimisation_level: int = 2,
+    ) -> MultiZoneCircuit:
+        """
+        Compile a pytket Circuit and route it to the backend architecture
 
-    def get_compiled_circuit_mz(
-        self, circuit: MultiZoneCircuit, optimisation_level: int = 2
+        Returns a MultiZoneCircuit that conforms to the backend architecture
+
+        """
+        if not circuit.is_simple:
+            raise ValueError(f"{type(self).__name__} only supports simple circuits")
+        compiled = super().get_compiled_circuit(circuit, optimisation_level)
+        # compilation renames qbit register to "fcNode" so rename back to "q"
+        qubit_map = {
+            cast(UnitID, qubit): cast(UnitID, Qubit(qubit.index[0]))
+            for qubit in compiled.qubits
+        }
+        compiled.rename_units(qubit_map)
+        routed = route_circuit(compiled, self._architecture, initial_placement)
+        routed.is_compiled = True
+        return routed
+
+    def compile_manually_routed_multi_zone_circuit(
+        self,
+        circuit: MultiZoneCircuit,
+        optimisation_level: int = 2,
     ) -> MultiZoneCircuit:
         """Compile a MultiZoneCircuit to run on an AQT multi-zone architecture
 
@@ -304,25 +332,69 @@ class AQTMultiZoneBackend(Backend):
         return new_circuit
 
 
-def get_aqt_json_syntax_for_compiled_circuit(circuit: MultiZoneCircuit) -> List[List]:
+def get_aqt_json_syntax_for_compiled_circuit(
+    circuit: MultiZoneCircuit | Circuit,
+) -> List[List]:
     """Get python List object containing circuit instructions in AQT JSON Syntax"""
-    if not circuit.is_compiled:
-        raise Exception("AQT json syntax can only be generated from a compiled circuit")
-    aqt_syntax_operation_list = _translate_aqt(circuit)[0]
+    aqt_syntax_operation_list: list[list[Any]] = []
+    if isinstance(circuit, MultiZoneCircuit):
+        if not circuit.is_compiled:
+            raise Exception(
+                "AQT json syntax can only be generated from a compiled circuit"
+            )
+        aqt_syntax_operation_list = _translate_aqt(circuit.pytket_circuit)[0]
+    elif isinstance(circuit, Circuit):
+        first_op = circuit.get_commands()[0].op
+        optype = first_op.type
+        op_string = f"{first_op}"
+        if optype != OpType.CustomGate or "INIT" not in op_string:
+            raise Exception(
+                "Missing INIT in circuit, AQT json syntax can"
+                " only be generated from a compiled circuit"
+            )
+        aqt_syntax_operation_list = _translate_aqt(circuit)[0]
+
     return aqt_syntax_operation_list
 
 
-def _translate_aqt(circ: MultiZoneCircuit) -> Tuple[List[List], str]:
+def _get_initial_zone_to_qubit_data(
+    circ: Circuit,
+) -> Tuple[dict[int, tuple[int, int]], dict[int, tuple[int, int]]]:
+    """
+    From the initialization operations at the beginning of a circuit
+    routed to a MultiZoneArchitecture, determine the initial mapping of
+    qubits to a (zone, position) tuple and the initial mapping of zones
+    to an (occupancy, offset) tuple.
+
+    These mappings are used in the translations
+    from Circuit commands to AQT API commands
+    """
+    qubit_to_zone_position: dict[int, tuple[int, int]] = {}
+    zone_to_occupancy_offset: dict[int, tuple[int, int]] = {}
+    for cmd in circ.get_commands():
+        op = cmd.op
+        optype = op.type
+        op_string = f"{op}"
+        if optype == OpType.CustomGate and "INIT" in op_string:
+            target_zone = int(op.params[0])
+            qubits = [qubit.index[0] for qubit in cmd.args]
+            zone_to_occupancy_offset[target_zone] = (len(qubits), 0)
+            for position, qubit in enumerate(qubits):
+                qubit_to_zone_position[qubit] = (target_zone, position)
+        else:
+            # INITs should always be the very first commands
+            break
+    return qubit_to_zone_position, zone_to_occupancy_offset
+
+
+def _translate_aqt(circ: Circuit) -> Tuple[List[List], str]:
     """Convert a circuit in the AQT gate set to AQT list representation,
     along with a JSON string describing the measure result permutations."""
     gates: List = list()
     measures: List = list()
-    qubit_to_zone_position: dict[int, tuple[int, int]] = {}
-    zone_to_occupancy_offset: dict[int, tuple[int, int]] = {}
-    for zone, qubits in circ.initial_zone_to_qubits.items():
-        for position, qubit in enumerate(qubits):
-            qubit_to_zone_position[qubit] = (zone, position)
-        zone_to_occupancy_offset[zone] = (len(qubits), 0)
+    qubit_to_zone_position, zone_to_occupancy_offset = _get_initial_zone_to_qubit_data(
+        circ
+    )
 
     def zop(qubit_: int) -> list[int]:
         (zone_, position_) = qubit_to_zone_position[qubit_]
@@ -337,7 +409,7 @@ def _translate_aqt(circ: MultiZoneCircuit) -> Tuple[List[List], str]:
         qubit_to_zone_position[qubit_1_] = (zone_2, position_2)
         qubit_to_zone_position[qubit_2_] = (zone_1, position_1)
 
-    for cmd in circ.pytket_circuit.get_commands():
+    for cmd in circ.get_commands():
         op = cmd.op
         optype = op.type
         op_string = f"{op}"
