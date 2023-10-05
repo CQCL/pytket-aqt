@@ -5,6 +5,9 @@ Changelog
 ------------
 
 * Add simple automatic placement and routing for multi-zone architectures
+* Don't include ``SimplifyInitial`` in default passes; instead make it an option
+  to ``process_circuits()``.
+
 
 0.29.0rc0 (July 2023)
 ---------------------
