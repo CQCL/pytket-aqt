@@ -42,7 +42,6 @@ from pytket.passes import FlattenRegisters
 from pytket.passes import FullPeepholeOptimise
 from pytket.passes import RenameQubitsPass
 from pytket.passes import SequencePass
-from pytket.passes import SimplifyInitial
 from pytket.passes import SynthesiseTket
 from pytket.predicates import GateSetPredicate
 from pytket.predicates import MaxNQubitsPredicate
@@ -200,9 +199,6 @@ class AQTMultiZoneBackend(Backend):
                     FlattenRegisters(),
                     RenameQubitsPass(self._qm),
                     self.rebase_pass(),
-                    SimplifyInitial(
-                        allow_classical=False, create_all_qubits=True, xcirc=_xcirc
-                    ),
                     EulerAngleReduction(OpType.Ry, OpType.Rx),
                 ]
             )
@@ -214,9 +210,6 @@ class AQTMultiZoneBackend(Backend):
                     FlattenRegisters(),
                     RenameQubitsPass(self._qm),
                     self.rebase_pass(),
-                    SimplifyInitial(
-                        allow_classical=False, create_all_qubits=True, xcirc=_xcirc
-                    ),
                     EulerAngleReduction(OpType.Ry, OpType.Rx),
                 ]
             )
@@ -495,7 +488,3 @@ def _translate_aqt(circ: Circuit) -> Tuple[List[List], str]:
 
 def _aqt_rebase() -> BasePass:
     return auto_rebase_pass({OpType.XXPhase, OpType.Rx, OpType.Ry})
-
-
-_xcirc = Circuit(1).Rx(1, 0)
-_xcirc.add_phase(0.5)
