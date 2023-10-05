@@ -216,9 +216,6 @@ class AQTBackend(Backend):
                     FlattenRegisters(),
                     RenameQubitsPass(self._qm),
                     self.rebase_pass(),
-                    SimplifyInitial(
-                        allow_classical=False, create_all_qubits=True, xcirc=_xcirc
-                    ),
                     EulerAngleReduction(OpType.Ry, OpType.Rx),
                 ]
             )
@@ -230,9 +227,6 @@ class AQTBackend(Backend):
                     FlattenRegisters(),
                     RenameQubitsPass(self._qm),
                     self.rebase_pass(),
-                    SimplifyInitial(
-                        allow_classical=False, create_all_qubits=True, xcirc=_xcirc
-                    ),
                     EulerAngleReduction(OpType.Ry, OpType.Rx),
                 ]
             )
@@ -250,7 +244,13 @@ class AQTBackend(Backend):
     ) -> List[ResultHandle]:
         """
         See :py:meth:`pytket.backends.Backend.process_circuits`.
-        Supported kwargs: none.
+
+        Supported kwargs:
+        - `postprocess`: apply end-of-circuit simplifications and classical
+          postprocessing to improve fidelity of results (bool, default False)
+        - `simplify_initial`: apply the pytket ``SimplifyInitial`` pass to improve
+          fidelity of results assuming all qubits initialized to zero (bool, default
+          False)
         """
         circuits = list(circuits)
         n_shots_list = Backend._get_n_shots_as_list(
@@ -263,6 +263,7 @@ class AQTBackend(Backend):
             self._check_all_circuits(circuits)
 
         postprocess = kwargs.get("postprocess", False)
+        simplify_initial = kwargs.get("postprocess", False)
 
         handles = []
         for i, (c, n_shots) in enumerate(zip(circuits, n_shots_list)):
@@ -271,6 +272,10 @@ class AQTBackend(Backend):
                 ppcirc_rep = ppcirc.to_dict()
             else:
                 c0, ppcirc_rep = c, None
+            if simplify_initial:
+                SimplifyInitial(
+                    allow_classical=False, create_all_qubits=True, xcirc=_xcirc
+                ).apply(c0)
             (aqt_circ, measures) = _translate_aqt(c0)
             if self._MACHINE_DEBUG:
                 handles.append(
