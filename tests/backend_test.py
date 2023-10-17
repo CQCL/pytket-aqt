@@ -11,14 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from collections import Counter
 import os
-from hypothesis import given, strategies
+from collections import Counter
+
 import numpy as np
 import pytest
-from pytket.circuit import Circuit  # type: ignore
+from hypothesis import given
+from hypothesis import strategies
 from pytket.backends import StatusEnum
+from pytket.circuit import Circuit
 from pytket.extensions.aqt import AQTBackend
 from pytket.extensions.aqt.backends.aqt import _DEVICE_INFO
 

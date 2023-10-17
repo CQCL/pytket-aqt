@@ -1,24 +1,41 @@
+# Copyright 2020-2023 Cambridge Quantum Computing
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import itertools
 import logging
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field
 from enum import Enum
-from typing import Any, cast
-from sympy import symbols
+from typing import Any, Optional, Iterator
 
-from pytket.circuit import Circuit, OpType, CustomGateDef  # type: ignore
+from sympy import symbols, Expr
 
-from ..architecture import (
-    MultiZoneArchitecture,
-    EdgeType,
-    source_edge_type,
-    target_edge_type,
-)
-from ..macro_architechture_graph import (
-    MultiZoneMacroArch,
-    empty_macro_arch_from_backend,
-    ZoneId,
-)
+from pytket.circuit import UnitID
+from pytket.circuit import Circuit
+from pytket.circuit import CustomGateDef
+from pytket.circuit import OpType
+
+from ..architecture import EdgeType
+from ..architecture import MultiZoneArchitecture
+from ..architecture import source_edge_type
+from ..architecture import target_edge_type
+from ..macro_architecture_graph import empty_macro_arch_from_architecture
+from ..macro_architecture_graph import MultiZoneMacroArch
+from ..macro_architecture_graph import ZoneId
+
+ParamType = Expr | float
 
 
 class QubitPlacementError(Exception):
@@ -62,7 +79,9 @@ class SwapWithinZone:
         return f"{self.qubit_0}: {self.qubit_1}"
 
     def append_to_circuit(self, circuit: "MultiZoneCircuit") -> None:
-        circuit.add_custom_gate(swap_gate, [], [self.qubit_0, self.qubit_1])
+        circuit.pytket_circuit.add_custom_gate(
+            swap_gate, [], [self.qubit_0, self.qubit_1]
+        )
 
 
 @dataclass
@@ -91,7 +110,7 @@ class Shuttle:
         return f"{self.qubit}: {self.zone}"
 
     def append_to_circuit(self, circuit: "MultiZoneCircuit") -> None:
-        circuit.add_custom_gate(
+        circuit.pytket_circuit.add_custom_gate(
             shuttle_gate,
             [self.zone, self.source_edge_int_encoding, self.target_edge_int_encoding],
             [self.qubit],
@@ -161,7 +180,7 @@ def _move_from_zone_position_to_connected_zone_edge(
     return move_operations
 
 
-class MultiZoneCircuit(Circuit):
+class MultiZoneCircuit:
     """Circuit for AQT Multi-Zone architectures
 
     Adds operations for initialisation of ions within zones and
@@ -178,6 +197,7 @@ class MultiZoneCircuit(Circuit):
     zone_to_qubits: dict[int, list[int]]
     initial_zone_to_qubits: dict[int, list[int]]
     multi_zone_operations: dict[int, list[list[MZAOperation]]]
+    pytket_circuit: Circuit
     _is_compiled: bool = False
 
     def __init__(
@@ -188,18 +208,20 @@ class MultiZoneCircuit(Circuit):
         **kwargs: str,
     ):
         self.architecture = multi_zone_arch
-        self.macro_arch = empty_macro_arch_from_backend(multi_zone_arch)
-        super().__init__(*args, **kwargs)
+        self.macro_arch = empty_macro_arch_from_architecture(multi_zone_arch)
+        self.pytket_circuit = Circuit(*args, **kwargs)
         self.qubit_to_zones = {}
         self.initial_zone_to_qubits = initial_zone_to_qubits
-        self.zone_to_qubits = {zone.id: [] for zone in multi_zone_arch.zones}
+        self.zone_to_qubits = {
+            zone_id: [] for zone_id, _ in enumerate(multi_zone_arch.zones)
+        }
         self.multi_zone_operations = {
             qubit: [] for qubit in range(multi_zone_arch.n_qubits_max)
         }
         for zone, qubits in initial_zone_to_qubits.items():
             self._place_qubits(zone, qubits)
 
-        self.all_qubit_list = list(range(len(self.qubits)))
+        self.all_qubit_list = list(range(len(self.pytket_circuit.qubits)))
         move_barrier_def_circ = Circuit(len(self.all_qubit_list))
         move_barrier_def_circ.add_barrier(self.all_qubit_list)
         self.move_barrier_gate = CustomGateDef(
@@ -208,7 +230,10 @@ class MultiZoneCircuit(Circuit):
         for zone, qubit_list in initial_zone_to_qubits.items():
             init_def_circ = Circuit(len(qubit_list))
             custom_init = CustomGateDef("INIT", init_def_circ, [dz])
-            self.add_custom_gate(custom_init, [zone], qubit_list)
+            self.pytket_circuit.add_custom_gate(custom_init, [zone], qubit_list)
+
+    def __iter__(self) -> Iterator:
+        return self.pytket_circuit.__iter__()
 
     @property
     def is_compiled(self) -> bool:
@@ -225,7 +250,9 @@ class MultiZoneCircuit(Circuit):
         It is necessary to prevent reordering of shuttling
         during compilation
         """
-        self.add_custom_gate(self.move_barrier_gate, [], self.all_qubit_list)
+        self.pytket_circuit.add_custom_gate(
+            self.move_barrier_gate, [], self.all_qubit_list
+        )
 
     def _place_qubit(self, zone: int, qubit: int) -> None:
         if qubit in self.qubit_to_zones:
@@ -244,13 +271,27 @@ class MultiZoneCircuit(Circuit):
         for qubit in qubits:
             self._place_qubit(zone, qubit)
 
-    def move_qubit(self, qubit: int, new_zone: int) -> None:
+    def move_qubit(self, qubit: int, new_zone: int, precompiled: bool = False) -> None:
         """Move a qubit from its current zone to new_zone
 
         Calculates the needs "PSWAP" and "SHUTTLE" operations to implement move.
         Adds custom gates to underlying Circuit to signify move and prevent optimisation
         through the move.
         Raises error is move is not possible
+
+        If precompiled=False, the needed "PSWAP" and "SHUTTLE" operations are added to
+        lists for each qubit and "MoveBarriers" are added to underlying pytket circuit.
+        The "MoveBarriers" serve as markers to add the physical operations to the
+        circuit after compilation
+
+        If precompiled=True (should not be used for manual routing), the underlying
+        circuit is assumed to already be compiled (but not yet routed). the "PSWAP"
+        and "SHUTTLE" operations will be added to the circuit directly.
+
+        :param qubit: qubit to move
+        :param new_zone: zone to move it too
+        :param precompiled: whether the underlying pytket circuit has already been
+         compiled (but not yet routed)
         """
         if qubit not in self.qubit_to_zones:
             raise QubitPlacementError("Cannot move qubit that was never placed")
@@ -308,8 +349,9 @@ class MultiZoneCircuit(Circuit):
             else:
                 position_in_zone = VirtualZonePosition.VirtualLeft
 
-        self.add_custom_gate(move_gate, [new_zone], [qubit])
-        self.add_move_barrier()
+        if not precompiled:
+            self.pytket_circuit.add_custom_gate(move_gate, [new_zone], [qubit])
+            self.add_move_barrier()
         old_zone_qubits.remove(qubit)
         if position_in_zone is VirtualZonePosition.VirtualLeft:
             self.zone_to_qubits[new_zone].insert(0, qubit)
@@ -317,29 +359,68 @@ class MultiZoneCircuit(Circuit):
             self.zone_to_qubits[new_zone].append(qubit)
         self.qubit_to_zones[qubit].append(new_zone)
         self.multi_zone_operations[qubit].append(move_operations)
+        if precompiled:
+            for multi_op in move_operations:
+                multi_op.append_to_circuit(self)
 
-    def add_gate(self, *args: list, **kwargs: dict) -> Any:
-        if isinstance(args[0], OpType) and args[0] == OpType.Barrier:
+    def add_gate(
+        self,
+        op_type: OpType,
+        args: list[UnitID] | list[int],
+        params: Optional[list[ParamType]] = None,
+    ) -> "MultiZoneCircuit":
+        if op_type == OpType.Barrier:
             raise ValueError(
                 "The manual addition of barriers is not currently"
                 " allowed within Multi Zone Circuits"
             )
-        super().add_gate(*args, **kwargs)
+        if params is None:
+            self.pytket_circuit.add_gate(op_type, args)
+        else:
+            self.pytket_circuit.add_gate(op_type, params, args)
+        return self
 
-    def add_barrier(self, *args: list, **kwargs: dict) -> Any:
-        raise ValueError(
-            "The manual addition of barriers is not currently"
-            " allowed within Multi Zone Circuits"
-        )
+    def CX(self, control: int, target: int, **kwargs: Any) -> "MultiZoneCircuit":
+        self.pytket_circuit.CX(control, target, **kwargs)
+        return self
+
+    def measure_all(self) -> "MultiZoneCircuit":
+        self.pytket_circuit.measure_all()
+        return self
 
     def copy(self) -> "MultiZoneCircuit":
-        new_circuit = super().copy()
-        new_circuit.architecture = self.architecture
-        new_circuit.macro_arch = self.macro_arch
+        new_circuit = MultiZoneCircuit(self.architecture, self.initial_zone_to_qubits)
+        new_circuit.pytket_circuit = self.pytket_circuit.copy()
         new_circuit.qubit_to_zones = deepcopy(self.qubit_to_zones)
         new_circuit.zone_to_qubits = deepcopy(self.zone_to_qubits)
         new_circuit.multi_zone_operations = deepcopy(self.multi_zone_operations)
-        return cast(MultiZoneCircuit, new_circuit)
+        return new_circuit
+
+    def get_n_shuttles(self) -> int:
+        """
+        Get the number of shuttles used to route the circuit to the architecture
+        """
+        count = 0
+        for cmd in self.pytket_circuit.get_commands():
+            op = cmd.op
+            optype = op.type
+            op_string = f"{op}"
+            if optype == OpType.CustomGate and "SHUTTLE" in op_string:
+                count += 1
+        return count
+
+    def get_n_pswaps(self) -> int:
+        """
+        Get the number of pswaps used to route the circuit to the architecture
+        """
+        count = 0
+        for cmd in self.pytket_circuit.get_commands():
+            op = cmd.op
+            optype = op.type
+            op_string = f"{op}"
+            if optype == OpType.CustomGate and "PSWAP" in op_string:
+                count += 1
+        return count
 
     def validate(self) -> None:
         if self._is_compiled:
@@ -351,7 +432,7 @@ class MultiZoneCircuit(Circuit):
         current_multiop_index_per_qubit: dict[int, int] = {
             k: 0 for k in self.multi_zone_operations.keys()
         }
-        for i, cmd in enumerate(self):
+        for i, cmd in enumerate(self.pytket_circuit):
             op = cmd.op
             if "MOVE_BARRIER" in f"{op}":
                 pass

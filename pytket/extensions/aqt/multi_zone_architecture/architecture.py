@@ -1,7 +1,23 @@
+# Copyright 2020-2023 Cambridge Quantum Computing
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+import os
 from enum import Enum
-from typing import Union, Dict, List
+from typing import Dict
+from typing import List
+from typing import Union
 
-from pydantic import BaseModel
+from pydantic import ConfigDict, BaseModel
 
 
 class EdgeType(str, Enum):
@@ -66,9 +82,7 @@ class ZoneConnection(BaseModel):
 
     connection_type: ConnectionType
     max_transfer: int
-
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
 
 
 class Operation(BaseModel):
@@ -90,7 +104,6 @@ class ZoneType(BaseModel):
     The connections are placeholders for connections to actual zones
     """
 
-    id: int
     name: str
     max_ions: int
     min_ions: int
@@ -101,7 +114,6 @@ class ZoneType(BaseModel):
 class Zone(BaseModel):
     """Processor Zone within the architecture"""
 
-    id: int
     name: str
     zone_type_id: int
     connected_zones: Dict[int, str]
@@ -127,3 +139,28 @@ class MultiZoneArchitecture(BaseModel):
         zone = self.zones[zone_index]
         zone_type = self.zone_types[zone.zone_type_id]
         return zone_type.max_ions
+
+    def __str__(self) -> str:
+        arch_spec_lines = [
+            f"Max number of qubits: {self.n_qubits_max}",
+            f"Number of zones: {self.n_zones}",
+            f"",
+        ]
+        for zone_id, zone in enumerate(self.zones):
+            zone_type = self.zone_types[zone.zone_type_id]
+            arch_spec_lines.extend(
+                [
+                    f"Zone {zone_id}:",
+                    f"    Max qubits {zone_type.max_ions}",
+                    f"    Min qubits {zone_type.min_ions}",
+                    f"    Connections:",
+                ]
+            )
+            for connected_zone, connection_name in zone.connected_zones.items():
+                connection_type = zone_type.zone_connections[
+                    connection_name
+                ].connection_type
+                arch_spec_lines.append(
+                    f"       {connection_type}: Zone {connected_zone}"
+                )
+        return f"{os.linesep}".join(arch_spec_lines)

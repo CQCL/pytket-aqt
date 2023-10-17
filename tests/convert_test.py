@@ -11,14 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from typing import Tuple, List
 import json
 import os
+from typing import List
+from typing import Tuple
+
 import numpy as np
 import pytest
-from pytket.circuit import Circuit, OpType  # type: ignore
-from pytket.extensions.aqt.backends.aqt import _translate_aqt, AQTBackend, _aqt_rebase
+from pytket.circuit import Circuit
+from pytket.circuit import OpType
+from pytket.extensions.aqt.backends.aqt import _aqt_rebase
+from pytket.extensions.aqt.backends.aqt import _translate_aqt
+from pytket.extensions.aqt.backends.aqt import AQTBackend
 
 skip_remote_tests: bool = os.getenv("PYTKET_RUN_REMOTE_TESTS") is None
 REASON = "PYTKET_RUN_REMOTE_TESTS not set (requires configuration of AQT access token)"

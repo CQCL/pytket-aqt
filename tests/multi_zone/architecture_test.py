@@ -11,7 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Backends for processing pytket circuits with AQT devices."""
-from .backends import AQTBackend
-from .backends.config import AQTConfig
-from .backends.config import set_aqt_config
+
+from pytket.extensions.aqt.multi_zone_architecture.named_architectures import (
+    four_zones_in_a_line,
+)
+
+
+def test_architecture_str() -> None:
+    four_zones_in_a_line_str = four_zones_in_a_line.__str__()
+    assert isinstance(four_zones_in_a_line_str, str)

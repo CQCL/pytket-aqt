@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Backends for processing pytket circuits with AQT devices."""
-from .backends import AQTBackend
-from .backends.config import AQTConfig
-from .backends.config import set_aqt_config
+
+from importlib import metadata
+
+__extension_version__ = metadata.version("pytket-aqt")

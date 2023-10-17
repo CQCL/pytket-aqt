@@ -30,45 +30,78 @@ There is also a Slack channel for discussion and support. Click [here](https://t
 
 ## Development
 
-To install an extension in editable mode, simply change to its subdirectory
-within the `modules` directory, and run:
+This project uses [Poetry](https://python-poetry.org/) for packaging and dependency management and
+[Nox](https://nox.thea.codes/en/stable/) for task automation.
+
+### Recommended development setup
+
+Install development tools:
 
 ```shell
-pip install -e .
+pip install -r dev-tool-requirements.txt
 ```
 
-### Noxfile
+### Local development with Nox (recommended)
 
-[Nox](https://nox.thea.codes/en/stable/) is used to automate various development tasks running in isolated python environments.
-The following nox sessions are provided:
+[Nox](https://nox.thea.codes/en/stable/) can be used to automate various development tasks running in isolated python environments.
+The following Nox sessions are provided:
 
-- `test`: run tests for all supported python versions
-- `lint`: run `black` and `pylint` for all supported python versions
-- `type_check`: run `mypy` for all supported python versions
+- `pre-commit`: run the configured pre-commit hooks within [.pre-commit-config.yaml](.pre-commit-config.yaml), this includes linting with black and pylint
+- `mypy`: run type checks using mypy
+- `tests`: run the unit tests
+- `docs-build`: build the documentation
 
-To run a session, install the `nox` command (e.g., using `pipx`) and run:
+To run a session use:
 
 ```shell
 nox -s <session_name>
 ```
 
-To save time, reuse the session virtual environment using the `-r` option, i.e. `nox -rs <session_name>`.
-The checks are designed to conform to
+To save time, reuse the session virtual environment using the `-r` option, i.e. `nox -rs <session_name>` (may cause errors after a dependency update).
 
-### Pre-commit
-
-[Pre-commit](https://pre-commit.com/) can be used to run a configured set of git pre-commit hooks before each commit. This is recommended.
-To set up the pre-commit hooks, install `pre-commit` (e.g., using `pipx`) and run:
+[Pre-commit](https://pre-commit.com/) can be used to run the pre-commit hooks before each commit. This is recommended.
+To set up the pre-commit hooks to run automatically on each commit run:
 
 ```shell
-pre-commit install
+nox -s pre-commit -- install
 ```
 
-Afterwards the [pre-configured hooks](.pre-commit-config.yaml) will run automatically before each commit. The commit will be
+Afterward, the [pre-configured hooks](.pre-commit-config.yaml) will run on all changed files in a commit and the commit will be
 rejected if the hooks find errors. Some hooks will correct formatting issues automatically (but will still reject the commit, so that
 the `git commit` command will need to be repeated).
 
-Note that some pre-commit hooks require that `nox` is installed (e.g., using `pipx`)
+### Local development without Nox
+
+To install the local package, its dependencies and various development dependencies run:
+
+```shell
+poetry install --with tests,docs,mypy,pre-commit
+```
+
+This will install the dependencies within an isolated virtual environment managed by Poetry. To activate that environment run:
+
+```shell
+poetry shell
+```
+
+Within this environment, the following commands can be used:
+
+```shell
+# run tests
+pytest tests
+# run mypy
+mypy --explicit-package-bases pytket tests docs/conf.py docs/build-docs
+# run pre-commit checks
+pre-commit run --all-files --show-diff-on-failure
+# build documentation
+./docs/build-docs
+```
+
+To exit the Poetry environment, run:
+
+```shell
+exit
+```
 
 ## Contributing
 
@@ -78,45 +111,21 @@ tests and is accepted after review, it will be merged in.
 
 ### Code style
 
-#### Formatting
+#### Formatting and Linting
 
-All code should be formatted using
-[black](https://black.readthedocs.io/en/stable/), with default options. This is
-checked on the CI. The CI is currently using version 20.8b1.
-
-#### Linting
-
-We use [pylint](https://pypi.org/project/pylint/) on the CI to check compliance
-with a set of style requirements (listed in `.pylintrc`). You should run
-`pylint` over any changed files before submitting a PR, to catch any issues.
-
-If you have `nox` installed (see [Noxfile](#noxfile)) use `nox -rs lint` to run
-`black` and `pylint`
+All code will be checked on the CI with [black](https://black.readthedocs.io/en/stable/) and [pylint](https://pypi.org/project/pylint/)
+as configured within the `pre-commit` checks. These checks should be
+run locally before any pull request submission using the corresponing `nox` session or `pre-commit` directly (see above).
+The used versions of the formatting ad linting tools is specified in the [pyproject.toml](pyproject.toml).
 
 #### Type annotation
 
 On the CI, [mypy](https://mypy.readthedocs.io/en/stable/) is used as a static
 type checker and all submissions must pass its checks. You should therefore run
-`mypy` locally on any changed files before submitting a PR. Because of the way
-extension modules embed themselves into the `pytket` namespace this is a little
-complicated, but it should be sufficient to run the script `modules/mypy-check`
-(passing as a single argument the root directory of the module to test). The
-script requires `mypy` 0.800 or above.
+`mypy` locally on any changed files before submitting a PR. This should be done using the method
+described under Local development [with Nox](#local-development-with-nox-recommended) or [without Nox](#local-development-without-nox).
 
-If you have `nox` installed (see [Noxfile](#noxfile)) use `nox -rs type_check` to run
-`mypy`
+### Adding Tests
 
-### Tests
-
-If you have `nox` installed (see [Noxfile](#noxfile)) use `nox -rs test` to run
-all tests.
-
-Otherwise, to run the tests for a module:
-
-1. `cd` into that module's `tests` directory;
-2. ensure you have installed `pytest`, `hypothesis`, and any modules listed in
-   the `test-requirements.txt` file (all via `pip`);
-3. run `pytest`.
-
-When adding a new feature, please add a test for it. When fixing a bug, please
+When adding a new feature, please add appropriate tests for it within the [tests](tests) directory. When fixing a bug, please
 add a test that demonstrates the fix.
