@@ -136,7 +136,7 @@ class AQTBackend(Backend):
         super().__init__()
         self._url = AQT_URL_PREFIX + device_name
         self._label = label
-        config = cast(AQTConfig, AQTConfig.from_default_config_file())
+        config = AQTConfig.from_default_config_file()
 
         if access_token is None:
             access_token = config.access_token
