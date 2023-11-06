@@ -9,7 +9,9 @@ This repository contains the pytket-aqt extension, using Quantinuum's
 with tket, a quantum computing toolkit and optimisation compiler developed by Quantinuum.
 
 `pytket-aqt` is an extension to `pytket` that allows `pytket` circuits to be
-executed on AQT's quantum devices and simulators.
+executed on AQT's ([Alpine Quantum Technologies'](https://www.aqt.eu/)) quantum devices and simulators.
+
+See [extension documentation](https://cqcl.github.io/pytket-aqt/api/index.html) for more.
 
 ## Getting started
 
@@ -115,7 +117,7 @@ tests and is accepted after review, it will be merged in.
 
 All code will be checked on the CI with [black](https://black.readthedocs.io/en/stable/) and [pylint](https://pypi.org/project/pylint/)
 as configured within the `pre-commit` checks. These checks should be
-run locally before any pull request submission using the corresponing `nox` session or `pre-commit` directly (see above).
+run locally before any pull request submission using the corresponding `nox` session or `pre-commit` directly (see above).
 The used versions of the formatting ad linting tools is specified in the [pyproject.toml](pyproject.toml).
 
 #### Type annotation
