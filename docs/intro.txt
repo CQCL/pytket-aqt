@@ -2,7 +2,8 @@ pytket-aqt
 ==========
 
 ``pytket-aqt`` is an extension to ``pytket`` that allows ``pytket`` circuits to be
-executed on AQT's quantum devices and simulators.
+executed on AQT's (`Alpine Quantum Technologies' <https://github.com/CQCL/pytemplate>`_)
+quantum devices and simulators.
 
 ``pytket-aqt`` is available for Python 3.10 and 3.11, on Linux, MacOS and
 Windows. To install, run:
