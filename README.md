@@ -1,12 +1,12 @@
 # pytket-aqt
 
-[Pytket](https://cqcl.github.io/tket/pytket/api/index.html) is a python module for interfacing
+[Pytket](https://tket.quantinuum.com/api-docs/index.html) is a python module for interfacing
 with tket, a quantum computing toolkit and optimising compiler developed by Quantinuum.
 
 `pytket-aqt` is an extension to `pytket` that allows `pytket` circuits to be
 executed on AQT's ([Alpine Quantum Technologies'](https://www.aqt.eu/)) quantum devices and simulators.
 
-See [extension documentation](https://cqcl.github.io/pytket-aqt/api/index.html) for more.
+See [extension documentation](https://tket.quantinuum.com/extensions/pytket-aqt/api/index.html) for more.
 
 ## Getting started
 
