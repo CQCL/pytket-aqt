@@ -7,7 +7,7 @@ license = "Apache 2"
 readme = "README.md"
 packages = [{include = "pytket"}]
 repository = "https://github.com/CQCL/pytket-aqt"
-documentation = "https://cqcl.github.io/pytket-aqt/api/index.html"
+documentation = "https://tket.quantinuum.com/extensions/pytket-aqt/api/index.html"
 classifiers= [
     "Environment :: Console",
     "Programming Language :: Python :: 3.10",
