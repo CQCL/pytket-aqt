@@ -13,7 +13,9 @@ See [extension documentation](https://tket.quantinuum.com/extensions/pytket-aqt/
 `pytket-aqt` is available for Python 3.10 and 3.11, on Linux, MacOS
 and Windows. To install, run:
 
-`pip install pytket-aqt`
+```shell
+pip install pytket-aqt
+```
 
 This will install `pytket` if it isn't already installed, and add new classes
 and methods into the `pytket.extensions` namespace.
