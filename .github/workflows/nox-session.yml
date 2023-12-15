@@ -142,7 +142,7 @@ jobs:
 
       - name: Upload coverage data
         if: inputs.nox-session == 'tests' && inputs.generate-coverage-report
-        uses: "actions/upload-artifact@v3"
+        uses: "actions/upload-artifact@v4"
         with:
           name: coverage_report
           path: "coverage_report"
