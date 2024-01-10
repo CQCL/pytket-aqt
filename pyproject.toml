@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pytket-aqt"
-version = "0.30.0"
+version = "0.31.0"
 description = "Extension for pytket, providing access to AQT backends"
 authors = ["TKET development team <tket-support@cambridgequantum.com>"]
 license = "Apache 2"
@@ -26,7 +26,7 @@ classifiers= [
 
 [tool.poetry.dependencies]
 python = ">=3.10, <3.12"
-pytket = "^1.22"
+pytket = "^1.23"
 requests = "^2.22"
 types-requests = "*"
 pydantic = "^2.0"
