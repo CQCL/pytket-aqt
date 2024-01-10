@@ -32,7 +32,7 @@ jobs:
           fetch-depth: "0"
       - run: git fetch --depth=1 origin +refs/tags/*:refs/tags/* +refs/heads/*:refs/remotes/origin/*
       - name: Set up Python 3.10
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Upgrade pip
@@ -64,7 +64,7 @@ jobs:
         run: |
           poetry build --format wheel --ansi
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: aqt-wheels
           path: dist/
@@ -76,7 +76,7 @@ jobs:
           nox -s docs-build --python=${{ env.PYTHON_VERSION }} -- -d  docs/extensions/api
 
       - name: Upload docs as artefact
-        uses: actions/upload-pages-artifact@v2
+        uses: actions/upload-pages-artifact@v3
         with:
           path: docs/extensions
 
@@ -87,7 +87,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Download all wheels
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: aqt-wheels
           path: dist
@@ -115,4 +115,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v2
+        uses: actions/deploy-pages@v4.0.1

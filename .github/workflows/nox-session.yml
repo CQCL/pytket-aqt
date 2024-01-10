@@ -71,7 +71,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python ${{ inputs.python-version }}
-        uses: actions/setup-python@v4.5.0
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ inputs.python-version }}
 
@@ -142,7 +142,7 @@ jobs:
 
       - name: Upload coverage data
         if: inputs.nox-session == 'tests' && inputs.generate-coverage-report
-        uses: "actions/upload-artifact@v3"
+        uses: "actions/upload-artifact@v4"
         with:
           name: coverage_report
           path: "coverage_report"
