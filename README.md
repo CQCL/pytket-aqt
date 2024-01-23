@@ -10,7 +10,7 @@ See [extension documentation](https://cqcl.github.io/pytket-aqt/api/index.html) 
 
 ## Getting started
 
-`pytket-aqt` is available for Python 3.10 and 3.11, on Linux, MacOS
+`pytket-aqt` is available for Python 3.10, 3.11 and 3.12, on Linux, MacOS
 and Windows. To install, run:
 
 ```shell
