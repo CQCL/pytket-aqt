@@ -12,6 +12,7 @@ classifiers= [
     "Environment :: Console",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: MacOS :: MacOS X",
     "Operating System :: POSIX :: Linux",
@@ -25,8 +26,8 @@ classifiers= [
 "Bug Tracker" = "https://github.com/CQCL/pytket-aqt/issues"
 
 [tool.poetry.dependencies]
-python = ">=3.10, <3.12"
-pytket = "^1.23"
+python = ">=3.10"
+pytket = "^1.24"
 requests = "^2.22"
 types-requests = "*"
 pydantic = "^2.0"
