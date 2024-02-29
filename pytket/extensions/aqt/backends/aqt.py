@@ -22,6 +22,9 @@ from typing import Optional
 from typing import Sequence
 from typing import Tuple
 from typing import Union
+
+import httpx
+from qiskit_aqt_provider import api_models, AQTProvider
 from requests import put
 
 from pytket.backends import Backend
@@ -57,12 +60,11 @@ from pytket.predicates import Predicate
 from pytket.utils import prepare_circuit
 from pytket.utils.outcomearray import OutcomeArray
 
-
-from .config import AQTConfig
+from .config import AQTAccessToken
 
 from ..extension_version import __extension_version__
 
-AQT_URL_PREFIX = "https://gateway.aqt.eu/marmot/"
+AQT_URL_PREFIX = "https://arnica.aqt.eu"
 
 AQT_DEVICE_QC = "lint"
 AQT_DEVICE_SIM = "sim"
@@ -72,11 +74,7 @@ _DEBUG_HANDLE_PREFIX = "_MACHINE_DEBUG_"
 
 # Hard-coded for now as there is no API to retrieve these.
 # All devices are fully connected.
-_DEVICE_INFO = {
-    AQT_DEVICE_QC: {"max_n_qubits": 4},
-    AQT_DEVICE_SIM: {"max_n_qubits": 10},
-    AQT_DEVICE_NOISY_SIM: {"max_n_qubits": 10},
-}
+_AQT_MAX_QUBITS = 20
 
 _GATE_SET = {
     OpType.Rx,
@@ -116,7 +114,8 @@ class AQTBackend(Backend):
 
     def __init__(
         self,
-        device_name: str = AQT_DEVICE_SIM,
+        aqt_workspace_id: str = "default",
+        aqt_resource_id: str = "offline_simulator_no_noise",
         access_token: Optional[str] = None,
         label: str = "",
     ):
@@ -126,62 +125,77 @@ class AQTBackend(Backend):
         Requires a valid API key/access token, this can either be provided as a
         parameter or set in config using :py:meth:`pytket.extensions.aqt.set_aqt_config`
 
-        :param      device_name:  device name (suffix of URL, e.g. "sim/noise-model-1")
-        :type       device_name:  string
+        :param      aqt_workspace_id:  the aqt workspace
+        :type       aqt_workspace_id:  string
+        :param      aqt_resource_id:  the aqt resource id
+        :type       aqt_resource_id:  string
         :param      access_token: AQT access token, default None
         :type       access_token: string
         :param      label:        label to apply to submitted jobs
         :type       label:        string
         """
         super().__init__()
-        self._url = AQT_URL_PREFIX + device_name
+        self._aqt_workspace_id = aqt_workspace_id
+        self._aqt_resource_id = aqt_resource_id
+        self._portal_url = f"{AQT_URL_PREFIX}/api/v1"
+        self._access_token = AQTAccessToken.resolve(access_token)
         self._label = label
-        config = AQTConfig.from_default_config_file()
-
-        if access_token is None:
-            access_token = config.access_token
-        if access_token is None:
-            raise AqtAuthenticationError()
-
-        self._header = {"Ocp-Apim-Subscription-Key": access_token, "SDK": "pytket"}
-        self._backend_info: Optional[BackendInfo] = None
-        self._qm: Dict[Qubit, Qubit] = {}
-        if device_name in _DEVICE_INFO:
-            self._backend_info = fully_connected_backendinfo(
-                type(self).__name__,
-                device_name,
-                __extension_version__,
-                _DEVICE_INFO[device_name]["max_n_qubits"],
-                _GATE_SET,
-            )
-            self._qm = {
-                Qubit(i): cast(Qubit, node)
-                for i, node in enumerate(self._backend_info.nodes)
-            }
+        self._backend_info = fully_connected_backendinfo(
+            type(self).__name__,
+            aqt_resource_id,
+            __extension_version__,
+            _AQT_MAX_QUBITS,
+            _GATE_SET,
+            misc={
+                "aqt_workspace_id": aqt_workspace_id,
+                "aqt_resource_id": aqt_resource_id,
+            },
+        )
+        self._qm = {
+            Qubit(i): cast(Qubit, node)
+            for i, node in enumerate(self._backend_info.nodes)
+        }
         self._MACHINE_DEBUG = False
 
     def rebase_pass(self) -> BasePass:
         return _aqt_rebase()
 
     @property
+    def _http_client(self) -> httpx.Client:
+        """HTTP client for communicating with the AQT cloud service."""
+        return api_models.http_client(
+            base_url=self._portal_url, token=self._access_token
+        )
+
+    @property
     def backend_info(self) -> Optional[BackendInfo]:
         return self._backend_info
 
     @classmethod
-    def available_devices(cls, **kwargs: Any) -> List[BackendInfo]:
+    def available_devices(
+        cls, access_token: Optional[str] = None, **kwargs: Any
+    ) -> List[BackendInfo]:
         """
         See :py:meth:`pytket.backends.Backend.available_devices`.
         Supported kwargs: none.
         """
+        resolved_access_token = AQTAccessToken.resolve(access_token)
+
+        aqt_provider = AQTProvider(access_token=resolved_access_token)
+        backend_table = aqt_provider.backends()
         return [
             fully_connected_backendinfo(
                 cls.__name__,
-                key,
+                aqt_resource.resource_id.resource_id,
                 __extension_version__,
-                value["max_n_qubits"],
+                _AQT_MAX_QUBITS,
                 _GATE_SET,
+                misc={
+                    "aqt_workspace_id": aqt_resource.resource_id.workspace_id,
+                    "aqt_resource_id": aqt_resource.resource_id.resource_id,
+                },
             )
-            for key, value in _DEVICE_INFO.items()
+            for aqt_resource in backend_table.backends
         ]
 
     @property
