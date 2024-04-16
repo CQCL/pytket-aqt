@@ -16,7 +16,7 @@ from sphinx.environment import BuildEnvironment
 # Configuration file for the Sphinx documentation builder.
 # See https://www.sphinx-doc.org/en/master/usage/configuration.html
 
-author = "Cambridge Quantum Computing Ltd"
+author = "Quantinuum"
 
 extensions = [
     "sphinx.ext.autodoc",
