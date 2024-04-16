@@ -14,7 +14,7 @@
 import json
 import time
 from ast import literal_eval
-from typing import Any
+from typing import Any, Iterator
 from typing import cast
 from typing import Dict
 from typing import List
@@ -24,7 +24,7 @@ from typing import Tuple
 from typing import Union
 
 import httpx
-from qiskit_aqt_provider import api_models, AQTProvider
+from qiskit_aqt_provider import api_models
 from requests import put
 
 from pytket.backends import Backend
@@ -60,15 +60,11 @@ from pytket.predicates import Predicate
 from pytket.utils import prepare_circuit
 from pytket.utils.outcomearray import OutcomeArray
 
-from .config import AQTAccessToken
+from .aqt_api import AqtApi
 
 from ..extension_version import __extension_version__
 
-AQT_URL_PREFIX = "https://arnica.aqt.eu"
-
-AQT_DEVICE_QC = "lint"
-AQT_DEVICE_SIM = "sim"
-AQT_DEVICE_NOISY_SIM = "sim/noise-model-1"
+AQT_PORTAL_URL = "https://arnica.aqt.euf/api/v1"
 
 _DEBUG_HANDLE_PREFIX = "_MACHINE_DEBUG_"
 
@@ -136,8 +132,8 @@ class AQTBackend(Backend):
         super().__init__()
         self._aqt_workspace_id = aqt_workspace_id
         self._aqt_resource_id = aqt_resource_id
-        self._portal_url = f"{AQT_URL_PREFIX}/api/v1"
-        self._access_token = AQTAccessToken.resolve(access_token)
+        self._portal_url = AQT_PORTAL_URL
+        self._aqt_api = AqtApi(self._portal_url, access_token)
         self._label = label
         self._backend_info = fully_connected_backendinfo(
             type(self).__name__,
@@ -178,23 +174,21 @@ class AQTBackend(Backend):
         See :py:meth:`pytket.backends.Backend.available_devices`.
         Supported kwargs: none.
         """
-        resolved_access_token = AQTAccessToken.resolve(access_token)
-
-        aqt_provider = AQTProvider(access_token=resolved_access_token)
-        backend_table = aqt_provider.backends()
+        aqt_api = AqtApi(AQT_PORTAL_URL, access_token)
+        aqt_devices = aqt_api.get_devices()
         return [
             fully_connected_backendinfo(
                 cls.__name__,
-                aqt_resource.resource_id.resource_id,
+                aqt_device.device_id,
                 __extension_version__,
                 _AQT_MAX_QUBITS,
                 _GATE_SET,
                 misc={
-                    "aqt_workspace_id": aqt_resource.resource_id.workspace_id,
-                    "aqt_resource_id": aqt_resource.resource_id.resource_id,
+                    "aqt_workspace_id": aqt_device.workspace_id,
+                    "aqt_resource_id": aqt_device.device_id,
                 },
             )
-            for aqt_resource in backend_table.backends
+            for aqt_device in aqt_devices
         ]
 
     @property
@@ -430,6 +424,29 @@ def _translate_aqt(circ: Circuit) -> api_models.Circuit:
 
     ops.append(api_models.Operation.measure())
     return api_models.Circuit(root=ops)
+
+
+def _aqt_job_from_circuits(
+    circuits: Sequence[Circuit],
+    n_shots: Sequence[int] = None,
+) -> api_models.JobSubmission:
+    """Create AQT JobSubmission from a list of circuits
+    and corresponding numbers of shots"""
+    circ_shots: Iterator[Tuple[Circuit, int]] = zip(circuits, n_shots)
+    return api_models.JobSubmission(
+        job_type="quantum_circuit",
+        label="pytket",
+        payload=api_models.QuantumCircuits(
+            circuits=[
+                api_models.QuantumCircuit(
+                    repetitions=shots,
+                    quantum_circuit=_translate_aqt(circuit),
+                    number_of_qubits=circuit.n_qubits,
+                )
+                for circuit, shots in circ_shots
+            ]
+        ),
+    )
 
 
 def _aqt_rebase() -> BasePass:
