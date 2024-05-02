@@ -11,16 +11,16 @@ from .config import AQTAccessToken
 @dataclass
 class AqtDevice:
     workspace_id: str
-    device_id: str
+    resource_id: str
     description: str
-    device_type: str
+    resource_type: str
 
     @classmethod
     def from_aqt_resource(cls, aqt_resource: AQTResource):
         return AqtDevice(
             workspace_id=aqt_resource.resource_id.workspace_id,
-            device_id=aqt_resource.resource_id.resource_id,
-            device_type=aqt_resource.resource_id.resource_type,
+            resource_id=aqt_resource.resource_id.resource_id,
+            resource_type=aqt_resource.resource_id.resource_type,
             description=aqt_resource.resource_id.resource_name,
         )
 
@@ -52,13 +52,13 @@ class AqtApi:
 
     def post_aqt_job(
         self, aqt_job: api_models.JobSubmission, aqt_device: AqtDevice
-    ) -> api_models.JobResponse:
+    ) -> UUID:
         resp = self._http_client.post(
-            f"/submit/{aqt_device.workspace_id}/{aqt_device.device_id}",
+            f"/submit/{aqt_device.workspace_id}/{aqt_device.resource_id}",
             json=aqt_job.model_dump(),
         )
         resp.raise_for_status()
-        return api_models.Response.model_validate(resp.json())
+        return api_models.Response.model_validate(resp.json()).job.job_id
 
     def get_job_result(self, job_id: UUID) -> api_models.JobResponse:
         resp = self._http_client.get(f"/result/{job_id}")

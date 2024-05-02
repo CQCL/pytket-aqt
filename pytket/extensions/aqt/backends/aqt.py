@@ -14,7 +14,8 @@
 import json
 import time
 from ast import literal_eval
-from typing import Any, Iterator
+from dataclasses import dataclass
+from typing import Any
 from typing import cast
 from typing import Dict
 from typing import List
@@ -23,7 +24,6 @@ from typing import Sequence
 from typing import Tuple
 from typing import Union
 
-import httpx
 from qiskit_aqt_provider import api_models
 from requests import put
 
@@ -97,6 +97,15 @@ class AqtAuthenticationError(Exception):
         super().__init__("No AQT access token provided or found in config file.")
 
 
+@dataclass
+class PytketAqtCircuitData:
+    circuit: Circuit
+    n_shots: int
+    postprocess_json: json = json.dumps(None)
+    aqt_circuit: Optional[api_models.Circuit] = None
+    measures: Optional[str] = None
+
+
 class AQTBackend(Backend):
     """
     Interface to an AQT device or simulator.
@@ -130,10 +139,25 @@ class AQTBackend(Backend):
         :type       label:        string
         """
         super().__init__()
-        self._aqt_workspace_id = aqt_workspace_id
-        self._aqt_resource_id = aqt_resource_id
         self._portal_url = AQT_PORTAL_URL
         self._aqt_api = AqtApi(self._portal_url, access_token)
+
+        available_devices = self._aqt_api.get_devices()
+        matched_devices = [
+            device
+            for device in available_devices
+            if device.workspace_id == aqt_workspace_id
+            and device.resource_id == aqt_resource_id
+        ]
+        if not matched_devices:
+            raise ValueError(
+                "Could not find AQT device for given workspace and resource ids"
+            )
+        if len(matched_devices) > 1:
+            raise ValueError(
+                "More than one AQT device found for given workspace and resource ids"
+            )
+        self._aqt_device = matched_devices[0]
         self._label = label
         self._backend_info = fully_connected_backendinfo(
             type(self).__name__,
@@ -156,13 +180,6 @@ class AQTBackend(Backend):
         return _aqt_rebase()
 
     @property
-    def _http_client(self) -> httpx.Client:
-        """HTTP client for communicating with the AQT cloud service."""
-        return api_models.http_client(
-            base_url=self._portal_url, token=self._access_token
-        )
-
-    @property
     def backend_info(self) -> Optional[BackendInfo]:
         return self._backend_info
 
@@ -179,13 +196,13 @@ class AQTBackend(Backend):
         return [
             fully_connected_backendinfo(
                 cls.__name__,
-                aqt_device.device_id,
+                aqt_device.resource_id,
                 __extension_version__,
                 _AQT_MAX_QUBITS,
                 _GATE_SET,
                 misc={
                     "aqt_workspace_id": aqt_device.workspace_id,
-                    "aqt_resource_id": aqt_device.device_id,
+                    "aqt_resource_id": aqt_device.resource_id,
                 },
             )
             for aqt_device in aqt_devices
@@ -265,50 +282,40 @@ class AQTBackend(Backend):
             len(circuits),
             optional=False,
         )
-
         if valid_check:
             self._check_all_circuits(circuits)
 
-        postprocess = kwargs.get("postprocess", False)
-        simplify_initial = kwargs.get("postprocess", False)
+        circ_data = [
+            PytketAqtCircuitData(circuit=circ, n_shots=n_shots_list[i])
+            for i, circ in enumerate(circuits)
+        ]
+
+        if kwargs.get("postprocess", False):
+            _perform_circuit_postprocessing(circ_data)
+
+        if kwargs.get("simplify_initial", False):
+            _perform_circuit_postprocessing(circ_data)
+
+        _add_aqt_circ_and_measure_data(circ_data)
+
+        aqt_job = _aqt_job_from_circuit_specs(circ_data)
 
         handles = []
-        for i, (c, n_shots) in enumerate(zip(circuits, n_shots_list)):
-            if postprocess:
-                c0, ppcirc = prepare_circuit(c, allow_classical=False, xcirc=_xcirc)
-                ppcirc_rep = ppcirc.to_dict()
-            else:
-                c0, ppcirc_rep = c, None
-            if simplify_initial:
-                SimplifyInitial(
-                    allow_classical=False, create_all_qubits=True, xcirc=_xcirc
-                ).apply(c0)
-            (aqt_circ, measures) = _translate_aqt(c0)
-            if self._MACHINE_DEBUG:
+        if self._MACHINE_DEBUG:
+            for i, circ_spec in enumerate(circ_data):
                 handles.append(
                     ResultHandle(
-                        _DEBUG_HANDLE_PREFIX + str((c.n_qubits, n_shots)),
-                        measures,
-                        json.dumps(ppcirc_rep),
+                        _DEBUG_HANDLE_PREFIX
+                        + str((circ_spec.circuit.n_qubits, circ_spec.n_shots)),
+                        circ_spec.measures,
+                        circ_spec.postprocess_json,
                     )
                 )
-            else:
-                resp = put(
-                    self._url,
-                    data={
-                        "data": json.dumps(aqt_circ),
-                        "repetitions": n_shots,
-                        "no_qubits": c.n_qubits,
-                        "label": c.name if c.name else f"{self._label}_{i}",
-                    },
-                    headers=self._header,
-                ).json()
-                if "status" not in resp:
-                    raise RuntimeError(resp["message"])
-                if resp["status"] == "error":
-                    raise RuntimeError(resp["ERROR"])
+        else:
+            job_id = str(self._aqt_api.post_aqt_job(aqt_job, self._aqt_device))
+            for i, circ_spec in enumerate(circ_data):
                 handles.append(
-                    ResultHandle(resp["id"], measures, json.dumps(ppcirc_rep))
+                    ResultHandle(job_id, circ_spec.measures, circ_spec.postprocess_json)
                 )
         for handle in handles:
             self._cache[handle] = dict()
@@ -374,76 +381,94 @@ class AQTBackend(Backend):
             raise RuntimeError(f"Timed out: no results after {timeout} seconds.")
 
 
-def _translate_aqt(circ: Circuit) -> api_models.Circuit:
+def _perform_circuit_postprocessing(circ_specs: Sequence[PytketAqtCircuitData]) -> None:
+    for circ_spec in circ_specs:
+        c0, ppcirc = prepare_circuit(
+            circ_spec.circuit, allow_classical=False, xcirc=_xcirc
+        )
+        circ_spec.circuit = c0
+        circ_spec.postprocess_json = json.dumps(ppcirc)
+
+
+def _perform_simplify_initial(circ_specs: Sequence[PytketAqtCircuitData]) -> None:
+    simp_init_pass = SimplifyInitial(
+        allow_classical=False, create_all_qubits=True, xcirc=_xcirc
+    )
+    for circ_spec in circ_specs:
+        simp_init_pass.apply(circ_spec.circuit)
+
+
+def _add_aqt_circ_and_measure_data(circ_specs: Sequence[PytketAqtCircuitData]) -> None:
     """Convert a circuit in the AQT gate set to AQT list representation,
     along with a JSON string describing the measure result permutations."""
-    ops: list[api_models.OperationModel] = []
-    num_measurements = 0
-    measures: List = list()
-    for cmd in circ.get_commands():
-        op = cmd.op
-        optype = op.type
-        # https://arnica.aqt.eu/api/v1/docs
-        if optype == OpType.Rz:
-            ops.append(
-                api_models.Operation.rz(
-                    phi=op.params[0],
-                    qubit=cmd.args[0].index[0],
+    for circ_spec in circ_specs:
+        circ = circ_spec.circuit
+        ops: list[api_models.OperationModel] = []
+        num_measurements = 0
+        measures: List = list()
+        for cmd in circ.get_commands():
+            op = cmd.op
+            optype = op.type
+            # https://arnica.aqt.eu/api/v1/docs
+            if optype == OpType.Rz:
+                ops.append(
+                    api_models.Operation.rz(
+                        phi=op.params[0],
+                        qubit=cmd.args[0].index[0],
+                    )
                 )
-            )
-        elif optype == OpType.PhasedX:
-            ops.append(
-                api_models.Operation.r(
-                    theta=op.params[0],
-                    phi=op.params[1],
-                    qubit=cmd.args[0].index[0],
+            elif optype == OpType.PhasedX:
+                ops.append(
+                    api_models.Operation.r(
+                        theta=op.params[0],
+                        phi=op.params[1],
+                        qubit=cmd.args[0].index[0],
+                    )
                 )
-            )
-        elif optype == OpType.XXPhase:
-            ops.append(
-                api_models.Operation.rxx(
-                    theta=op.params[0],
-                    qubits=[cmd.args[0].index[0], cmd.args[1].index[0]],
+            elif optype == OpType.XXPhase:
+                ops.append(
+                    api_models.Operation.rxx(
+                        theta=op.params[0],
+                        qubits=[cmd.args[0].index[0], cmd.args[1].index[0]],
+                    )
                 )
-            )
-        elif optype == OpType.Measure:
-            # predicate has already checked format is correct, so
-            # errors are not handled here
-            num_measurements += 1
-            qb_id = cmd.qubits[0].index[0]
-            bit_id = cmd.bits[0].index[0]
-            while len(measures) <= bit_id:
-                measures.append(None)
-            measures[bit_id] = qb_id
-        else:
-            if optype not in {OpType.noop, OpType.Barrier}:
-                message = f"Gate {optype} is not in the allowed AQT gate set"
-                raise ValueError(message)
-    if num_measurements == 0:
-        raise ValueError("Circuit must contain at least one measurement.")
+            elif optype == OpType.Measure:
+                # predicate has already checked format is correct, so
+                # errors are not handled here
+                num_measurements += 1
+                qb_id = cmd.qubits[0].index[0]
+                bit_id = cmd.bits[0].index[0]
+                while len(measures) <= bit_id:
+                    measures.append(None)
+                measures[bit_id] = qb_id
+            else:
+                if optype not in {OpType.noop, OpType.Barrier}:
+                    message = f"Gate {optype} is not in the allowed AQT gate set"
+                    raise ValueError(message)
+        if num_measurements == 0:
+            raise ValueError("Circuit must contain at least one measurement.")
 
-    ops.append(api_models.Operation.measure())
-    return api_models.Circuit(root=ops)
+        ops.append(api_models.Operation.measure())
+        circ_spec.aqt_circuit = api_models.Circuit(root=ops)
+        circ_spec.measures = json.dumps(measures)
 
 
-def _aqt_job_from_circuits(
-    circuits: Sequence[Circuit],
-    n_shots: Sequence[int] = None,
+def _aqt_job_from_circuit_specs(
+    circuit_specs: Sequence[PytketAqtCircuitData],
 ) -> api_models.JobSubmission:
     """Create AQT JobSubmission from a list of circuits
     and corresponding numbers of shots"""
-    circ_shots: Iterator[Tuple[Circuit, int]] = zip(circuits, n_shots)
     return api_models.JobSubmission(
         job_type="quantum_circuit",
         label="pytket",
         payload=api_models.QuantumCircuits(
             circuits=[
                 api_models.QuantumCircuit(
-                    repetitions=shots,
-                    quantum_circuit=_translate_aqt(circuit),
-                    number_of_qubits=circuit.n_qubits,
+                    repetitions=spec.n_shots,
+                    quantum_circuit=spec.aqt_circuit,
+                    number_of_qubits=spec.circuit.n_qubits,
                 )
-                for circuit, shots in circ_shots
+                for spec in circuit_specs
             ]
         ),
     )
