@@ -14,7 +14,6 @@
 import json
 import time
 import uuid
-from ast import literal_eval
 from dataclasses import dataclass
 from typing import Any, assert_never
 from typing import cast
@@ -322,26 +321,22 @@ class AQTBackend(Backend):
         aqt_job = _aqt_job_from_circuit_specs(circ_data)
 
         handles = []
-        if self._MACHINE_DEBUG:
-            for i, circ_spec in enumerate(circ_data):
-                handles.append(
-                    ResultHandle(
-                        _DEBUG_HANDLE_PREFIX
-                        + str((circ_spec.circuit.n_qubits, circ_spec.n_shots)),
-                        i,
-                        circ_spec.measures,
-                        circ_spec.postprocess_json,
-                    )
-                )
-        else:
-            job_id = str(self._aqt_api.post_aqt_job(aqt_job, self._aqt_device))
-            for i, circ_spec in enumerate(circ_data):
-                handle = ResultHandle(
-                    job_id, i, circ_spec.measures, circ_spec.postprocess_json
-                )
-                handles.append(handle)
-                circ_spec.handle = handle
-            self._aqt_jobs[job_id] = PytketAqtJob(job_id, circ_data)
+
+        job_id = (
+            str(self._aqt_api.post_aqt_job(aqt_job, self._aqt_device))
+            if not self._MACHINE_DEBUG
+            else uuid.uuid4()
+        )
+
+        for i, circ_spec in enumerate(circ_data):
+            handle = ResultHandle(
+                job_id, i, circ_spec.measures, circ_spec.postprocess_json
+            )
+            handles.append(handle)
+            circ_spec.handle = handle
+
+        self._aqt_jobs[job_id] = PytketAqtJob(job_id, circ_data)
+
         for handle in handles:
             self._cache[handle] = dict()
         return handles
@@ -358,27 +353,21 @@ class AQTBackend(Backend):
         self._check_handle_type(handle)
         jobid = handle[0]
 
-        if self._MACHINE_DEBUG:
-            ppcirc_rep = json.loads(cast(str, handle[2]))
-            ppcirc = Circuit.from_dict(ppcirc_rep) if ppcirc_rep is not None else None
-            n_qubits, n_shots = literal_eval(jobid[len(_DEBUG_HANDLE_PREFIX) :])  # type: ignore
-            empty_ar = OutcomeArray.from_ints([0] * n_shots, n_qubits, big_endian=True)
-            self._update_cache_result(
-                handle, {"result": BackendResult(shots=empty_ar, ppcirc=ppcirc)}
-            )
-            return CircuitStatus(StatusEnum.COMPLETED, "")
-
         if jobid not in self._aqt_jobs:
             raise ValueError("Could not find AQT Job for the given ResultHandle")
-        job_data = self._aqt_jobs[jobid].circuits_data
-        payload = self._aqt_api.get_job_result(uuid.UUID(jobid))
+        job = self._aqt_jobs[jobid]
+        payload = (
+            self._aqt_api.get_job_result(uuid.UUID(jobid))
+            if not self._MACHINE_DEBUG
+            else _mock_aqt_job_status_finished(job)
+        )
 
         if isinstance(payload, api_models_generated.JobResponseRRQueued):
             return CircuitStatus(StatusEnum.QUEUED, "")
 
         if isinstance(payload, api_models_generated.JobResponseRROngoing):
             finished_count = payload.response.finished_count
-            num_circuits = len(job_data)
+            num_circuits = len(job.circuits_data)
             msg = (
                 f"Circuit belongs to ongoing AQT job,"
                 f" {num_circuits - finished_count} of"
@@ -390,7 +379,7 @@ class AQTBackend(Backend):
             # Entire job is complete, so update results of all circuits in the job
             for circuit_index_string, shots in payload.response.result.items():
                 circuit_index = int(circuit_index_string)
-                circ_handle = job_data[circuit_index].handle
+                circ_handle = job.circuits_data[circuit_index].handle
                 circ_measure_permutations = json.loads(circ_handle[1])  # type: ignore
                 circ_n_measures = len(circ_measure_permutations)
                 circ_shots = OutcomeArray.from_ints(
@@ -541,3 +530,15 @@ def _aqt_rebase() -> BasePass:
 
 _xcirc = Circuit(1).Rx(1, 0)
 _xcirc.add_phase(0.5)
+
+
+def _mock_aqt_job_status_finished(
+    job: PytketAqtJob,
+) -> api_models_generated.JobResponseRRFinished:
+    results: dict[int, list[list[int]]] = dict()
+    for i, circ_spec in enumerate(job.circuits_data):
+        circ_measure_permutations = json.loads(circ_spec.measures)  # type: ignore
+        results[i] = [
+            [0 for _ in circ_measure_permutations] for _ in range(circ_spec.n_shots)
+        ]
+    return api_models_generated.JobResponseRRFinished(results=results)
