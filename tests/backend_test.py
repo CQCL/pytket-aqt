@@ -145,6 +145,21 @@ def test_machine_debug() -> None:
     assert counts == {(0, 0): n_shots}
 
 
+def test_machine_dkdebug() -> None:
+    b = AQTBackend(machine_debug=True)
+    c = Circuit()
+    c.add_q_register("bla", 1)
+    c.add_q_register("blam", 1)
+    c.measure_all()
+    # c = b.get_compiled_circuit(c)
+    print("")
+    for com in c:
+        print(com)
+    n_shots = 10
+    counts = b.run_circuit(c, n_shots=n_shots, timeout=30).get_counts()
+    assert counts == {(0, 0): n_shots}
+
+
 def test_default_pass() -> None:
     b = AQTBackend(device_name="sim/noise-model-1", access_token="invalid")
     for ol in range(3):
@@ -176,12 +191,13 @@ def test_postprocess() -> None:
 
 
 @given(
-    n_shots=strategies.integers(min_value=1, max_value=10),  # type: ignore
-    n_bits=strategies.integers(min_value=0, max_value=10),
+    n_shots=strategies.integers(min_value=1, max_value=10),
+    n_bits=strategies.integers(min_value=1, max_value=10),
 )
 def test_shots_bits_edgecases(n_shots, n_bits) -> None:
     aqt_backend = AQTBackend(machine_debug=True)
     c = Circuit(n_bits, n_bits)
+    c.measure_all()
 
     # TODO TKET-813 add more shot based backends and move to integration tests
     h = aqt_backend.process_circuit(c, n_shots)

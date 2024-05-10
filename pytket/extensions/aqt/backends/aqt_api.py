@@ -1,7 +1,7 @@
 import json
 import uuid
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, Final
 
 import httpx
 from qiskit_aqt_provider import AQTProvider, api_models
@@ -113,17 +113,22 @@ class AqtOfflineApi(AqtApi):
         pass
 
 
+AQT_MOCK_DEVICES: Final = [
+    AqtDevice(
+        workspace_id="mock_wid",
+        resource_id="mock_rid",
+        description="Mock Device",
+        resource_type="mock",
+    ),
+]
+
+
 class AqtMockApi(AqtApi):
     def __init__(self) -> None:
         self._jobs: dict[str, PytketAqtJob] = dict()
 
     def get_devices(self) -> list[AqtDevice]:
-        aqt_provider = AQTProvider(access_token="offline")
-        backend_table = aqt_provider.backends()
-        return [
-            AqtDevice.from_aqt_resource(aqt_resource)
-            for aqt_resource in backend_table.backends
-        ]
+        return AQT_MOCK_DEVICES
 
     def post_aqt_job(self, aqt_job: PytketAqtJob, aqt_device: AqtDevice) -> str:
         job_id = str(uuid.uuid4())

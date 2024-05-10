@@ -31,7 +31,7 @@ from pytket.backends import CircuitStatus
 from pytket.backends import ResultHandle
 from pytket.backends import StatusEnum
 from pytket.backends.backend import KwargTypes
-from pytket.backends.backend_exceptions import CircuitNotRunError
+from pytket.backends.backend_exceptions import CircuitNotRunError, CircuitNotValidError
 from pytket.backends.backendinfo import BackendInfo
 from pytket.backends.backendinfo import fully_connected_backendinfo
 from pytket.backends.backendresult import BackendResult
@@ -59,7 +59,7 @@ from pytket.predicates import Predicate
 from pytket.utils import prepare_circuit
 from pytket.utils.outcomearray import OutcomeArray
 
-from .aqt_api import AqtOfflineApi, AqtRemoteApi, AqtMockApi
+from .aqt_api import AqtOfflineApi, AqtRemoteApi, AqtMockApi, AQT_MOCK_DEVICES
 from .aqt_job_data import PytketAqtJob, PytketAqtJobCircuitData
 
 from ..extension_version import __extension_version__
@@ -83,6 +83,21 @@ _GATE_SET = {
 AQTResult = Tuple[int, List[int]]  # (n_qubits, list of readouts)
 
 AQT_OFFLINE_SIMULATORS = {sim.id: sim for sim in OFFLINE_SIMULATORS}
+
+
+def _check_circuits_have_single_registers(circuits: Sequence[Circuit]) -> None:
+    """Checks that circuit contains at most
+     a single quantum register and a single classical register
+
+    This is assumed when submitting the circuit to AQT.
+     It should always be true after compilation.
+    """
+    for circuit in circuits:
+        if len(circuit.q_registers) > 1 or len(circuit.c_registers) > 1:
+            raise CircuitNotValidError(
+                "Submitted circuits must have at most one quantum register and"
+                " one classical register, did you forget to compile?"
+            )
 
 
 class AqtAuthenticationError(Exception):
@@ -133,6 +148,9 @@ class AQTBackend(Backend):
 
         if machine_debug:
             self._aqt_api = AqtMockApi()
+            aqt_workspace_id = AQT_MOCK_DEVICES[0].workspace_id
+            aqt_resource_id = AQT_MOCK_DEVICES[0].resource_id
+
         elif aqt_resource_id in AQT_OFFLINE_SIMULATORS:
             self._aqt_api = AqtOfflineApi(AQT_OFFLINE_SIMULATORS[aqt_resource_id])
         else:
@@ -288,6 +306,7 @@ class AQTBackend(Backend):
             optional=False,
         )
         if valid_check:
+            # _check_circuits_have_single_registers(circuits)
             self._check_all_circuits(circuits)
 
         job = PytketAqtJob(
@@ -471,7 +490,9 @@ def _add_aqt_circ_and_measure_data(
                     message = f"Gate {optype} is not in the allowed AQT gate set"
                     raise ValueError(message)
         if num_measurements == 0:
-            raise ValueError("Circuit must contain at least one measurement.")
+            raise CircuitNotValidError("Circuit must contain at least one measurement")
+        if None in measures:
+            raise IndexError("Bit index not written to by a measurement.")
 
         ops.append(api_models.Operation.measure())
         circ_spec.aqt_circuit = api_models.Circuit(root=ops)
