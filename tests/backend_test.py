@@ -26,9 +26,32 @@ skip_remote_tests: bool = os.getenv("PYTKET_RUN_REMOTE_TESTS") is None
 REASON = "PYTKET_RUN_REMOTE_TESTS not set (requires configuration of AQT access token)"
 
 
-def test_aqt_offline() -> None:
+def test_aqt_offline_no_noise() -> None:
     # Run a circuit on the offline simulator.
-    b = AQTBackend(access_token="none")
+    b = AQTBackend("default", "offline_simulator_no_noise")
+    c = Circuit(4, 4)
+    c.H(0)
+    c.CX(0, 1)
+    c.Rz(0.3, 2)
+    c.CSWAP(0, 1, 2)
+    c.CRz(0.4, 2, 3)
+    c.CY(1, 3)
+    c.add_barrier([0, 1])
+    c.ZZPhase(0.1, 2, 0)
+    c.Tdg(3)
+    c.measure_all()
+    c = b.get_compiled_circuit(c)
+    n_shots = 10
+    res = b.run_circuit(c, n_shots=n_shots, seed=1, timeout=30)
+    shots = res.get_shots()
+    counts = res.get_counts()
+    assert len(shots) == n_shots
+    assert sum(counts.values()) == n_shots
+
+
+def test_aqt_offline_noise() -> None:
+    # Run a circuit on the offline simulator.
+    b = AQTBackend("default", "offline_simulator_noise")
     c = Circuit(4, 4)
     c.H(0)
     c.CX(0, 1)
@@ -137,9 +160,6 @@ def test_machine_debug() -> None:
     c.CX(0, 1)
     c.measure_all()
     c = b.get_compiled_circuit(c)
-    print("")
-    for com in c:
-        print(com)
     n_shots = 10
     counts = b.run_circuit(c, n_shots=n_shots, timeout=30).get_counts()
     assert counts == {(0, 0): n_shots}

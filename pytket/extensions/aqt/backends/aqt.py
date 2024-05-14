@@ -150,7 +150,6 @@ class AQTBackend(Backend):
             self._aqt_api = AqtMockApi()
             aqt_workspace_id = AQT_MOCK_DEVICES[0].workspace_id
             aqt_resource_id = AQT_MOCK_DEVICES[0].resource_id
-
         elif aqt_resource_id in AQT_OFFLINE_SIMULATORS:
             self._aqt_api = AqtOfflineApi(AQT_OFFLINE_SIMULATORS[aqt_resource_id])
         else:
@@ -305,8 +304,14 @@ class AQTBackend(Backend):
             len(circuits),
             optional=False,
         )
+        if isinstance(self._aqt_api, AqtOfflineApi) and not isinstance(n_shots, int):
+            raise ValueError(
+                "The AQT offline simulators only support a fixed number of shots"
+                "per circuit for a batch of circuits, please provide a single"
+                "integer value for `n_shots`"
+            )
         if valid_check:
-            # _check_circuits_have_single_registers(circuits)
+            _check_circuits_have_single_registers(circuits)
             self._check_all_circuits(circuits)
 
         job = PytketAqtJob(

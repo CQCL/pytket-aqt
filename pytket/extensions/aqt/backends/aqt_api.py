@@ -11,8 +11,11 @@ from qiskit_aqt_provider.api_models_generated import (
     ResultItem,
     JobResponseRRFinished,
 )
+from qiskit_aqt_provider.aqt_job import AQTJob
+from qiskit_aqt_provider.aqt_options import AQTOptions
 from qiskit_aqt_provider.aqt_provider import OfflineSimulator
 from qiskit_aqt_provider.aqt_resource import AQTResource, OfflineSimulatorResource
+from qiskit_aqt_provider.circuit_to_aqt import aqt_to_qiskit_circuit
 
 from .aqt_job_data import PytketAqtJob
 from .config import AQTAccessToken
@@ -104,10 +107,20 @@ class AqtOfflineApi(AqtApi):
         ]
 
     def post_aqt_job(self, aqt_job: PytketAqtJob, aqt_device: AqtDevice) -> str:
-        pass
+        circuits = [
+            aqt_to_qiskit_circuit(
+                circuit_spec.aqt_circuit, circuit_spec.circuit.n_qubits
+            )
+            for circuit_spec in aqt_job.circuits_data
+        ]
+        options = AQTOptions()
+        # Offline API only allows for a fixed n_shots for all circuits
+        options.shots = aqt_job.circuits_data[0].n_shots
+        job = AQTJob(self._offline_sim, circuits, options)
+        return str(self._offline_sim.submit(job))
 
     def get_job_result(self, job_id: str) -> api_models.JobResponse:
-        pass
+        return self._offline_sim.result(uuid.UUID(job_id))
 
     def cancel_job(self, job_id: str):
         pass
@@ -149,7 +162,7 @@ class AqtMockApi(AqtApi):
         )
 
     def cancel_job(self, job_id: str):
-        pass
+        self._jobs.pop(job_id)
 
 
 def _aqt_job_from_pytket_aqt_job(
