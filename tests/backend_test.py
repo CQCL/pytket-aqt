@@ -26,9 +26,15 @@ skip_remote_tests: bool = os.getenv("PYTKET_RUN_REMOTE_TESTS") is None
 REASON = "PYTKET_RUN_REMOTE_TESTS not set (requires configuration of AQT access token)"
 
 
-def test_aqt_offline_no_noise() -> None:
-    # Run a circuit on the offline simulator.
-    b = AQTBackend("default", "offline_simulator_no_noise")
+@pytest.mark.parametrize(
+    "backend",
+    [
+        AQTBackend("default", "offline_simulator_no_noise"),
+        AQTBackend("default", "offline_simulator_noise"),
+    ],
+)
+def test_aqt_offline_simulator_backends(backend) -> None:
+    backend = AQTBackend("default", "offline_simulator_no_noise")
     c = Circuit(4, 4)
     c.H(0)
     c.CX(0, 1)
@@ -40,32 +46,9 @@ def test_aqt_offline_no_noise() -> None:
     c.ZZPhase(0.1, 2, 0)
     c.Tdg(3)
     c.measure_all()
-    c = b.get_compiled_circuit(c)
+    c = backend.get_compiled_circuit(c)
     n_shots = 10
-    res = b.run_circuit(c, n_shots=n_shots, seed=1, timeout=30)
-    shots = res.get_shots()
-    counts = res.get_counts()
-    assert len(shots) == n_shots
-    assert sum(counts.values()) == n_shots
-
-
-def test_aqt_offline_noise() -> None:
-    # Run a circuit on the offline simulator.
-    b = AQTBackend("default", "offline_simulator_noise")
-    c = Circuit(4, 4)
-    c.H(0)
-    c.CX(0, 1)
-    c.Rz(0.3, 2)
-    c.CSWAP(0, 1, 2)
-    c.CRz(0.4, 2, 3)
-    c.CY(1, 3)
-    c.add_barrier([0, 1])
-    c.ZZPhase(0.1, 2, 0)
-    c.Tdg(3)
-    c.measure_all()
-    c = b.get_compiled_circuit(c)
-    n_shots = 10
-    res = b.run_circuit(c, n_shots=n_shots, seed=1, timeout=30)
+    res = backend.run_circuit(c, n_shots=n_shots, seed=1, timeout=30)
     shots = res.get_shots()
     counts = res.get_counts()
     assert len(shots) == n_shots
@@ -73,9 +56,12 @@ def test_aqt_offline_noise() -> None:
 
 
 @pytest.mark.skipif(skip_remote_tests, reason=REASON)
-def test_aqt() -> None:
+def test_remote_sim() -> None:
     # Run a circuit on the noisy simulator.
-    b = AQTBackend(device_name="sim/noise-model-1", label="test 1")
+    b = AQTBackend(
+        aqt_workspace_id="tket-integration",
+        aqt_resource_id="simulator_noise",
+    )
     c = Circuit(4, 4)
     c.H(0)
     c.CX(0, 1)
@@ -96,10 +82,9 @@ def test_aqt() -> None:
     assert sum(counts.values()) == n_shots
 
 
-@pytest.mark.skipif(skip_remote_tests, reason=REASON)
 def test_bell() -> None:
     # On the noiseless simulator, we should always get Bell states here.
-    b = AQTBackend(device_name="sim", label="test 2")
+    b = AQTBackend("default", "offline_simulator_no_noise")
     c = Circuit(2, 2)
     c.H(0)
     c.CX(0, 1)

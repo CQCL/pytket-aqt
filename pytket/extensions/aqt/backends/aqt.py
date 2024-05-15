@@ -64,7 +64,7 @@ from .aqt_job_data import PytketAqtJob, PytketAqtJobCircuitData
 
 from ..extension_version import __extension_version__
 
-AQT_PORTAL_URL = "https://arnica.aqt.euf/api/v1"
+AQT_PORTAL_URL = "https://arnica.aqt.eu/api/v1"
 
 _DEBUG_HANDLE_PREFIX = "_MACHINE_DEBUG_"
 
@@ -469,15 +469,15 @@ def _add_aqt_circ_and_measure_data(
             elif optype == OpType.PhasedX:
                 ops.append(
                     api_models.Operation.r(
-                        theta=_restrict_to_less_than(op.params[0], 1),
-                        phi=_restrict_to_less_than(op.params[1], 2),
+                        theta=_restrict_to_range_zero_to_x(op.params[0], 1),
+                        phi=_restrict_to_range_zero_to_x(op.params[1], 2),
                         qubit=cmd.args[0].index[0],
                     )
                 )
             elif optype == OpType.XXPhase:
                 ops.append(
                     api_models.Operation.rxx(
-                        theta=_restrict_to_less_than(op.params[0], 0.5),
+                        theta=op.params[0],
                         qubits=[cmd.args[0].index[0], cmd.args[1].index[0]],
                     )
                 )
@@ -512,5 +512,9 @@ _xcirc = Circuit(1).Rx(1, 0)
 _xcirc.add_phase(0.5)
 
 
-def _restrict_to_less_than(number: float, less_than_number: float) -> float:
-    return numpy.fmod(number, less_than_number)
+def _restrict_to_range_zero_to_x(number: float, x: float) -> float:
+    """Use to restrict gate parameters to values accepted by aqt
+
+    Assumes that gate effect is periodic in this parameter with period x
+    """
+    return numpy.fmod(number, x)
