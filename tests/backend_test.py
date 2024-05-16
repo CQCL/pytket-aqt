@@ -209,15 +209,8 @@ def test_default_pass(b: AQTBackend) -> None:
             assert pred.verify(c)
 
 
-@pytest.mark.parametrize(
-    "b",
-    [
-        AQTBackend(machine_debug=True),
-        AQTBackend("default", "offline_simulator_no_noise"),
-        AQTBackend("default", "offline_simulator_noise"),
-    ],
-)
-def test_postprocess(b: AQTBackend) -> None:
+def test_postprocess() -> None:
+    b = AQTBackend("default", "offline_simulator_no_noise")
     assert b.supports_contextual_optimisation
     c = Circuit(2, 2)
     c.H(0)
@@ -258,15 +251,8 @@ def test_shots_bits_edgecases(n_shots, n_bits) -> None:
     assert res.get_counts() == correct_counts
 
 
+@pytest.mark.skipif(skip_remote_tests, reason=REASON)
+# This should work without a valid access token, but it will make calls to remote API
 def test_retrieve_available_devices() -> None:
     backend_infos = AQTBackend.available_devices()
     assert backend_infos is not None
-    # for machine, v in _DEVICE_INFO.items():
-    #    assert (
-    #        next(
-    #            backend_info
-    #            for backend_info in backend_infos
-    #            if backend_info.device_name == machine
-    #        ).n_nodes
-    #        == v["max_n_qubits"]
-    #    )

@@ -463,7 +463,7 @@ def _perform_circuit_postprocessing(
             circ_spec.circuit, allow_classical=False, xcirc=_xcirc
         )
         circ_spec.circuit = c0
-        circ_spec.postprocess_json = json.dumps(ppcirc)
+        circ_spec.postprocess_json = json.dumps(ppcirc.to_dict())
 
 
 def _perform_simplify_initial(circ_specs: Sequence[PytketAqtJobCircuitData]) -> None:
