@@ -59,7 +59,12 @@ from pytket.predicates import Predicate
 from pytket.utils import prepare_circuit
 from pytket.utils.outcomearray import OutcomeArray
 
-from .aqt_api import AqtOfflineApi, AqtRemoteApi, AqtMockApi, AQT_MOCK_DEVICES
+from .aqt_api import (
+    AqtOfflineApi,
+    AqtRemoteApi,
+    AqtMockApi,
+    AQT_MOCK_DEVICES,
+)
 from .aqt_job_data import PytketAqtJob, PytketAqtJobCircuitData
 
 from ..extension_version import __extension_version__
@@ -100,11 +105,13 @@ def _check_circuits_have_single_registers(circuits: Sequence[Circuit]) -> None:
             )
 
 
-class AqtAuthenticationError(Exception):
-    """Raised when there is no AQT access token available."""
+class AqtAccessError(Exception):
+    """Raised when the provided access token does not
+     allow access to the specified device.
 
-    def __init__(self) -> None:
-        super().__init__("No AQT access token provided or found in config file.")
+    If no access token provided, the user will only
+     have access to offline simulators
+    """
 
 
 class AQTBackend(Backend):
@@ -167,9 +174,13 @@ class AQTBackend(Backend):
             and device.resource_id == aqt_resource_id
         ]
         if not matched_devices:
-            raise ValueError(
-                "Could not find AQT device for given workspace and resource ids"
+            msg = (
+                f"The resolved access token does not provide access"
+                f" to the resource '{aqt_resource_id}' in workspace"
+                f" '{aqt_workspace_id}', use AQTBackend.print_device_table"
+                f" to print a list of available resources"
             )
+            raise AqtAccessError(msg)
         if len(matched_devices) > 1:
             raise ValueError(
                 "More than one AQT device found for given workspace and resource ids"
@@ -200,12 +211,30 @@ class AQTBackend(Backend):
         return self._backend_info
 
     @classmethod
+    def print_device_table(cls, access_token: Optional[str] = None) -> None:
+        """
+        Print AQT devices available for the configured access token
+
+        The access token will be resolved by the AQTAccessToken class
+
+        :param      access_token:  optional access token override
+        :type       access_token:  string
+        """
+        aqt_api = AqtRemoteApi(AQT_PORTAL_URL, access_token)
+        aqt_api.print_device_table()
+
+    @classmethod
     def available_devices(
         cls, access_token: Optional[str] = None, **kwargs: Any
     ) -> List[BackendInfo]:
         """
         See :py:meth:`pytket.backends.Backend.available_devices`.
         Supported kwargs: none.
+
+        The access token will be resolved by the AQTAccessToken class
+
+        :param      access_token:  optional access token override
+        :type       access_token:  string
         """
         aqt_api = AqtRemoteApi(AQT_PORTAL_URL, access_token)
         aqt_devices = aqt_api.get_devices()

@@ -41,6 +41,8 @@ class AqtDevice:
 class AqtApi(Protocol):
     def get_devices(self) -> list[AqtDevice]: ...
 
+    def print_device_table(self) -> None: ...
+
     def post_aqt_job(self, aqt_job: PytketAqtJob, aqt_device: AqtDevice) -> str: ...
 
     def get_job_result(self, job_id: str) -> api_models.JobResponse: ...
@@ -65,6 +67,11 @@ class AqtRemoteApi(AqtApi):
             AqtDevice.from_aqt_resource(aqt_resource)
             for aqt_resource in backend_table.backends
         ]
+
+    def print_device_table(self) -> None:
+        aqt_provider = AQTProvider(access_token=self._access_token)
+        backend_table = aqt_provider.backends()
+        print(backend_table)
 
     def post_aqt_job(self, job: PytketAqtJob, aqt_device: AqtDevice) -> str:
         aqt_job = _aqt_job_from_pytket_aqt_job(job)
@@ -106,6 +113,10 @@ class AqtOfflineApi(AqtApi):
             for aqt_resource in backend_table.backends
         ]
 
+    def print_device_table(self) -> None:
+        backend_table = self._aqt_provider.backends()
+        print(backend_table)
+
     def post_aqt_job(self, aqt_job: PytketAqtJob, aqt_device: AqtDevice) -> str:
         circuits = [
             aqt_to_qiskit_circuit(
@@ -142,6 +153,9 @@ class AqtMockApi(AqtApi):
 
     def get_devices(self) -> list[AqtDevice]:
         return AQT_MOCK_DEVICES
+
+    def print_device_table(self) -> None:
+        print("Mock device table")
 
     def post_aqt_job(self, aqt_job: PytketAqtJob, aqt_device: AqtDevice) -> str:
         job_id = str(uuid.uuid4())

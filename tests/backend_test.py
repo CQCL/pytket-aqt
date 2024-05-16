@@ -18,12 +18,25 @@ import numpy as np
 import pytest
 from hypothesis import given
 from hypothesis import strategies
+from pydantic_core import ValidationError
 from pytket.backends import StatusEnum
 from pytket.circuit import Circuit
 from pytket.extensions.aqt import AQTBackend
 
+from pytket.extensions.aqt.backends.aqt import AqtAccessError
+
 skip_remote_tests: bool = os.getenv("PYTKET_RUN_REMOTE_TESTS") is None
 REASON = "PYTKET_RUN_REMOTE_TESTS not set (requires configuration of AQT access token)"
+
+
+@pytest.fixture(scope="module")
+def remote_backend() -> AQTBackend:
+    # Use config.set_aqt_config to configure the access token beforehand
+    return AQTBackend(
+        # These aqt_workspace_id may need to change depending on the access_token used
+        aqt_workspace_id="tket-integration",
+        aqt_resource_id="simulator_noise",
+    )
 
 
 @pytest.mark.parametrize(
@@ -56,12 +69,9 @@ def test_aqt_offline_simulator_backends(backend) -> None:
 
 
 @pytest.mark.skipif(skip_remote_tests, reason=REASON)
-def test_remote_sim() -> None:
+def test_remote_sim(remote_backend: AQTBackend) -> None:
     # Run a circuit on the noisy simulator.
-    b = AQTBackend(
-        aqt_workspace_id="tket-integration",
-        aqt_resource_id="simulator_noise",
-    )
+    b = remote_backend
     c = Circuit(4, 4)
     c.H(0)
     c.CX(0, 1)
@@ -96,31 +106,34 @@ def test_bell() -> None:
 
 
 @pytest.mark.skipif(skip_remote_tests, reason=REASON)
-def test_invalid_cred() -> None:
+def test_resource_not_found_for_access_token() -> None:
     token = "invalid"
-    b = AQTBackend(device_name="sim", access_token=token, label="test 3")
-    c = Circuit(2, 2).H(0).CX(0, 1)
-    c.measure_all()
-    c = b.get_compiled_circuit(c)
-    with pytest.raises(RuntimeError) as excinfo:
-        b.process_circuits([c], 1)
-        assert "Access denied" in str(excinfo.value)
+    with pytest.raises(AqtAccessError):
+        AQTBackend(
+            aqt_workspace_id="tket-integration",
+            aqt_resource_id="simulator_noise",
+            access_token=token,
+        )
 
 
-@pytest.mark.skipif(skip_remote_tests, reason=REASON)
 def test_invalid_request() -> None:
-    b = AQTBackend(device_name="sim", label="test 4")
+    b = AQTBackend("default", "offline_simulator_no_noise")
     c = Circuit(2, 2).H(0).CX(0, 1)
     c.measure_all()
     c = b.get_compiled_circuit(c)
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(ValidationError) as excinfo:
         b.process_circuits([c], 1000000)
         assert "1000000" in str(excinfo.value)
 
 
-@pytest.mark.skipif(skip_remote_tests, reason=REASON)
-def test_handles() -> None:
-    b = AQTBackend(device_name="sim/noise-model-1", label="test 5")
+@pytest.mark.parametrize(
+    "b",
+    [
+        AQTBackend("default", "offline_simulator_no_noise"),
+        AQTBackend("default", "offline_simulator_noise"),
+    ],
+)
+def test_handles_offline(b: AQTBackend) -> None:
     c = Circuit(2, 2)
     c.H(0)
     c.CX(0, 1)
@@ -138,6 +151,30 @@ def test_handles() -> None:
         assert b.circuit_status(handle).status is StatusEnum.COMPLETED
 
 
+@pytest.mark.skipif(skip_remote_tests, reason=REASON)
+def test_handles_remote(remote_backend: AQTBackend) -> None:
+    b = remote_backend
+    c = Circuit(2, 2)
+    c.H(0)
+    c.CX(0, 1)
+    c.measure_all()
+    c = b.get_compiled_circuit(c)
+    n_shots = 5
+    res = b.run_circuit(c, n_shots=n_shots, timeout=30)
+    shots = res.get_shots()
+    assert len(shots) == n_shots
+    counts = res.get_counts()
+    assert sum(counts.values()) == n_shots
+    handles = b.process_circuits([c, c], n_shots=n_shots)
+    assert len(handles) == 2
+    for handle in handles:
+        assert b.circuit_status(handle).status in [
+            StatusEnum.QUEUED,
+            StatusEnum.RUNNING,
+            StatusEnum.COMPLETED,
+        ]
+
+
 def test_machine_debug() -> None:
     b = AQTBackend(machine_debug=True)
     c = Circuit(2, 2)
@@ -150,23 +187,15 @@ def test_machine_debug() -> None:
     assert counts == {(0, 0): n_shots}
 
 
-def test_machine_dkdebug() -> None:
-    b = AQTBackend(machine_debug=True)
-    c = Circuit()
-    c.add_q_register("bla", 1)
-    c.add_q_register("blam", 1)
-    c.measure_all()
-    # c = b.get_compiled_circuit(c)
-    print("")
-    for com in c:
-        print(com)
-    n_shots = 10
-    counts = b.run_circuit(c, n_shots=n_shots, timeout=30).get_counts()
-    assert counts == {(0, 0): n_shots}
-
-
-def test_default_pass() -> None:
-    b = AQTBackend(device_name="sim/noise-model-1", access_token="invalid")
+@pytest.mark.parametrize(
+    "b",
+    [
+        AQTBackend(machine_debug=True),
+        AQTBackend("default", "offline_simulator_no_noise"),
+        AQTBackend("default", "offline_simulator_noise"),
+    ],
+)
+def test_default_pass(b: AQTBackend) -> None:
     for ol in range(3):
         comp_pass = b.default_compilation_pass(ol)
         c = Circuit(3, 3)
@@ -180,9 +209,15 @@ def test_default_pass() -> None:
             assert pred.verify(c)
 
 
-@pytest.mark.skipif(skip_remote_tests, reason=REASON)
-def test_postprocess() -> None:
-    b = AQTBackend(device_name="sim", label="test 7")
+@pytest.mark.parametrize(
+    "b",
+    [
+        AQTBackend(machine_debug=True),
+        AQTBackend("default", "offline_simulator_no_noise"),
+        AQTBackend("default", "offline_simulator_noise"),
+    ],
+)
+def test_postprocess(b: AQTBackend) -> None:
     assert b.supports_contextual_optimisation
     c = Circuit(2, 2)
     c.H(0)
