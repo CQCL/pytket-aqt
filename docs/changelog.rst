@@ -1,6 +1,11 @@
 Changelog
 ~~~~~~~~~
 
+unreleased
+----------
+
+* implement new aqt api
+
 0.33.0 (March 2024)
 -------------------
 
