@@ -13,7 +13,7 @@
 # limitations under the License.
 import json
 import time
-from typing import Any, assert_never
+from typing import Any
 from typing import cast
 from typing import Dict
 from typing import List
@@ -21,6 +21,7 @@ from typing import Optional
 from typing import Sequence
 from typing import Tuple
 from typing import Union
+from typing_extensions import assert_never
 
 import numpy
 from qiskit_aqt_provider import api_models, api_models_generated
