@@ -1,6 +1,11 @@
 Changelog
 ~~~~~~~~~
 
+Unreleased
+----------
+
+* Fix handling of ``simplify_initial`` kwarg in ``process_circuits()``.
+
 0.33.0 (March 2024)
 -------------------
 

@@ -263,7 +263,7 @@ class AQTBackend(Backend):
             self._check_all_circuits(circuits)
 
         postprocess = kwargs.get("postprocess", False)
-        simplify_initial = kwargs.get("postprocess", False)
+        simplify_initial = kwargs.get("simplify_initial", False)
 
         handles = []
         for i, (c, n_shots) in enumerate(zip(circuits, n_shots_list)):
