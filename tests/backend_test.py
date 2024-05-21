@@ -46,7 +46,7 @@ def remote_backend() -> AQTBackend:
         AQTBackend("default", "offline_simulator_noise"),
     ],
 )
-def test_aqt_offline_simulator_backends(backend) -> None:
+def test_aqt_offline_simulator_backends(backend: AQTBackend) -> None:
     backend = AQTBackend("default", "offline_simulator_no_noise")
     c = Circuit(4, 4)
     c.H(0)
@@ -227,7 +227,7 @@ def test_postprocess() -> None:
     n_shots=strategies.integers(min_value=1, max_value=10),
     n_bits=strategies.integers(min_value=1, max_value=10),
 )
-def test_shots_bits_edgecases(n_shots, n_bits) -> None:
+def test_shots_bits_edgecases(n_shots: int, n_bits: int) -> None:
     aqt_backend = AQTBackend(machine_debug=True)
     c = Circuit(n_bits, n_bits)
     c.measure_all()

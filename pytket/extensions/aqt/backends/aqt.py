@@ -13,7 +13,7 @@
 # limitations under the License.
 import json
 import time
-from typing import Any, assert_never, Tuple, List
+from typing import Any, assert_never
 from typing import cast
 from typing import Dict
 from typing import List
@@ -24,7 +24,6 @@ from typing import Union
 
 import numpy
 from qiskit_aqt_provider import api_models, api_models_generated
-from qiskit_aqt_provider.api_models_generated import Circuit
 from qiskit_aqt_provider.aqt_provider import OFFLINE_SIMULATORS
 
 from pytket.backends import Backend
@@ -65,6 +64,8 @@ from .aqt_api import (
     AqtRemoteApi,
     AqtMockApi,
     AQT_MOCK_DEVICES,
+    AqtApi,
+    unwrap,
 )
 from .aqt_job_data import PytketAqtJob, PytketAqtJobCircuitData
 
@@ -155,7 +156,7 @@ class AQTBackend(Backend):
         self._portal_url = AQT_PORTAL_URL
 
         if machine_debug:
-            self._aqt_api = AqtMockApi()
+            self._aqt_api: AqtApi = AqtMockApi()
             aqt_workspace_id = AQT_MOCK_DEVICES[0].workspace_id
             aqt_resource_id = AQT_MOCK_DEVICES[0].resource_id
         elif aqt_resource_id in AQT_OFFLINE_SIMULATORS:
@@ -309,7 +310,33 @@ class AQTBackend(Backend):
         2: measure results permutations as json str
         2: circuit after postprocessing as json str
         """
-        return (str, int, str, str)
+        return str, int, str, str
+
+    def _get_handle_data(self, handle: ResultHandle) -> tuple[str, int, str, str]:
+        self._check_handle_type(handle)
+        jobid, circuit_index, measures_str, ppcirc_str = (
+            handle[0],
+            handle[1],
+            handle[2],
+            handle[3],
+        )
+        if not isinstance(jobid, str):
+            raise ValueError(f"Invalid type {type(jobid)} for job id, should be `str`")
+        if not isinstance(circuit_index, int):
+            raise ValueError(
+                f"Invalid type {type(circuit_index)} for circuit index, should be `int`"
+            )
+        if not isinstance(measures_str, str):
+            raise ValueError(
+                f"Invalid type {type(jobid)} for measure"
+                f" permutations string, should be `str`"
+            )
+        if not isinstance(ppcirc_str, str):
+            raise ValueError(
+                f"Invalid type {type(jobid)} for post-processed"
+                f" circuit string, should be `str`"
+            )
+        return jobid, circuit_index, measures_str, ppcirc_str
 
     def process_circuits(
         self,
@@ -365,7 +392,7 @@ class AQTBackend(Backend):
 
         for i, circ_spec in enumerate(job.circuits_data):
             handle = ResultHandle(
-                job_id, i, circ_spec.measures, circ_spec.postprocess_json
+                job_id, i, unwrap(circ_spec.measures), circ_spec.postprocess_json
             )
             handles.append(handle)
             circ_spec.handle = handle
@@ -385,9 +412,7 @@ class AQTBackend(Backend):
             self._cache[handle] = result_dict
 
     def circuit_status(self, handle: ResultHandle) -> CircuitStatus:
-        self._check_handle_type(handle)
-        jobid = handle[0]
-
+        jobid, _, measures_str, ppcirc_str = self._get_handle_data(handle)
         if jobid not in self._aqt_jobs:
             raise ValueError("Could not find AQT Job for the given ResultHandle")
         job = self._aqt_jobs[jobid]
@@ -411,12 +436,12 @@ class AQTBackend(Backend):
             # Entire job is complete, so update results of all circuits in the job
             for circuit_index_string, shots in payload.response.result.items():
                 circuit_index = int(circuit_index_string)
-                circ_handle = job.circuits_data[circuit_index].handle
-                circ_measure_permutations = json.loads(circ_handle[2])
+                circ_handle = unwrap(job.circuits_data[circuit_index].handle)
+                circ_measure_permutations = json.loads(measures_str)
                 circ_shots = OutcomeArray.from_readouts(
                     numpy.array([[sample.root for sample in shot] for shot in shots])
                 ).choose_indices(circ_measure_permutations)
-                ppcirc_rep = json.loads(cast(str, circ_handle[3]))
+                ppcirc_rep = json.loads(ppcirc_str)
                 ppcirc = (
                     Circuit.from_dict(ppcirc_rep) if ppcirc_rep is not None else None
                 )
@@ -493,7 +518,7 @@ def _pytket_to_aqt_circuit(
     along with a JSON string describing the measure result permutations."""
     ops: list[api_models.OperationModel] = []
     num_measurements = 0
-    measures = []
+    measures: list[int | None] = []
     for cmd in pytket_circuit.get_commands():
         op = cmd.op
         optype = op.type
@@ -501,22 +526,22 @@ def _pytket_to_aqt_circuit(
         if optype == OpType.Rz:
             ops.append(
                 api_models.Operation.rz(
-                    phi=op.params[0],
+                    phi=float(op.params[0]),
                     qubit=cmd.args[0].index[0],
                 )
             )
         elif optype == OpType.PhasedX:
             ops.append(
                 api_models.Operation.r(
-                    theta=_restrict_to_range_zero_to_x(op.params[0], 1),
-                    phi=_restrict_to_range_zero_to_x(op.params[1], 2),
+                    theta=_restrict_to_range_zero_to_x(float(op.params[0]), 1),
+                    phi=_restrict_to_range_zero_to_x(float(op.params[1]), 2),
                     qubit=cmd.args[0].index[0],
                 )
             )
         elif optype == OpType.XXPhase:
             ops.append(
                 api_models.Operation.rxx(
-                    theta=op.params[0],
+                    theta=float(op.params[0]),
                     qubits=[cmd.args[0].index[0], cmd.args[1].index[0]],
                 )
             )
@@ -555,4 +580,4 @@ def _restrict_to_range_zero_to_x(number: float, x: float) -> float:
 
     Assumes that gate effect is periodic in this parameter with period x
     """
-    return numpy.fmod(number, x)
+    return float(numpy.fmod(number, x))

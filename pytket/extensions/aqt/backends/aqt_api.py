@@ -1,7 +1,8 @@
+from __future__ import annotations
 import json
 import uuid
 from dataclasses import dataclass
-from typing import Protocol, Final
+from typing import Protocol, Final, TypeVar
 
 import httpx
 from qiskit_aqt_provider import AQTProvider, api_models
@@ -29,13 +30,22 @@ class AqtDevice:
     resource_type: str
 
     @classmethod
-    def from_aqt_resource(cls, aqt_resource: AQTResource):
+    def from_aqt_resource(cls, aqt_resource: AQTResource) -> AqtDevice:
         return AqtDevice(
             workspace_id=aqt_resource.resource_id.workspace_id,
             resource_id=aqt_resource.resource_id.resource_id,
             resource_type=aqt_resource.resource_id.resource_type,
             description=aqt_resource.resource_id.resource_name,
         )
+
+
+T = TypeVar("T")
+
+
+def unwrap(obj: T | None) -> T:
+    if obj is None:
+        raise ValueError(f"Value cannot be None")
+    return obj
 
 
 class AqtApi(Protocol):
@@ -47,11 +57,11 @@ class AqtApi(Protocol):
 
     def get_job_result(self, job_id: str) -> api_models.JobResponse: ...
 
-    def cancel_job(self, job_id: str): ...
+    def cancel_job(self, job_id: str) -> None: ...
 
 
 class AqtRemoteApi(AqtApi):
-    def __init__(self, base_url: str, access_token: str):
+    def __init__(self, base_url: str, access_token: str | None):
         self._base_url = base_url
         self._access_token = AQTAccessToken.resolve(access_token)
 
@@ -87,7 +97,7 @@ class AqtRemoteApi(AqtApi):
         resp.raise_for_status()
         return api_models.Response.model_validate(resp.json())
 
-    def cancel_job(self, job_id: str):
+    def cancel_job(self, job_id: str) -> None:
         resp = self._http_client.delete(f"/jobs/{job_id}")
         resp.raise_for_status()
 
@@ -120,7 +130,7 @@ class AqtOfflineApi(AqtApi):
     def post_aqt_job(self, aqt_job: PytketAqtJob, aqt_device: AqtDevice) -> str:
         circuits = [
             aqt_to_qiskit_circuit(
-                circuit_spec.aqt_circuit, circuit_spec.circuit.n_qubits
+                unwrap(circuit_spec.aqt_circuit), circuit_spec.circuit.n_qubits
             )
             for circuit_spec in aqt_job.circuits_data
         ]
@@ -133,7 +143,7 @@ class AqtOfflineApi(AqtApi):
     def get_job_result(self, job_id: str) -> api_models.JobResponse:
         return self._offline_sim.result(uuid.UUID(job_id))
 
-    def cancel_job(self, job_id: str):
+    def cancel_job(self, job_id: str) -> None:
         pass
 
 
@@ -166,16 +176,23 @@ class AqtMockApi(AqtApi):
         job = self._jobs[job_id]
         results: dict[str, list[list[ResultItem]]] = dict()
         for i, circ_spec in enumerate(job.circuits_data):
-            circ_measure_permutations = json.loads(circ_spec.measures)
+            circ_measure_permutations = json.loads(unwrap(circ_spec.measures))
             results[str(i)] = [
                 [ResultItem(0) for _ in circ_measure_permutations]
                 for _ in range(circ_spec.n_shots)
             ]
         return JobResponseRRFinished(
-            job=JobUser(job_id=job_id), response=RRFinished(result=results)
+            job=JobUser(
+                job_id=uuid.UUID(job_id),
+                job_type="quantum_circuit",
+                label="mock-user",
+                resource_id=AQT_MOCK_DEVICES[0].resource_id,
+                workspace_id=AQT_MOCK_DEVICES[0].workspace_id,
+            ),
+            response=RRFinished(status="finished", result=results),
         )
 
-    def cancel_job(self, job_id: str):
+    def cancel_job(self, job_id: str) -> None:
         self._jobs.pop(job_id)
 
 
@@ -191,7 +208,7 @@ def _aqt_job_from_pytket_aqt_job(
             circuits=[
                 api_models.QuantumCircuit(
                     repetitions=spec.n_shots,
-                    quantum_circuit=spec.aqt_circuit,
+                    quantum_circuit=unwrap(spec.aqt_circuit),
                     number_of_qubits=spec.circuit.n_qubits,
                 )
                 for spec in job.circuits_data

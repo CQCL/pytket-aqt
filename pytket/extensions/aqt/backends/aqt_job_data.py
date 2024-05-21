@@ -11,7 +11,7 @@ from pytket.backends import ResultHandle
 class PytketAqtJobCircuitData:
     circuit: Circuit
     n_shots: int
-    postprocess_json: json = json.dumps(None)
+    postprocess_json: str = json.dumps(None)
     aqt_circuit: Optional[api_models.Circuit] = None
     measures: Optional[str] = None
     handle: Optional[ResultHandle] = None

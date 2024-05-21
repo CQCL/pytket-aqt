@@ -56,15 +56,15 @@ class AQTAccessToken:
     _access_token: Optional[str] = None
 
     @classmethod
-    def overwrite(cls, access_token: str):
+    def overwrite(cls, access_token: str) -> None:
         cls._access_token = access_token
 
     @classmethod
-    def retrieve(cls):
+    def retrieve(cls) -> Optional[str]:
         return cls._access_token
 
     @classmethod
-    def reset(cls, access_token: Optional[str] = None):
+    def reset(cls, access_token: Optional[str] = None) -> None:
         if access_token:
             cls._access_token = access_token
             return
@@ -100,17 +100,19 @@ class AQTAccessToken:
                 AQTAccessToken.reset()
             case (a, _, _) if a is not None:
                 # Store provided access token in memory (possibly overwrite)
-                AQTAccessToken.overwrite(access_token)
+                AQTAccessToken.overwrite(a)
             case (None, a, _) if a is not None:
                 # Use memory stored access token (see return)
                 pass
-            case (None, None, _):
+            case (None, None, a) if a is not None:
                 # Use access token from config file and store in memory
-                AQTAccessToken.overwrite(config.access_token)
-        return AQTAccessToken.retrieve()
+                AQTAccessToken.overwrite(a)
+        resolved_token = AQTAccessToken.retrieve()
+        assert resolved_token is not None
+        return resolved_token
 
 
-def print_available_devices(access_token: Optional[str] = None):
+def print_available_devices(access_token: Optional[str] = None) -> None:
     resolved_access_token = AQTAccessToken.resolve(access_token)
 
     aqt_provider = AQTProvider(access_token=resolved_access_token)
