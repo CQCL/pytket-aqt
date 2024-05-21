@@ -13,7 +13,7 @@
 # limitations under the License.
 import json
 import time
-from typing import Any, assert_never
+from typing import Any, assert_never, Tuple, List
 from typing import cast
 from typing import Dict
 from typing import List
@@ -24,6 +24,7 @@ from typing import Union
 
 import numpy
 from qiskit_aqt_provider import api_models, api_models_generated
+from qiskit_aqt_provider.api_models_generated import Circuit
 from qiskit_aqt_provider.aqt_provider import OFFLINE_SIMULATORS
 
 from pytket.backends import Backend
@@ -480,57 +481,65 @@ def _add_aqt_circ_and_measure_data(
     """Add the AQT API model representation to the circuit spec of each circuit,
     along with a JSON string describing the measure result permutations."""
     for circ_spec in circ_specs:
-        circ = circ_spec.circuit
-        ops: list[api_models.OperationModel] = []
-        num_measurements = 0
-        measures = []
-        for cmd in circ.get_commands():
-            op = cmd.op
-            optype = op.type
-            # https://arnica.aqt.eu/api/v1/docs
-            if optype == OpType.Rz:
-                ops.append(
-                    api_models.Operation.rz(
-                        phi=op.params[0],
-                        qubit=cmd.args[0].index[0],
-                    )
-                )
-            elif optype == OpType.PhasedX:
-                ops.append(
-                    api_models.Operation.r(
-                        theta=_restrict_to_range_zero_to_x(op.params[0], 1),
-                        phi=_restrict_to_range_zero_to_x(op.params[1], 2),
-                        qubit=cmd.args[0].index[0],
-                    )
-                )
-            elif optype == OpType.XXPhase:
-                ops.append(
-                    api_models.Operation.rxx(
-                        theta=op.params[0],
-                        qubits=[cmd.args[0].index[0], cmd.args[1].index[0]],
-                    )
-                )
-            elif optype == OpType.Measure:
-                # predicate has already checked format is correct, so
-                # errors are not handled here
-                num_measurements += 1
-                qb_id = cmd.qubits[0].index[0]
-                bit_id = cmd.bits[0].index[0]
-                while len(measures) <= bit_id:
-                    measures.append(None)
-                measures[bit_id] = qb_id
-            else:
-                if optype not in {OpType.noop, OpType.Barrier}:
-                    message = f"Gate {optype} is not in the allowed AQT gate set"
-                    raise ValueError(message)
-        if num_measurements == 0:
-            raise CircuitNotValidError("Circuit must contain at least one measurement")
-        if None in measures:
-            raise IndexError("Bit index not written to by a measurement.")
+        circ_spec.aqt_circuit, circ_spec.measures = _pytket_to_aqt_circuit(
+            circ_spec.circuit
+        )
 
-        ops.append(api_models.Operation.measure())
-        circ_spec.aqt_circuit = api_models.Circuit(root=ops)
-        circ_spec.measures = json.dumps(measures)
+
+def _pytket_to_aqt_circuit(
+    pytket_circuit: Circuit,
+) -> tuple[api_models.Circuit, str]:
+    """Get the AQT API model representation of a rebased pytket circuit,
+    along with a JSON string describing the measure result permutations."""
+    ops: list[api_models.OperationModel] = []
+    num_measurements = 0
+    measures = []
+    for cmd in pytket_circuit.get_commands():
+        op = cmd.op
+        optype = op.type
+        # https://arnica.aqt.eu/api/v1/docs
+        if optype == OpType.Rz:
+            ops.append(
+                api_models.Operation.rz(
+                    phi=op.params[0],
+                    qubit=cmd.args[0].index[0],
+                )
+            )
+        elif optype == OpType.PhasedX:
+            ops.append(
+                api_models.Operation.r(
+                    theta=_restrict_to_range_zero_to_x(op.params[0], 1),
+                    phi=_restrict_to_range_zero_to_x(op.params[1], 2),
+                    qubit=cmd.args[0].index[0],
+                )
+            )
+        elif optype == OpType.XXPhase:
+            ops.append(
+                api_models.Operation.rxx(
+                    theta=op.params[0],
+                    qubits=[cmd.args[0].index[0], cmd.args[1].index[0]],
+                )
+            )
+        elif optype == OpType.Measure:
+            # predicate has already checked format is correct, so
+            # errors are not handled here
+            num_measurements += 1
+            qb_id = cmd.qubits[0].index[0]
+            bit_id = cmd.bits[0].index[0]
+            while len(measures) <= bit_id:
+                measures.append(None)
+            measures[bit_id] = qb_id
+        else:
+            if optype not in {OpType.noop, OpType.Barrier}:
+                message = f"Gate {optype} is not in the allowed AQT gate set"
+                raise ValueError(message)
+    if num_measurements == 0:
+        raise CircuitNotValidError("Circuit must contain at least one measurement")
+    if None in measures:
+        raise IndexError("Bit index not written to by a measurement.")
+    ops.append(api_models.Operation.measure())
+    aqt_circuit = api_models.Circuit(root=ops)
+    return aqt_circuit, json.dumps(measures)
 
 
 def _aqt_rebase() -> BasePass:

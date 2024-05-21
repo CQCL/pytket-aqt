@@ -12,30 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
-import os
-from typing import List
-from typing import Tuple
 
 import numpy as np
-import pytest
+from qiskit_aqt_provider import api_models
 from pytket.circuit import Circuit
 from pytket.circuit import OpType
 from pytket.extensions.aqt.backends.aqt import _aqt_rebase
-from pytket.extensions.aqt.backends.aqt import _translate_aqt
+from pytket.extensions.aqt.backends.aqt import _pytket_to_aqt_circuit
 from pytket.extensions.aqt.backends.aqt import AQTBackend
 
-skip_remote_tests: bool = os.getenv("PYTKET_RUN_REMOTE_TESTS") is None
-REASON = "PYTKET_RUN_REMOTE_TESTS not set (requires configuration of AQT access token)"
 
-
-def tk_to_aqt(circ: Circuit) -> Tuple[List[List], str]:
+def tk_to_aqt(circ: Circuit) -> tuple[api_models.Circuit, str]:
     """Convert a circuit to AQT list representation"""
     c = circ.copy()
-    AQTBackend(device_name="sim/noise-model-1").default_compilation_pass().apply(c)
-    return _translate_aqt(c)
+    AQTBackend().default_compilation_pass().apply(c)
+    return _pytket_to_aqt_circuit(c)
 
 
-@pytest.mark.skipif(skip_remote_tests, reason=REASON)
 def test_convert() -> None:
     circ = Circuit(4, 4)
     circ.H(0).CX(0, 1)
@@ -50,7 +43,6 @@ def test_convert() -> None:
 
     circ_aqt = tk_to_aqt(circ)
     assert json.loads(circ_aqt[1]) == [0, 3, 1, 2]
-    assert all(gate[0] in ["X", "Y", "MS"] for gate in circ_aqt[0])
 
 
 def test_rebase_CX() -> None:
