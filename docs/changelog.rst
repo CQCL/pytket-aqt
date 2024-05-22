@@ -1,10 +1,11 @@
 Changelog
 ~~~~~~~~~
 
-unreleased
+Unreleased
 ----------
 
-* implement new aqt api
+* Implement new aqt api
+* Fix handling of ``simplify_initial`` kwarg in ``process_circuits()``.
 
 0.33.0 (March 2024)
 -------------------
