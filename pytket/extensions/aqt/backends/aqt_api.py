@@ -61,6 +61,8 @@ class AqtApi(Protocol):
 
 
 class AqtRemoteApi(AqtApi):
+    """Class implementing AQT's remote API"""
+
     def __init__(self, base_url: str, access_token: str | None):
         self._base_url = base_url
         self._access_token = AQTAccessToken.resolve(access_token)
@@ -103,6 +105,8 @@ class AqtRemoteApi(AqtApi):
 
 
 class AqtOfflineApi(AqtApi):
+    """Class implementing AQT's offline Simulator API"""
+
     def __init__(self, simulator: OfflineSimulator):
         self._aqt_provider = AQTProvider(access_token="offline")
         self._offline_sim = OfflineSimulatorResource(
@@ -158,6 +162,8 @@ AQT_MOCK_DEVICES: Final = [
 
 
 class AqtMockApi(AqtApi):
+    """Mock API for debugging purposes"""
+
     def __init__(self) -> None:
         self._jobs: dict[str, PytketAqtJob] = dict()
 
