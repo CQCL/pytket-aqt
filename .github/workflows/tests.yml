@@ -5,12 +5,11 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - develop
+      - main
       - "runci/**"
   pull_request:
     branches:
       - main
-      - develop
   schedule:
     # 04:00 every Tuesday morning
     - cron: "0 4 * * 2"
