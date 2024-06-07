@@ -1,4 +1,4 @@
-# Copyright 2020-2024 Cambridge Quantum Computing
+# Copyright 2020-2024 Quantinuum
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -263,7 +263,7 @@ class AQTBackend(Backend):
             self._check_all_circuits(circuits)
 
         postprocess = kwargs.get("postprocess", False)
-        simplify_initial = kwargs.get("postprocess", False)
+        simplify_initial = kwargs.get("simplify_initial", False)
 
         handles = []
         for i, (c, n_shots) in enumerate(zip(circuits, n_shots_list)):

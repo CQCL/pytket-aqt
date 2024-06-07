@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import argparse
-import datetime
+from datetime import date
 import shutil
 import subprocess
 import sys
@@ -67,7 +67,7 @@ def build_module_docs() -> None:
             "-D",
             f"project=pytket-{MODULE}",
             "-D",
-            f"copyright={datetime.date.today().year} Cambridge Quantum Computing",
+            f"copyright={date.today().year} Cambridge Quantum Computing",
             "-D",
             f"version={'.'.join(v[:2])}",
             "-D",

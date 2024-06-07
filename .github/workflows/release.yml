@@ -5,12 +5,10 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - develop
       - main
   pull_request:
     branches:
       - main
-      - develop
   release:
     types:
       - created
@@ -51,12 +49,12 @@ jobs:
 
       - name: Install Poetry
         run: |
-          pipx install --pip-args=--constraint=dev-tool-requirements.txt poetry
+          pipx install --pip-args=--constraint=${{ github.workspace }}/dev-tool-requirements.txt poetry
           poetry --version
 
       - name: Install Nox
         run: |
-          pipx install --pip-args=--constraint=dev-tool-requirements.txt nox
+          pipx install --pip-args=--constraint=${{ github.workspace }}/dev-tool-requirements.txt nox
           nox --version
 
       - name: Build wheel
@@ -115,4 +113,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4.0.4
+        uses: actions/deploy-pages@v4.0.5
