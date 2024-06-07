@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import importlib_resources
+import kahypar
 import pytest
 from pytket import Circuit
 from pytket.backends import ResultHandle
@@ -24,6 +25,10 @@ from pytket.extensions.aqt.multi_zone_architecture.circuit.multizone_circuit imp
 )
 from pytket.extensions.aqt.multi_zone_architecture.named_architectures import (
     four_zones_in_a_line,
+)
+
+from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.route_zones import (
+    kahypar_edge_translation,
 )
 
 
@@ -175,12 +180,57 @@ def test_compiled_circuit_has_correct_syntax(backend: AQTMultiZoneBackend) -> No
     assert number_initialized_qubits == 8
 
 
+def test_kahypar() -> None:
+    context = kahypar.Context()
+    package_path = importlib_resources.files("pytket.extensions.aqt")
+    default_ini = (
+        f"{package_path}/multi_zone_architecture/circuit_routing/cut_kKaHyPar_sea20.ini"
+    )
+    context.loadINIconfiguration(default_ini)
+
+    num_nodes = 8
+
+    edges = [(0, 1), (0, 2), (3, 4), (3, 5)]
+
+    hyperedge_indices, hyperedges = kahypar_edge_translation(edges)
+
+    node_weights = [1] * num_nodes
+    edge_weights = [1] * len(edges)
+
+    k = 2
+
+    hypergraph = kahypar.Hypergraph(
+        num_nodes,
+        len(edges),
+        hyperedge_indices,
+        hyperedges,
+        k,
+        edge_weights,
+        node_weights,
+    )
+    hypergraph.fixNodeToBlock(0, 0)
+    hypergraph.fixNodeToBlock(3, 1)
+
+    print("\n num_fixed", hypergraph.numFixedNodes())
+    context.setK(k)
+    context.setEpsilon(k)
+    context.setCustomTargetBlockWeights([5, 5])
+
+    kahypar.partition(hypergraph, context)
+
+    block_assignments = {i: [] for i in range(k)}
+    for vertex in range(num_nodes):
+        block_assignments[hypergraph.blockID(vertex)].append(vertex)
+
+    print(block_assignments)
+
+
 def test_automatically_routed_circuit_has_correct_syntax(
     backend: AQTMultiZoneBackend,
 ) -> None:
-    initial_placement = {0: [0, 1, 2, 3], 1: [4, 5, 6, 7]}
+    initial_placement = None  # {0: [0, 1, 2, 3], 1: [4, 5, 6, 7]}
     circuit = Circuit(8)
-    circuit.CX(0, 1).CX(2, 3).CX(4, 5).CX(6, 7)
+    (circuit.CX(0, 1).CX(2, 3).CX(4, 5).CX(6, 7))
     circuit.CX(1, 2).CX(3, 4).CX(5, 6).CX(7, 0)
     circuit.CX(0, 1).CX(2, 3).CX(4, 5).CX(6, 7)
     circuit.CX(1, 2).CX(3, 4).CX(5, 6).CX(7, 0)

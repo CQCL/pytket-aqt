@@ -1,6 +1,8 @@
 from copy import deepcopy
-from typing import Optional
+from typing import Optional, Sequence
 
+import importlib_resources
+import kahypar
 from pytket import Qubit
 from pytket.circuit import Circuit
 from ..architecture import MultiZoneArchitecture
@@ -71,6 +73,92 @@ def _make_necessary_moves(
             _move_qubit(qubits[0], zone0, zone1)
 
 
+def kahypar_edge_translation(edges: list[Sequence[int]]) -> tuple[list[int], list[int]]:
+    edges_kahypar = [node for edge in edges for node in edge]
+    edge_indices_kahypar = [0]
+    for edge in edges:
+        edge_indices_kahypar.append(edge_indices_kahypar[-1] + len(edge))
+    return edge_indices_kahypar, edges_kahypar
+
+
+def _kahypar(
+    circuit: Circuit,
+    arch: MultiZoneArchitecture,
+    initial_placement: ZonePlacement,
+) -> None:
+    context = kahypar.Context()
+    package_path = importlib_resources.files("pytket.extensions.aqt")
+    default_ini = (
+        f"{package_path}/multi_zone_architecture/circuit_routing/cut_kKaHyPar_sea20.ini"
+    )
+    context.loadINIconfiguration(default_ini)
+    num_zones = arch.n_zones
+
+    context.setK(num_zones)
+    block_weights = [arch.get_zone_max_ions(i) + 1 for i, _ in enumerate(arch.zones)]
+    context.setCustomTargetBlockWeights(block_weights)
+    context.setEpsilon(num_zones)
+
+    edges: list[tuple[int, int]] = []
+    edge_weights: list[int] = []
+
+    for zone, qubits in initial_placement.items():
+        edges.extend([(zone, qubit + num_zones) for qubit in qubits])
+        edge_weights.extend([10000 for _ in qubits])
+
+    for cmd in circuit.get_commands():
+        n_args = len(cmd.args)
+        if n_args == 1:
+            continue
+        elif n_args == 2:
+            if isinstance(cmd.args[0], Qubit) and isinstance(cmd.args[1], Qubit):
+                q_node_0 = cmd.args[0].index[0] + num_zones
+                q_node_1 = cmd.args[1].index[0] + num_zones
+                weight = 1
+                edges.append((q_node_0, q_node_1))
+                edge_weights.append(weight)
+        else:
+            raise ZoneRoutingError("Circuit must be rebased to the AQT gate set")
+
+    edge_indices_kahypar, edges_kahypar = kahypar_edge_translation(edges)
+
+    num_fake_vertices = circuit.n_qubits
+    num_vertices = num_zones + circuit.n_qubits + num_fake_vertices
+    vertex_weights = [1 for _ in range(num_zones)] + [
+        1 for _ in range(num_zones, num_vertices)
+    ]
+    num_edges = len(edges)
+
+    hypergraph = kahypar.Hypergraph(
+        num_vertices,
+        num_edges,
+        edge_indices_kahypar,
+        edges_kahypar,
+        num_zones,
+        edge_weights,
+        vertex_weights,
+    )
+    # for i in range(num_zones):
+    #    hypergraph.fixNodeToBlock(i, i)
+
+    kahypar.partition(hypergraph, context)
+
+    block_assignments = {i: [] for i in range(num_zones)}
+    for vertex in range(num_vertices):
+        if vertex < num_zones:
+            block_assignments[hypergraph.blockID(vertex)].append(f"Z{vertex}")
+        elif vertex < num_zones + circuit.n_qubits:
+            block_assignments[hypergraph.blockID(vertex)].append(
+                f"q{vertex - num_zones}"
+            )
+        else:
+            block_assignments[hypergraph.blockID(vertex)].append("X")
+
+    print(block_assignments)
+    print(initial_placement)
+    return
+
+
 def route_circuit(
     circuit: Circuit,
     arch: MultiZoneArchitecture,
@@ -94,12 +182,15 @@ def route_circuit(
     n_qubits = circuit.n_qubits
     if not initial_placement:
         initial_placement = _calc_initial_placement(n_qubits, arch)
+        initial_placement = _initial_placement_graph_partition_alg(circuit, arch)
     mz_circuit = MultiZoneCircuit(arch, initial_placement, n_qubits, circuit.n_bits)
     current_qubit_to_zone = {}
     for zone, qubit_list in initial_placement.items():
         for qubit in qubit_list:
             current_qubit_to_zone[qubit] = zone
     current_zone_to_qubits = deepcopy(initial_placement)
+
+    _kahypar(circuit, arch, initial_placement)
 
     for cmd in circuit.get_commands():
         n_args = len(cmd.args)
@@ -117,6 +208,90 @@ def route_circuit(
         else:
             raise ZoneRoutingError("Circuit must be rebased to the AQT gate set")
     return mz_circuit
+
+
+def _initial_placement_graph_partition_alg(
+    circuit: Circuit, arch: MultiZoneArchitecture
+) -> ZonePlacement:
+    n_qubits = circuit.n_qubits
+    n_qubits_max = arch.n_qubits_max
+    if n_qubits > n_qubits_max:
+        raise ZoneRoutingError(
+            f"Attempting to route circuit with {n_qubits}"
+            f" qubits, but architecture only supports up to {n_qubits_max}"
+        )
+    depth_list: list[list[tuple[int, int]]] = []
+    current_depth_per_qubit: list[int] = [0] * n_qubits
+    for cmd in circuit.get_commands():
+        n_args = len(cmd.args)
+        if n_args == 1:
+            continue
+        elif n_args == 2:
+            if isinstance(cmd.args[0], Qubit) and isinstance(cmd.args[1], Qubit):
+                qubit0 = cmd.args[0].index[0]
+                qubit1 = cmd.args[1].index[0]
+                depth = max(
+                    current_depth_per_qubit[qubit0], current_depth_per_qubit[qubit1]
+                )
+                assert len(depth_list) >= depth
+                if len(depth_list) > depth:
+                    depth_list[depth].append((qubit0, qubit1))
+                else:
+                    depth_list.append([(qubit0, qubit1)])
+                current_depth_per_qubit[qubit0] = depth + 1
+                current_depth_per_qubit[qubit1] = depth + 1
+
+    context = kahypar.Context()
+    package_path = importlib_resources.files("pytket.extensions.aqt")
+    default_ini = (
+        f"{package_path}/multi_zone_architecture/circuit_routing/cut_kKaHyPar_sea20.ini"
+    )
+    context.loadINIconfiguration(default_ini)
+    num_zones = arch.n_zones
+    context.setK(num_zones)
+    block_weights = [arch.get_zone_max_ions(i) for i, _ in enumerate(arch.zones)]
+    num_spots = sum([m - 1 for m in block_weights])
+    context.setCustomTargetBlockWeights(block_weights)
+    context.setEpsilon(num_zones)
+
+    edges: list[tuple[int, int]] = []
+    edge_weights: list[int] = []
+
+    max_depth = len(depth_list)
+    for i, pairs in enumerate(depth_list):
+        edges.extend(pairs)
+        weight = max_depth - i
+        edge_weights.extend([weight] * len(pairs))
+
+    edge_indices_kahypar, edges_kahypar = kahypar_edge_translation(edges)
+
+    num_vertices = num_spots
+    vertex_weights = [1 for _ in range(num_vertices)]
+    num_edges = len(edges)
+
+    hypergraph = kahypar.Hypergraph(
+        num_vertices,
+        num_edges,
+        edge_indices_kahypar,
+        edges_kahypar,
+        num_zones,
+        edge_weights,
+        vertex_weights,
+    )
+
+    kahypar.partition(hypergraph, context)
+
+    initial_placement = {i: [] for i in range(num_zones)}
+    block_assignments = {i: [] for i in range(num_zones)}
+    for vertex in range(n_qubits):
+        block_assignments[hypergraph.blockID(vertex)].append(f"q{vertex}")
+        initial_placement[hypergraph.blockID(vertex)].append(vertex)
+    for vertex in range(n_qubits, num_vertices):
+        block_assignments[hypergraph.blockID(vertex)].append(f"X")
+
+    print(block_assignments)
+    print(initial_placement)
+    return initial_placement
 
 
 def _calc_initial_placement(
