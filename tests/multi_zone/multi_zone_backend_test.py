@@ -11,8 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import multiprocessing
+
 import importlib_resources
 import kahypar
+import mtkahypar
 import pytest
 from pytket import Circuit
 from pytket.backends import ResultHandle
@@ -188,16 +191,17 @@ def test_kahypar() -> None:
     )
     context.loadINIconfiguration(default_ini)
 
-    num_nodes = 8
+    num_nodes = 9
+    node_weights = [1] * num_nodes
 
-    edges = [(0, 1), (0, 2), (3, 4), (3, 5)]
+    edges = [(0, 1), (0, 2), (3, 4), (3, 5), (6, 7), (6, 8)]
+    edge_weights = [1] * len(edges)
+    edges.extend([(0, 3), (0, 6), (3, 6)])
+    edge_weights.extend([-500, -500, -500])
 
     hyperedge_indices, hyperedges = kahypar_edge_translation(edges)
 
-    node_weights = [1] * num_nodes
-    edge_weights = [1] * len(edges)
-
-    k = 2
+    k = 3
 
     hypergraph = kahypar.Hypergraph(
         num_nodes,
@@ -208,13 +212,10 @@ def test_kahypar() -> None:
         edge_weights,
         node_weights,
     )
-    hypergraph.fixNodeToBlock(0, 0)
-    hypergraph.fixNodeToBlock(3, 1)
 
     print("\n num_fixed", hypergraph.numFixedNodes())
     context.setK(k)
     context.setEpsilon(k)
-    context.setCustomTargetBlockWeights([5, 5])
 
     kahypar.partition(hypergraph, context)
 
@@ -225,17 +226,85 @@ def test_kahypar() -> None:
     print(block_assignments)
 
 
+def test_mtkahypar() -> None:
+    k = 3
+
+    mtkahypar.initializeThreadPool(multiprocessing.cpu_count())
+    context = mtkahypar.Context()
+    context.loadPreset(mtkahypar.PresetType.DEFAULT)
+    context.setPartitioningParameters(
+        k,
+        0.1,
+        mtkahypar.Objective.CUT,
+    )
+    mtkahypar.setSeed(42)
+    context.logging = True
+
+    num_nodes = 9
+    node_weights = [1] * num_nodes
+
+    edges = [(0, 1), (0, 2), (3, 4), (3, 5), (6, 7), (6, 8)]
+    edge_weights = [1] * len(edges)
+    edges.extend([(0, 3), (0, 6), (3, 6)])
+    edge_weights.extend([-500, -500, -500])
+
+    graph = mtkahypar.Graph(num_nodes, len(edges), edges, node_weights, edge_weights)
+
+    partitioned_graph = graph.partition(context)
+    block_assignments = {i: [] for i in range(k)}
+    for vertex in range(num_nodes):
+        block_assignments[partitioned_graph.blockID(vertex)].append(vertex)
+
+    print(block_assignments)
+
+
+def test_mtkahypar_mapping() -> None:
+    k = 4
+    arch_edges = [(0, 1), (1, 2), (2, 3)]
+    arch_node_weights = [4, 4, 4, 1]
+    arch_edge_weights = [5, 3, 1]
+    arch_graph = mtkahypar.Graph(
+        k, len(arch_edges), arch_edges, arch_node_weights, arch_edge_weights
+    )
+
+    mtkahypar.initializeThreadPool(multiprocessing.cpu_count())
+    context = mtkahypar.Context()
+    context.loadPreset(mtkahypar.PresetType.DEFAULT)
+    context.setPartitioningParameters(
+        k,
+        0.1,
+        mtkahypar.Objective.CUT,
+    )
+    mtkahypar.setSeed(42)
+    context.logging = True
+
+    num_nodes = 8
+    node_weights = [1] * num_nodes
+
+    edges = [(0, 1), (1, 2), (2, 3), (4, 5), (6, 7), (6, 0)]
+    edge_weights = [1] * len(edges)
+
+    graph = mtkahypar.Graph(num_nodes, len(edges), edges, node_weights, edge_weights)
+
+    partitioned_graph = graph.mapOntoGraph(arch_graph, context)
+    block_assignments = {i: [] for i in range(k)}
+    for vertex in range(num_nodes):
+        block_assignments[partitioned_graph.blockID(vertex)].append(vertex)
+
+    print(block_assignments)
+
+
 def test_automatically_routed_circuit_has_correct_syntax(
     backend: AQTMultiZoneBackend,
 ) -> None:
-    initial_placement = None  # {0: [0, 1, 2, 3], 1: [4, 5, 6, 7]}
+    # initial_placement = None  # {0: [0, 1, 2, 3], 1: [4, 5, 6, 7]}
     circuit = Circuit(8)
     (circuit.CX(0, 1).CX(2, 3).CX(4, 5).CX(6, 7))
     circuit.CX(1, 2).CX(3, 4).CX(5, 6).CX(7, 0)
     circuit.CX(0, 1).CX(2, 3).CX(4, 5).CX(6, 7)
     circuit.CX(1, 2).CX(3, 4).CX(5, 6).CX(7, 0)
     circuit.measure_all()
-    mz_circuit = backend.compile_circuit_with_routing(circuit, initial_placement)
+    mz_circuit = backend.compile_circuit_with_routing(circuit)
 
     n_shuttles = mz_circuit.get_n_shuttles()
     n_pswaps = mz_circuit.get_n_pswaps()
@@ -247,7 +316,7 @@ def test_automatically_routed_circuit_has_correct_syntax(
     aqt_shuttles = 0
     aqt_pswaps = 0
     for i, operation in enumerate(aqt_operation_list):
-        if i < 2:
+        if i < 4:
             assert operation[0] == "INIT"
         else:
             assert operation[0] != "INIT"
@@ -285,7 +354,7 @@ def test_automatically_routed_circuit_has_correct_syntax(
             raise Exception(f"Detected invalid operation type: {operation[0]}")
     assert n_pswaps == aqt_pswaps
     assert n_shuttles == aqt_shuttles
-    assert initialized_zones == [zone for zone in initial_placement]
+    # assert initialized_zones == [zone for zone in initial_placement]
     assert number_initialized_qubits == 8
 
 

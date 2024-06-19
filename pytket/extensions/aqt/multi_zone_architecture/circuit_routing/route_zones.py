@@ -1,8 +1,11 @@
+import multiprocessing
 from copy import deepcopy
+from random import randint
 from typing import Optional, Sequence
 
 import importlib_resources
 import kahypar
+import mtkahypar
 from pytket import Qubit
 from pytket.circuit import Circuit
 from ..architecture import MultiZoneArchitecture
@@ -241,18 +244,37 @@ def _initial_placement_graph_partition_alg(
                 current_depth_per_qubit[qubit0] = depth + 1
                 current_depth_per_qubit[qubit1] = depth + 1
 
-    context = kahypar.Context()
-    package_path = importlib_resources.files("pytket.extensions.aqt")
-    default_ini = (
-        f"{package_path}/multi_zone_architecture/circuit_routing/cut_kKaHyPar_sea20.ini"
-    )
-    context.loadINIconfiguration(default_ini)
     num_zones = arch.n_zones
-    context.setK(num_zones)
+    arch_node_weights = [1] * num_zones
+    arch_node_weights[0] = 5
+    arch_node_weights[1] = 5
+    arch_edges = []
+    arch_edge_weights = []
+    for i, zone in enumerate(arch.zones):
+        for connected_zone in zone.connected_zones.keys():
+            if (i, connected_zone) not in arch_edges and (
+                connected_zone,
+                i,
+            ) not in arch_edges:
+                arch_edges.append((i, connected_zone))
+                arch_edge_weights.append(1)
+
+    arch_graph = mtkahypar.Graph(
+        num_zones, len(arch_edges), arch_edges, arch_node_weights, arch_edge_weights
+    )
+
+    mtkahypar.initializeThreadPool(multiprocessing.cpu_count())
+    context = mtkahypar.Context()
+    context.loadPreset(mtkahypar.PresetType.DEFAULT)
+    context.setPartitioningParameters(
+        num_zones,
+        0.1,
+        mtkahypar.Objective.CUT,
+    )
+    mtkahypar.setSeed(randint(0, 99))
+
     block_weights = [arch.get_zone_max_ions(i) for i, _ in enumerate(arch.zones)]
     num_spots = sum([m - 1 for m in block_weights])
-    context.setCustomTargetBlockWeights(block_weights)
-    context.setEpsilon(num_zones)
 
     edges: list[tuple[int, int]] = []
     edge_weights: list[int] = []
@@ -263,31 +285,27 @@ def _initial_placement_graph_partition_alg(
         weight = max_depth - i
         edge_weights.extend([weight] * len(pairs))
 
-    edge_indices_kahypar, edges_kahypar = kahypar_edge_translation(edges)
-
     num_vertices = num_spots
     vertex_weights = [1 for _ in range(num_vertices)]
     num_edges = len(edges)
 
-    hypergraph = kahypar.Hypergraph(
+    graph = mtkahypar.Graph(
         num_vertices,
         num_edges,
-        edge_indices_kahypar,
-        edges_kahypar,
-        num_zones,
-        edge_weights,
+        edges,
         vertex_weights,
+        edge_weights,
     )
 
-    kahypar.partition(hypergraph, context)
+    partioned_graph = graph.mapOntoGraph(arch_graph, context)
 
     initial_placement = {i: [] for i in range(num_zones)}
     block_assignments = {i: [] for i in range(num_zones)}
     for vertex in range(n_qubits):
-        block_assignments[hypergraph.blockID(vertex)].append(f"q{vertex}")
-        initial_placement[hypergraph.blockID(vertex)].append(vertex)
+        block_assignments[partioned_graph.blockID(vertex)].append(f"q{vertex}")
+        initial_placement[partioned_graph.blockID(vertex)].append(vertex)
     for vertex in range(n_qubits, num_vertices):
-        block_assignments[hypergraph.blockID(vertex)].append(f"X")
+        block_assignments[partioned_graph.blockID(vertex)].append(f"X")
 
     print(block_assignments)
     print(initial_placement)
