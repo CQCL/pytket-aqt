@@ -13,10 +13,10 @@
 # limitations under the License.
 import os
 from collections import Counter
-from typing import Any
 
 import numpy as np
 import pytest
+from _pytest.logging import LogCaptureFixture
 from hypothesis import given
 from hypothesis import strategies
 from pydantic_core import ValidationError
@@ -189,7 +189,9 @@ def test_machine_debug() -> None:
     assert counts == {(0, 0): n_shots}
 
 
-def test_warning_for_uncompiled_circuit_with_multiple_registers(caplog: Any) -> None:
+def test_warning_for_uncompiled_circuit_with_multiple_registers(
+    caplog: LogCaptureFixture,
+) -> None:
     b = AQTBackend(machine_debug=True)
     c = Circuit(1, 2)
     test_reg = c.add_q_register("test", 1)
