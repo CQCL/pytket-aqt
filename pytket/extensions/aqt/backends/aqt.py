@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import logging
 import time
 from typing import Any
 from typing import cast
@@ -72,6 +73,9 @@ from .aqt_job_data import PytketAqtJob, PytketAqtJobCircuitData
 
 from ..extension_version import __extension_version__
 
+
+logger = logging.getLogger(__name__)
+
 AQT_PORTAL_URL = "https://arnica.aqt.eu/api/v1"
 
 _DEBUG_HANDLE_PREFIX = "_MACHINE_DEBUG_"
@@ -91,21 +95,6 @@ _GATE_SET = {
 AQTResult = Tuple[int, List[int]]  # (n_qubits, list of readouts)
 
 AQT_OFFLINE_SIMULATORS = {sim.id: sim for sim in OFFLINE_SIMULATORS}
-
-
-def _check_circuits_have_single_registers(circuits: Sequence[Circuit]) -> None:
-    """Checks that circuit contains at most
-     a single quantum register and a single classical register
-
-    This is assumed when submitting the circuit to AQT.
-     It should always be true after compilation.
-    """
-    for circuit in circuits:
-        if len(circuit.q_registers) > 1 or len(circuit.c_registers) > 1:
-            raise CircuitNotValidError(
-                "Submitted circuits must have at most one quantum register and"
-                " one classical register, did you forget to compile?"
-            )
 
 
 class AqtAccessError(Exception):
@@ -339,6 +328,30 @@ class AQTBackend(Backend):
             )
         return jobid, circuit_index, measures_str, ppcirc_str
 
+    def _ensure_circuits_have_single_registers(
+        self, circuits: Sequence[Circuit]
+    ) -> None:
+        """This will apply the FlattenRegisters and RenameQubitsPasses if more
+        than one qubit and/or bit register is detected
+
+        This can occur if circuits are submitted without compilation.
+        This is usually not recommended and can lead to errors,
+         so a warning is logged.
+        """
+        circuit_detected = False
+        for circuit in circuits:
+            if len(circuit.q_registers) > 1 or len(circuit.c_registers) > 1:
+                FlattenRegisters().apply(circuit)
+                RenameQubitsPass(self._qm).apply(circuit)
+                circuit_detected = True
+
+        if circuit_detected:
+            logger.warning(
+                "Detected circuits with more than one quantum and/or classical "
+                "register. Did you forget to compile? "
+                "Flattening registers to avoid errors"
+            )
+
     def process_circuits(
         self,
         circuits: Sequence[Circuit],
@@ -369,7 +382,7 @@ class AQTBackend(Backend):
                 "integer value for `n_shots`"
             )
         if valid_check:
-            _check_circuits_have_single_registers(circuits)
+            self._ensure_circuits_have_single_registers(circuits)
             self._check_all_circuits(circuits)
 
         job = PytketAqtJob(

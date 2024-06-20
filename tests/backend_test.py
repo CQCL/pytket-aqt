@@ -19,6 +19,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies
 from pydantic_core import ValidationError
+from pytket import Qubit
 from pytket.backends import StatusEnum
 from pytket.circuit import Circuit
 from pytket.extensions.aqt import AQTBackend
@@ -185,6 +186,19 @@ def test_machine_debug() -> None:
     n_shots = 10
     counts = b.run_circuit(c, n_shots=n_shots, timeout=30).get_counts()
     assert counts == {(0, 0): n_shots}
+
+
+def test_warning_for_uncompiled_circuit_with_multiple_registers(caplog) -> None:
+    b = AQTBackend(machine_debug=True)
+    c = Circuit(1, 2)
+    test_reg = c.add_q_register("test", 1)
+    c.Rz(0.5, Qubit(0))
+    c.XXPhase(0.5, Qubit(0), test_reg[0])
+    c.measure_all()
+    n_shots = 10
+    counts = b.run_circuit(c, n_shots=n_shots, timeout=30).get_counts()
+    assert counts == {(0, 0): n_shots}
+    assert "WARNING" in caplog.text
 
 
 @pytest.mark.parametrize(
