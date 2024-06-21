@@ -183,9 +183,11 @@ def route_circuit(
      zones to lists of qubits to use
     """
     n_qubits = circuit.n_qubits
+    depth_list = _get_depth_list(circuit)
     if not initial_placement:
-        initial_placement = _calc_initial_placement(n_qubits, arch)
-        initial_placement = _initial_placement_graph_partition_alg(circuit, arch)
+        initial_placement = _initial_placement_graph_partition_alg(
+            circuit, arch, depth_list
+        )
     mz_circuit = MultiZoneCircuit(arch, initial_placement, n_qubits, circuit.n_bits)
     current_qubit_to_zone = {}
     for zone, qubit_list in initial_placement.items():
@@ -213,17 +215,9 @@ def route_circuit(
     return mz_circuit
 
 
-def _initial_placement_graph_partition_alg(
-    circuit: Circuit, arch: MultiZoneArchitecture
-) -> ZonePlacement:
-    n_qubits = circuit.n_qubits
-    n_qubits_max = arch.n_qubits_max
-    if n_qubits > n_qubits_max:
-        raise ZoneRoutingError(
-            f"Attempting to route circuit with {n_qubits}"
-            f" qubits, but architecture only supports up to {n_qubits_max}"
-        )
+def _get_depth_list(circuit: Circuit):
     depth_list: list[list[tuple[int, int]]] = []
+    n_qubits = circuit.n_qubits
     current_depth_per_qubit: list[int] = [0] * n_qubits
     for cmd in circuit.get_commands():
         n_args = len(cmd.args)
@@ -243,6 +237,21 @@ def _initial_placement_graph_partition_alg(
                     depth_list.append([(qubit0, qubit1)])
                 current_depth_per_qubit[qubit0] = depth + 1
                 current_depth_per_qubit[qubit1] = depth + 1
+    return depth_list
+
+
+def _initial_placement_graph_partition_alg(
+    circuit: Circuit,
+    arch: MultiZoneArchitecture,
+    depth_list: list[list[tuple[int, int]]],
+) -> ZonePlacement:
+    n_qubits = circuit.n_qubits
+    n_qubits_max = arch.n_qubits_max
+    if n_qubits > n_qubits_max:
+        raise ZoneRoutingError(
+            f"Attempting to route circuit with {n_qubits}"
+            f" qubits, but architecture only supports up to {n_qubits_max}"
+        )
 
     num_zones = arch.n_zones
     arch_node_weights = [1] * num_zones
@@ -257,6 +266,7 @@ def _initial_placement_graph_partition_alg(
                 i,
             ) not in arch_edges:
                 arch_edges.append((i, connected_zone))
+                # TODO: Replace with connectivity cost
                 arch_edge_weights.append(1)
 
     arch_graph = mtkahypar.Graph(
@@ -271,6 +281,7 @@ def _initial_placement_graph_partition_alg(
         0.1,
         mtkahypar.Objective.CUT,
     )
+    context.logging = False
     mtkahypar.setSeed(randint(0, 99))
 
     block_weights = [arch.get_zone_max_ions(i) for i, _ in enumerate(arch.zones)]
@@ -300,14 +311,14 @@ def _initial_placement_graph_partition_alg(
     partioned_graph = graph.mapOntoGraph(arch_graph, context)
 
     initial_placement = {i: [] for i in range(num_zones)}
-    block_assignments = {i: [] for i in range(num_zones)}
+    # block_assignments = {i: [] for i in range(num_zones)}
     for vertex in range(n_qubits):
-        block_assignments[partioned_graph.blockID(vertex)].append(f"q{vertex}")
+        #    block_assignments[partioned_graph.blockID(vertex)].append(f"q{vertex}")
         initial_placement[partioned_graph.blockID(vertex)].append(vertex)
-    for vertex in range(n_qubits, num_vertices):
-        block_assignments[partioned_graph.blockID(vertex)].append(f"X")
+    # for vertex in range(n_qubits, num_vertices):
+    #    block_assignments[partioned_graph.blockID(vertex)].append(f"X")
 
-    print(block_assignments)
+    # print(block_assignments)
     print(initial_placement)
     return initial_placement
 
