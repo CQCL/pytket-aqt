@@ -13,5 +13,9 @@
 # limitations under the License.
 """Backends for processing pytket circuits with AQT devices."""
 from .backends import AQTBackend
-from .backends.config import AQTConfig
-from .backends.config import set_aqt_config
+from .backends.config import (
+    AQTConfig,
+    set_aqt_config,
+    AQTAccessToken,
+    print_available_devices,
+)

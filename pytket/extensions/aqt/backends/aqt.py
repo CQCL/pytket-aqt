@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import logging
 import time
-from ast import literal_eval
 from typing import Any
 from typing import cast
 from typing import Dict
@@ -22,14 +22,18 @@ from typing import Optional
 from typing import Sequence
 from typing import Tuple
 from typing import Union
-from requests import put
+from typing_extensions import assert_never
+
+import numpy
+from qiskit_aqt_provider import api_models, api_models_generated
+from qiskit_aqt_provider.aqt_provider import OFFLINE_SIMULATORS
 
 from pytket.backends import Backend
 from pytket.backends import CircuitStatus
 from pytket.backends import ResultHandle
 from pytket.backends import StatusEnum
 from pytket.backends.backend import KwargTypes
-from pytket.backends.backend_exceptions import CircuitNotRunError
+from pytket.backends.backend_exceptions import CircuitNotRunError, CircuitNotValidError
 from pytket.backends.backendinfo import BackendInfo
 from pytket.backends.backendinfo import fully_connected_backendinfo
 from pytket.backends.backendresult import BackendResult
@@ -57,31 +61,32 @@ from pytket.predicates import Predicate
 from pytket.utils import prepare_circuit
 from pytket.utils.outcomearray import OutcomeArray
 
-
-from .config import AQTConfig
+from .aqt_api import (
+    AqtOfflineApi,
+    AqtRemoteApi,
+    AqtMockApi,
+    AQT_MOCK_DEVICES,
+    AqtApi,
+    unwrap,
+)
+from .aqt_job_data import PytketAqtJob, PytketAqtJobCircuitData
 
 from ..extension_version import __extension_version__
 
-AQT_URL_PREFIX = "https://gateway.aqt.eu/marmot/"
 
-AQT_DEVICE_QC = "lint"
-AQT_DEVICE_SIM = "sim"
-AQT_DEVICE_NOISY_SIM = "sim/noise-model-1"
+logger = logging.getLogger(__name__)
+
+AQT_PORTAL_URL = "https://arnica.aqt.eu/api/v1"
 
 _DEBUG_HANDLE_PREFIX = "_MACHINE_DEBUG_"
 
 # Hard-coded for now as there is no API to retrieve these.
 # All devices are fully connected.
-_DEVICE_INFO = {
-    AQT_DEVICE_QC: {"max_n_qubits": 4},
-    AQT_DEVICE_SIM: {"max_n_qubits": 10},
-    AQT_DEVICE_NOISY_SIM: {"max_n_qubits": 10},
-}
+_AQT_MAX_QUBITS = 20
 
 _GATE_SET = {
-    OpType.Rx,
-    OpType.Ry,
     OpType.Rz,
+    OpType.PhasedX,
     OpType.XXPhase,
     OpType.Measure,
     OpType.Barrier,
@@ -89,19 +94,16 @@ _GATE_SET = {
 
 AQTResult = Tuple[int, List[int]]  # (n_qubits, list of readouts)
 
-# TODO add more
-_STATUS_MAP = {
-    "finished": StatusEnum.COMPLETED,
-    "error": StatusEnum.ERROR,
-    "queued": StatusEnum.QUEUED,
-}
+AQT_OFFLINE_SIMULATORS = {sim.id: sim for sim in OFFLINE_SIMULATORS}
 
 
-class AqtAuthenticationError(Exception):
-    """Raised when there is no AQT access token available."""
+class AqtAccessError(Exception):
+    """Raised when the provided access token does not
+     allow access to the specified device.
 
-    def __init__(self) -> None:
-        super().__init__("No AQT access token provided or found in config file.")
+    If no access token provided, the user will only
+     have access to offline simulators
+    """
 
 
 class AQTBackend(Backend):
@@ -116,9 +118,11 @@ class AQTBackend(Backend):
 
     def __init__(
         self,
-        device_name: str = AQT_DEVICE_SIM,
+        aqt_workspace_id: str = "default",
+        aqt_resource_id: str = "offline_simulator_no_noise",
         access_token: Optional[str] = None,
         label: str = "",
+        machine_debug: bool = False,
     ):
         """
         Construct a new AQT backend.
@@ -126,39 +130,70 @@ class AQTBackend(Backend):
         Requires a valid API key/access token, this can either be provided as a
         parameter or set in config using :py:meth:`pytket.extensions.aqt.set_aqt_config`
 
-        :param      device_name:  device name (suffix of URL, e.g. "sim/noise-model-1")
-        :type       device_name:  string
+        :param      aqt_workspace_id:  the aqt workspace
+        :type       aqt_workspace_id:  string
+        :param      aqt_resource_id:  the aqt resource id
+        :type       aqt_resource_id:  string
         :param      access_token: AQT access token, default None
         :type       access_token: string
         :param      label:        label to apply to submitted jobs
         :type       label:        string
+        :param      machine_debug: If true,
+         use mock aqt API (for debug/testing purposes)
+        :type       label: bool
         """
         super().__init__()
-        self._url = AQT_URL_PREFIX + device_name
-        self._label = label
-        config = AQTConfig.from_default_config_file()
+        self._portal_url = AQT_PORTAL_URL
 
-        if access_token is None:
-            access_token = config.access_token
-        if access_token is None:
-            raise AqtAuthenticationError()
+        if machine_debug:
+            self._aqt_api: AqtApi = AqtMockApi()
+            aqt_workspace_id = AQT_MOCK_DEVICES[0].workspace_id
+            aqt_resource_id = AQT_MOCK_DEVICES[0].resource_id
+        elif aqt_resource_id in AQT_OFFLINE_SIMULATORS:
+            self._aqt_api = AqtOfflineApi(AQT_OFFLINE_SIMULATORS[aqt_resource_id])
+        else:
+            self._aqt_api = AqtRemoteApi(self._portal_url, access_token)
 
-        self._header = {"Ocp-Apim-Subscription-Key": access_token, "SDK": "pytket"}
-        self._backend_info: Optional[BackendInfo] = None
-        self._qm: Dict[Qubit, Qubit] = {}
-        if device_name in _DEVICE_INFO:
-            self._backend_info = fully_connected_backendinfo(
-                type(self).__name__,
-                device_name,
-                __extension_version__,
-                _DEVICE_INFO[device_name]["max_n_qubits"],
-                _GATE_SET,
+        # cache of AQT jobs submitted to the server
+        # (keys are UUIDs returned from AQT Job submission as str's)
+        self._aqt_jobs: dict[str, PytketAqtJob] = dict()
+
+        available_devices = self._aqt_api.get_devices()
+        matched_devices = [
+            device
+            for device in available_devices
+            if device.workspace_id == aqt_workspace_id
+            and device.resource_id == aqt_resource_id
+        ]
+        if not matched_devices:
+            msg = (
+                f"The resolved access token does not provide access"
+                f" to the resource '{aqt_resource_id}' in workspace"
+                f" '{aqt_workspace_id}', use AQTBackend.print_device_table"
+                f" to print a list of available resources"
             )
-            self._qm = {
-                Qubit(i): cast(Qubit, node)
-                for i, node in enumerate(self._backend_info.nodes)
-            }
-        self._MACHINE_DEBUG = False
+            raise AqtAccessError(msg)
+        if len(matched_devices) > 1:
+            raise ValueError(
+                "More than one AQT device found for given workspace and resource ids"
+            )
+        self._aqt_device = matched_devices[0]
+        self._label = label
+        self._backend_info = fully_connected_backendinfo(
+            type(self).__name__,
+            aqt_resource_id,
+            __extension_version__,
+            _AQT_MAX_QUBITS,
+            _GATE_SET,
+            misc={
+                "aqt_workspace_id": aqt_workspace_id,
+                "aqt_resource_id": aqt_resource_id,
+            },
+        )
+        self._qm = {
+            Qubit(i): cast(Qubit, node)
+            for i, node in enumerate(self._backend_info.nodes)
+        }
 
     def rebase_pass(self) -> BasePass:
         return _aqt_rebase()
@@ -168,20 +203,46 @@ class AQTBackend(Backend):
         return self._backend_info
 
     @classmethod
-    def available_devices(cls, **kwargs: Any) -> List[BackendInfo]:
+    def print_device_table(cls, access_token: Optional[str] = None) -> None:
+        """
+        Print AQT devices available for the configured access token
+
+        The access token will be resolved by the AQTAccessToken class
+
+        :param      access_token:  optional access token override
+        :type       access_token:  string
+        """
+        aqt_api = AqtRemoteApi(AQT_PORTAL_URL, access_token)
+        aqt_api.print_device_table()
+
+    @classmethod
+    def available_devices(
+        cls, access_token: Optional[str] = None, **kwargs: Any
+    ) -> List[BackendInfo]:
         """
         See :py:meth:`pytket.backends.Backend.available_devices`.
         Supported kwargs: none.
+
+        The access token will be resolved by the AQTAccessToken class
+
+        :param      access_token:  optional access token override
+        :type       access_token:  string
         """
+        aqt_api = AqtRemoteApi(AQT_PORTAL_URL, access_token)
+        aqt_devices = aqt_api.get_devices()
         return [
             fully_connected_backendinfo(
                 cls.__name__,
-                key,
+                aqt_device.resource_id,
                 __extension_version__,
-                value["max_n_qubits"],
+                _AQT_MAX_QUBITS,
                 _GATE_SET,
+                misc={
+                    "aqt_workspace_id": aqt_device.workspace_id,
+                    "aqt_resource_id": aqt_device.resource_id,
+                },
             )
-            for key, value in _DEVICE_INFO.items()
+            for aqt_device in aqt_devices
         ]
 
     @property
@@ -233,7 +294,63 @@ class AQTBackend(Backend):
 
     @property
     def _result_id_type(self) -> _ResultIdTuple:
-        return (str, str, str)
+        """
+        0: job_id  (jobs can contain multiple circuits)
+        1: circuit_index (index of circuit within a job)
+        2: measure results permutations as json str
+        2: circuit after postprocessing as json str
+        """
+        return str, int, str, str
+
+    def _get_handle_data(self, handle: ResultHandle) -> tuple[str, int, str, str]:
+        self._check_handle_type(handle)
+        jobid, circuit_index, measures_str, ppcirc_str = (
+            handle[0],
+            handle[1],
+            handle[2],
+            handle[3],
+        )
+        if not isinstance(jobid, str):
+            raise ValueError(f"Invalid type {type(jobid)} for job id, should be `str`")
+        if not isinstance(circuit_index, int):
+            raise ValueError(
+                f"Invalid type {type(circuit_index)} for circuit index, should be `int`"
+            )
+        if not isinstance(measures_str, str):
+            raise ValueError(
+                f"Invalid type {type(jobid)} for measure"
+                f" permutations string, should be `str`"
+            )
+        if not isinstance(ppcirc_str, str):
+            raise ValueError(
+                f"Invalid type {type(jobid)} for post-processed"
+                f" circuit string, should be `str`"
+            )
+        return jobid, circuit_index, measures_str, ppcirc_str
+
+    def _ensure_circuits_have_single_registers(
+        self, circuits: Sequence[Circuit]
+    ) -> None:
+        """This will apply the FlattenRegisters and RenameQubitsPasses if more
+        than one qubit and/or bit register is detected
+
+        This can occur if circuits are submitted without compilation.
+        This is usually not recommended and can lead to errors,
+         so a warning is logged.
+        """
+        circuit_detected = False
+        for circuit in circuits:
+            if len(circuit.q_registers) > 1 or len(circuit.c_registers) > 1:
+                FlattenRegisters().apply(circuit)
+                RenameQubitsPass(self._qm).apply(circuit)
+                circuit_detected = True
+
+        if circuit_detected:
+            logger.warning(
+                "Detected circuits with more than one quantum and/or classical "
+                "register. Did you forget to compile? "
+                "Flattening registers to avoid errors"
+            )
 
     def process_circuits(
         self,
@@ -258,51 +375,44 @@ class AQTBackend(Backend):
             len(circuits),
             optional=False,
         )
-
+        if isinstance(self._aqt_api, AqtOfflineApi) and not isinstance(n_shots, int):
+            raise ValueError(
+                "The AQT offline simulators only support a fixed number of shots"
+                "per circuit for a batch of circuits, please provide a single"
+                "integer value for `n_shots`"
+            )
         if valid_check:
+            self._ensure_circuits_have_single_registers(circuits)
             self._check_all_circuits(circuits)
 
-        postprocess = kwargs.get("postprocess", False)
-        simplify_initial = kwargs.get("simplify_initial", False)
+        job = PytketAqtJob(
+            circuits_data=[
+                PytketAqtJobCircuitData(circuit=circ, n_shots=n_shots_list[i])
+                for i, circ in enumerate(circuits)
+            ]
+        )
+
+        if kwargs.get("postprocess", False):
+            _perform_circuit_postprocessing(job.circuits_data)
+
+        if kwargs.get("simplify_initial", False):
+            _perform_simplify_initial(job.circuits_data)
+
+        _add_aqt_circ_and_measure_data(job.circuits_data)
 
         handles = []
-        for i, (c, n_shots) in enumerate(zip(circuits, n_shots_list)):
-            if postprocess:
-                c0, ppcirc = prepare_circuit(c, allow_classical=False, xcirc=_xcirc)
-                ppcirc_rep = ppcirc.to_dict()
-            else:
-                c0, ppcirc_rep = c, None
-            if simplify_initial:
-                SimplifyInitial(
-                    allow_classical=False, create_all_qubits=True, xcirc=_xcirc
-                ).apply(c0)
-            (aqt_circ, measures) = _translate_aqt(c0)
-            if self._MACHINE_DEBUG:
-                handles.append(
-                    ResultHandle(
-                        _DEBUG_HANDLE_PREFIX + str((c.n_qubits, n_shots)),
-                        measures,
-                        json.dumps(ppcirc_rep),
-                    )
-                )
-            else:
-                resp = put(
-                    self._url,
-                    data={
-                        "data": json.dumps(aqt_circ),
-                        "repetitions": n_shots,
-                        "no_qubits": c.n_qubits,
-                        "label": c.name if c.name else f"{self._label}_{i}",
-                    },
-                    headers=self._header,
-                ).json()
-                if "status" not in resp:
-                    raise RuntimeError(resp["message"])
-                if resp["status"] == "error":
-                    raise RuntimeError(resp["ERROR"])
-                handles.append(
-                    ResultHandle(resp["id"], measures, json.dumps(ppcirc_rep))
-                )
+
+        job_id = self._aqt_api.post_aqt_job(job, self._aqt_device)
+
+        for i, circ_spec in enumerate(job.circuits_data):
+            handle = ResultHandle(
+                job_id, i, unwrap(circ_spec.measures), circ_spec.postprocess_json
+            )
+            handles.append(handle)
+            circ_spec.handle = handle
+
+        self._aqt_jobs[job_id] = job
+
         for handle in handles:
             self._cache[handle] = dict()
         return handles
@@ -316,34 +426,52 @@ class AQTBackend(Backend):
             self._cache[handle] = result_dict
 
     def circuit_status(self, handle: ResultHandle) -> CircuitStatus:
-        self._check_handle_type(handle)
-        jobid = handle[0]
-        message = ""
-        measure_permutations = json.loads(handle[1])  # type: ignore
-        ppcirc_rep = json.loads(cast(str, handle[2]))
-        ppcirc = Circuit.from_dict(ppcirc_rep) if ppcirc_rep is not None else None
-        if self._MACHINE_DEBUG:
-            n_qubits, n_shots = literal_eval(jobid[len(_DEBUG_HANDLE_PREFIX) :])  # type: ignore
-            empty_ar = OutcomeArray.from_ints([0] * n_shots, n_qubits, big_endian=True)
-            self._update_cache_result(
-                handle, {"result": BackendResult(shots=empty_ar, ppcirc=ppcirc)}
+        jobid, _, measures_str, ppcirc_str = self._get_handle_data(handle)
+        if jobid not in self._aqt_jobs:
+            raise ValueError("Could not find AQT Job for the given ResultHandle")
+        job = self._aqt_jobs[jobid]
+
+        payload = self._aqt_api.get_job_result(jobid)
+
+        if isinstance(payload, api_models_generated.JobResponseRRQueued):
+            return CircuitStatus(StatusEnum.QUEUED, "")
+
+        if isinstance(payload, api_models_generated.JobResponseRROngoing):
+            finished_count = payload.response.finished_count
+            num_circuits = len(job.circuits_data)
+            msg = (
+                f"Circuit belongs to ongoing AQT job,"
+                f" {num_circuits - finished_count} of"
+                f" {num_circuits} circuits remain for this job"
             )
-            statenum = StatusEnum.COMPLETED
-        else:
-            data = put(self._url, data={"id": jobid}, headers=self._header).json()
-            status = data["status"]
-            if "ERROR" in data:
-                message = data["ERROR"]
-            statenum = _STATUS_MAP.get(status, StatusEnum.ERROR)
-            if statenum is StatusEnum.COMPLETED:
-                shots = OutcomeArray.from_ints(
-                    data["samples"], data["no_qubits"], big_endian=True
+            return CircuitStatus(StatusEnum.RUNNING, msg)
+
+        if isinstance(payload, api_models_generated.JobResponseRRFinished):
+            # Entire job is complete, so update results of all circuits in the job
+            for circuit_index_string, shots in payload.response.result.items():
+                circuit_index = int(circuit_index_string)
+                circ_handle = unwrap(job.circuits_data[circuit_index].handle)
+                circ_measure_permutations = json.loads(measures_str)
+                circ_shots = OutcomeArray.from_readouts(
+                    numpy.array([[sample.root for sample in shot] for shot in shots])
+                ).choose_indices(circ_measure_permutations)
+                ppcirc_rep = json.loads(ppcirc_str)
+                ppcirc = (
+                    Circuit.from_dict(ppcirc_rep) if ppcirc_rep is not None else None
                 )
-                shots = shots.choose_indices(measure_permutations)
                 self._update_cache_result(
-                    handle, {"result": BackendResult(shots=shots, ppcirc=ppcirc)}
+                    circ_handle,
+                    {"result": BackendResult(shots=circ_shots, ppcirc=ppcirc)},
                 )
-        return CircuitStatus(statenum, message)
+            return CircuitStatus(StatusEnum.COMPLETED, "")
+
+        if isinstance(payload, api_models_generated.JobResponseRRError):
+            return CircuitStatus(StatusEnum.ERROR, payload.response.message)
+
+        if isinstance(payload, api_models_generated.JobResponseRRCancelled):
+            return CircuitStatus(StatusEnum.CANCELLED, "")
+
+        assert_never(payload)
 
     def get_result(self, handle: ResultHandle, **kwargs: KwargTypes) -> BackendResult:
         """
@@ -367,41 +495,103 @@ class AQTBackend(Backend):
             raise RuntimeError(f"Timed out: no results after {timeout} seconds.")
 
 
-def _translate_aqt(circ: Circuit) -> Tuple[List[List], str]:
-    """Convert a circuit in the AQT gate set to AQT list representation,
+def _perform_circuit_postprocessing(
+    circ_specs: Sequence[PytketAqtJobCircuitData],
+) -> None:
+    for circ_spec in circ_specs:
+        c0, ppcirc = prepare_circuit(
+            circ_spec.circuit, allow_classical=False, xcirc=_xcirc
+        )
+        circ_spec.circuit = c0
+        circ_spec.postprocess_json = json.dumps(ppcirc.to_dict())
+
+
+def _perform_simplify_initial(circ_specs: Sequence[PytketAqtJobCircuitData]) -> None:
+    simp_init_pass = SimplifyInitial(
+        allow_classical=False, create_all_qubits=True, xcirc=_xcirc
+    )
+    for circ_spec in circ_specs:
+        simp_init_pass.apply(circ_spec.circuit)
+
+
+def _add_aqt_circ_and_measure_data(
+    circ_specs: Sequence[PytketAqtJobCircuitData],
+) -> None:
+    """Add the AQT API model representation to the circuit spec of each circuit,
     along with a JSON string describing the measure result permutations."""
-    gates: List = list()
-    measures: List = list()
-    for cmd in circ.get_commands():
+    for circ_spec in circ_specs:
+        circ_spec.aqt_circuit, circ_spec.measures = _pytket_to_aqt_circuit(
+            circ_spec.circuit
+        )
+
+
+def _pytket_to_aqt_circuit(
+    pytket_circuit: Circuit,
+) -> tuple[api_models.Circuit, str]:
+    """Get the AQT API model representation of a rebased pytket circuit,
+    along with a JSON string describing the measure result permutations."""
+    ops: list[api_models.OperationModel] = []
+    num_measurements = 0
+    measures: list[int | None] = []
+    for cmd in pytket_circuit.get_commands():
         op = cmd.op
         optype = op.type
-        # https://www.aqt.eu/aqt-gate-definitions/
-        if optype == OpType.Rx:
-            gates.append(["X", op.params[0], [q.index[0] for q in cmd.args]])
-        elif optype == OpType.Ry:
-            gates.append(["Y", op.params[0], [q.index[0] for q in cmd.args]])
-        elif optype == OpType.Rz:
-            gates.append(["Z", op.params[0], [q.index[0] for q in cmd.args]])
+        # https://arnica.aqt.eu/api/v1/docs
+        if optype == OpType.Rz:
+            ops.append(
+                api_models.Operation.rz(
+                    phi=float(op.params[0]),
+                    qubit=cmd.args[0].index[0],
+                )
+            )
+        elif optype == OpType.PhasedX:
+            ops.append(
+                api_models.Operation.r(
+                    theta=_restrict_to_range_zero_to_x(float(op.params[0]), 1),
+                    phi=_restrict_to_range_zero_to_x(float(op.params[1]), 2),
+                    qubit=cmd.args[0].index[0],
+                )
+            )
         elif optype == OpType.XXPhase:
-            gates.append(["MS", op.params[0], [q.index[0] for q in cmd.args]])
+            ops.append(
+                api_models.Operation.rxx(
+                    theta=float(op.params[0]),
+                    qubits=[cmd.args[0].index[0], cmd.args[1].index[0]],
+                )
+            )
         elif optype == OpType.Measure:
             # predicate has already checked format is correct, so
             # errors are not handled here
+            num_measurements += 1
             qb_id = cmd.qubits[0].index[0]
             bit_id = cmd.bits[0].index[0]
             while len(measures) <= bit_id:
                 measures.append(None)
             measures[bit_id] = qb_id
         else:
-            assert optype in {OpType.noop, OpType.Barrier}
+            if optype not in {OpType.noop, OpType.Barrier}:
+                message = f"Gate {optype} is not in the allowed AQT gate set"
+                raise ValueError(message)
+    if num_measurements == 0:
+        raise CircuitNotValidError("Circuit must contain at least one measurement")
     if None in measures:
         raise IndexError("Bit index not written to by a measurement.")
-    return (gates, json.dumps(measures))
+    ops.append(api_models.Operation.measure())
+    aqt_circuit = api_models.Circuit(root=ops)
+    return aqt_circuit, json.dumps(measures)
 
 
 def _aqt_rebase() -> BasePass:
-    return auto_rebase_pass({OpType.XXPhase, OpType.Rx, OpType.Ry})
+    return auto_rebase_pass({OpType.XXPhase, OpType.Rz, OpType.PhasedX})
 
 
 _xcirc = Circuit(1).Rx(1, 0)
 _xcirc.add_phase(0.5)
+
+
+def _restrict_to_range_zero_to_x(number: float, x: float) -> float:
+    """Use to restrict gate parameters to values accepted by aqt
+
+    Assumes that gate effect is periodic in this parameter with period x
+    """
+    return float(numpy.fmod(number, x))

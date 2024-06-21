@@ -20,6 +20,17 @@ pip install pytket-aqt
 This will install `pytket` if it isn't already installed, and add new classes
 and methods into the `pytket.extensions` namespace.
 
+## Available devices
+
+`pytket-aqt` offers offline simulators for aqt devices that do not require special access.
+Access to remote simulators and machines can be configured by providing an AQT access token.
+
+To see which devices are available to you, use the `AQTBackend.print_device_table` method.
+This method will prompt for an access token if none has been configured. Providing a token at the
+prompt will store it in memory for further API use. Skip the prompt to see the available offline
+simulators. It is also possible to store and use your access token across sessions using
+`config.set_aqt_config`.
+
 ## Bugs, support and feature requests
 
 Please file bugs and feature requests on the Github
