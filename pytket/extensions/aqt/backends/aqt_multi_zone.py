@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import time
 from copy import deepcopy
 from typing import Any, cast
 from typing import Dict
@@ -260,7 +261,12 @@ class AQTMultiZoneBackend(Backend):
         """
         if not circuit.is_simple:
             raise ValueError(f"{type(self).__name__} only supports simple circuits")
+
+        start = time.time()
         compiled = super().get_compiled_circuit(circuit, optimisation_level)
+        end = time.time()
+        print("logical compile time: ", end - start)
+        print("depth compiled", compiled.depth_2q())
         # compilation renames qbit register to "fcNode" so rename back to "q"
         qubit_map = {
             cast(UnitID, qubit): cast(UnitID, Qubit(qubit.index[0]))

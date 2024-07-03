@@ -28,6 +28,7 @@ from pytket.extensions.aqt.multi_zone_architecture.circuit.multizone_circuit imp
 )
 from pytket.extensions.aqt.multi_zone_architecture.named_architectures import (
     four_zones_in_a_line,
+    racetrack,
 )
 
 from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.route_zones import (
@@ -37,9 +38,7 @@ from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.route_zones i
 
 @pytest.fixture()
 def backend() -> AQTMultiZoneBackend:
-    return AQTMultiZoneBackend(
-        architecture=four_zones_in_a_line, access_token="invalid"
-    )
+    return AQTMultiZoneBackend(architecture=racetrack, access_token="invalid")
 
 
 def test_not_implemented_functionality_throws(backend: AQTMultiZoneBackend) -> None:
@@ -297,17 +296,20 @@ def test_mtkahypar_mapping() -> None:
 def test_automatically_routed_circuit_has_correct_syntax(
     backend: AQTMultiZoneBackend,
 ) -> None:
-    # initial_placement = None  # {0: [0, 1, 2, 3], 1: [4, 5, 6, 7]}
+    initial_placement = None  # {0: [0, 1, 2, 3], 1: [4, 5, 6, 7], 2: [], 3: []}
     circuit = Circuit(8)
     (circuit.CX(0, 1).CX(2, 3).CX(4, 5).CX(6, 7))
     circuit.CX(1, 2).CX(3, 4).CX(5, 6).CX(7, 0)
     circuit.CX(0, 1).CX(2, 3).CX(4, 5).CX(6, 7)
     circuit.CX(1, 2).CX(3, 4).CX(5, 6).CX(7, 0)
     circuit.measure_all()
-    mz_circuit = backend.compile_circuit_with_routing(circuit)
+    print("")
+    mz_circuit = backend.compile_circuit_with_routing(circuit, initial_placement)
 
     n_shuttles = mz_circuit.get_n_shuttles()
     n_pswaps = mz_circuit.get_n_pswaps()
+    print("shuttles: ", n_shuttles)
+    print("pswaps: ", n_pswaps)
 
     aqt_operation_list = get_aqt_json_syntax_for_compiled_circuit(mz_circuit)
 

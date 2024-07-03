@@ -1,6 +1,6 @@
 import multiprocessing
 from copy import deepcopy
-from random import randint
+import time
 from typing import Optional, Sequence
 
 import importlib_resources
@@ -10,6 +10,7 @@ from pytket import Qubit
 from pytket.circuit import Circuit
 from ..architecture import MultiZoneArchitecture
 from ..circuit.multizone_circuit import MultiZoneCircuit
+from ..macro_architecture_graph import empty_macro_arch_from_architecture, ZoneId
 
 ZonePlacement = dict[int, list[int]]
 QubitPlacement = dict[int, int]
@@ -162,6 +163,84 @@ def _kahypar(
     return
 
 
+def _mt_kahypar_new_placement(
+    circuit: Circuit,
+    arch: MultiZoneArchitecture,
+    initial_placement: ZonePlacement,
+) -> None:
+    context = kahypar.Context()
+    package_path = importlib_resources.files("pytket.extensions.aqt")
+    default_ini = (
+        f"{package_path}/multi_zone_architecture/circuit_routing/cut_kKaHyPar_sea20.ini"
+    )
+    context.loadINIconfiguration(default_ini)
+    num_zones = arch.n_zones
+
+    context.setK(num_zones)
+    block_weights = [arch.get_zone_max_ions(i) + 1 for i, _ in enumerate(arch.zones)]
+    context.setCustomTargetBlockWeights(block_weights)
+    context.setEpsilon(num_zones)
+
+    edges: list[tuple[int, int]] = []
+    edge_weights: list[int] = []
+
+    for zone, qubits in initial_placement.items():
+        edges.extend([(zone, qubit + num_zones) for qubit in qubits])
+        edge_weights.extend([10000 for _ in qubits])
+
+    for cmd in circuit.get_commands():
+        n_args = len(cmd.args)
+        if n_args == 1:
+            continue
+        elif n_args == 2:
+            if isinstance(cmd.args[0], Qubit) and isinstance(cmd.args[1], Qubit):
+                q_node_0 = cmd.args[0].index[0] + num_zones
+                q_node_1 = cmd.args[1].index[0] + num_zones
+                weight = 1
+                edges.append((q_node_0, q_node_1))
+                edge_weights.append(weight)
+        else:
+            raise ZoneRoutingError("Circuit must be rebased to the AQT gate set")
+
+    edge_indices_kahypar, edges_kahypar = kahypar_edge_translation(edges)
+
+    num_fake_vertices = circuit.n_qubits
+    num_vertices = num_zones + circuit.n_qubits + num_fake_vertices
+    vertex_weights = [1 for _ in range(num_zones)] + [
+        1 for _ in range(num_zones, num_vertices)
+    ]
+    num_edges = len(edges)
+
+    hypergraph = kahypar.Hypergraph(
+        num_vertices,
+        num_edges,
+        edge_indices_kahypar,
+        edges_kahypar,
+        num_zones,
+        edge_weights,
+        vertex_weights,
+    )
+    # for i in range(num_zones):
+    #    hypergraph.fixNodeToBlock(i, i)
+
+    kahypar.partition(hypergraph, context)
+
+    block_assignments = {i: [] for i in range(num_zones)}
+    for vertex in range(num_vertices):
+        if vertex < num_zones:
+            block_assignments[hypergraph.blockID(vertex)].append(f"Z{vertex}")
+        elif vertex < num_zones + circuit.n_qubits:
+            block_assignments[hypergraph.blockID(vertex)].append(
+                f"q{vertex - num_zones}"
+            )
+        else:
+            block_assignments[hypergraph.blockID(vertex)].append("X")
+
+    print(block_assignments)
+    print(initial_placement)
+    return
+
+
 def route_circuit(
     circuit: Circuit,
     arch: MultiZoneArchitecture,
@@ -186,7 +265,7 @@ def route_circuit(
     depth_list = _get_depth_list(circuit)
     if not initial_placement:
         initial_placement = _initial_placement_graph_partition_alg(
-            circuit, arch, depth_list
+            n_qubits, arch, depth_list
         )
     mz_circuit = MultiZoneCircuit(arch, initial_placement, n_qubits, circuit.n_bits)
     current_qubit_to_zone = {}
@@ -195,8 +274,9 @@ def route_circuit(
             current_qubit_to_zone[qubit] = zone
     current_zone_to_qubits = deepcopy(initial_placement)
 
-    _kahypar(circuit, arch, initial_placement)
+    # _kahypar(circuit, arch, initial_placement)
 
+    start = time.time()
     for cmd in circuit.get_commands():
         n_args = len(cmd.args)
         if n_args == 1:
@@ -212,6 +292,8 @@ def route_circuit(
             mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
         else:
             raise ZoneRoutingError("Circuit must be rebased to the AQT gate set")
+    end = time.time()
+    print("rest time: ", end - start)
     return mz_circuit
 
 
@@ -241,11 +323,12 @@ def _get_depth_list(circuit: Circuit):
 
 
 def _initial_placement_graph_partition_alg(
-    circuit: Circuit,
+    n_qubits: int,
     arch: MultiZoneArchitecture,
     depth_list: list[list[tuple[int, int]]],
 ) -> ZonePlacement:
-    n_qubits = circuit.n_qubits
+    n_threads = multiprocessing.cpu_count()
+    mtkahypar.initializeThreadPool(n_threads)
     n_qubits_max = arch.n_qubits_max
     if n_qubits > n_qubits_max:
         raise ZoneRoutingError(
@@ -255,8 +338,6 @@ def _initial_placement_graph_partition_alg(
 
     num_zones = arch.n_zones
     arch_node_weights = [1] * num_zones
-    arch_node_weights[0] = 5
-    arch_node_weights[1] = 5
     arch_edges = []
     arch_edge_weights = []
     for i, zone in enumerate(arch.zones):
@@ -269,11 +350,6 @@ def _initial_placement_graph_partition_alg(
                 # TODO: Replace with connectivity cost
                 arch_edge_weights.append(1)
 
-    arch_graph = mtkahypar.Graph(
-        num_zones, len(arch_edges), arch_edges, arch_node_weights, arch_edge_weights
-    )
-
-    mtkahypar.initializeThreadPool(multiprocessing.cpu_count())
     context = mtkahypar.Context()
     context.loadPreset(mtkahypar.PresetType.DEFAULT)
     context.setPartitioningParameters(
@@ -282,19 +358,28 @@ def _initial_placement_graph_partition_alg(
         mtkahypar.Objective.CUT,
     )
     context.logging = False
-    mtkahypar.setSeed(randint(0, 99))
+    mtkahypar.setSeed(32)
 
-    block_weights = [arch.get_zone_max_ions(i) for i, _ in enumerate(arch.zones)]
-    num_spots = sum([m - 1 for m in block_weights])
+    arch_graph = mtkahypar.Graph(
+        num_zones, len(arch_edges), arch_edges, arch_node_weights, arch_edge_weights
+    )
+
+    block_weights = [arch.get_zone_max_ions(i) - 1 for i, _ in enumerate(arch.zones)]
+    num_spots = sum([m for m in block_weights])
 
     edges: list[tuple[int, int]] = []
     edge_weights: list[int] = []
 
+    start = time.time()
     max_depth = len(depth_list)
     for i, pairs in enumerate(depth_list):
+        weight = max_depth - i * 2
+        if weight < 1:
+            break
         edges.extend(pairs)
-        weight = max_depth - i
         edge_weights.extend([weight] * len(pairs))
+    end = time.time()
+    print("edges time: ", end - start)
 
     num_vertices = num_spots
     vertex_weights = [1 for _ in range(num_vertices)]
@@ -308,18 +393,112 @@ def _initial_placement_graph_partition_alg(
         edge_weights,
     )
 
+    start = time.time()
     partioned_graph = graph.mapOntoGraph(arch_graph, context)
+    end = time.time()
+    print("mapping time: ", end - start)
 
     initial_placement = {i: [] for i in range(num_zones)}
-    # block_assignments = {i: [] for i in range(num_zones)}
+    block_assignments = {i: [] for i in range(num_zones)}
     for vertex in range(n_qubits):
-        #    block_assignments[partioned_graph.blockID(vertex)].append(f"q{vertex}")
+        block_assignments[partioned_graph.blockID(vertex)].append(f"q{vertex}")
         initial_placement[partioned_graph.blockID(vertex)].append(vertex)
-    # for vertex in range(n_qubits, num_vertices):
-    #    block_assignments[partioned_graph.blockID(vertex)].append(f"X")
+    for vertex in range(n_qubits, num_vertices):
+        block_assignments[partioned_graph.blockID(vertex)].append(f"X")
 
-    # print(block_assignments)
+    print(block_assignments)
     print(initial_placement)
+    return initial_placement
+
+
+def _new_placement_graph_partition_alg(
+    n_qubits: int,
+    arch: MultiZoneArchitecture,
+    depth_list: list[list[tuple[int, int]]],
+    initial_placement: ZonePlacement,
+) -> ZonePlacement:
+    n_qubits_max = arch.n_qubits_max
+    if n_qubits > n_qubits_max:
+        raise ZoneRoutingError(
+            f"Attempting to route circuit with {n_qubits}"
+            f" qubits, but architecture only supports up to {n_qubits_max}"
+        )
+
+    num_zones = arch.n_zones
+    mtkahypar.initializeThreadPool(multiprocessing.cpu_count())
+    context = mtkahypar.Context()
+    context.loadPreset(mtkahypar.PresetType.DEFAULT)
+    context.setPartitioningParameters(
+        num_zones,
+        0.1,
+        mtkahypar.Objective.CUT,
+    )
+    context.logging = False
+    mtkahypar.setSeed(32)
+
+    block_weights = [arch.get_zone_max_ions(i) - 2 for i, _ in enumerate(arch.zones)]
+    num_spots = sum([m for m in block_weights])
+
+    edges: list[tuple[int, int]] = []
+    edge_weights: list[int] = []
+
+    # add gate edges
+    max_depth = len(depth_list)
+    for i, pairs in enumerate(depth_list):
+        edges.extend(pairs)
+        weight = max_depth - i
+        edge_weights.extend([weight] * len(pairs))
+
+    # add edges to ensure zones are separated
+    zone_zone_edges = [
+        (zone1, zone2)
+        for zone1 in range(num_zones)
+        for zone2 in range(num_zones)
+        if zone1 != zone2
+    ]
+    edges.extend(zone_zone_edges)
+    edge_weights.extend([-1000 * max_depth] * len(zone_zone_edges))
+
+    # add shuttling penalty (just distance between zones for now,
+    # should later be dependent on shuttling cost)
+
+    macro_arch = empty_macro_arch_from_architecture(arch)
+
+    def shuttling_penalty(zone: int, other_zone: int):
+        shortest_path = macro_arch.shortest_path(ZoneId(zone), ZoneId(other_zone))
+        return -len(shortest_path)
+
+    for zone, qubits in initial_placement.items():
+        for other_zone in range(num_zones):
+            if other_zone == zone:
+                continue
+            edges.extend([(other_zone, qubit + num_zones) for qubit in qubits])
+            edge_weights.extend([shuttling_penalty(zone, other_zone) for _ in qubits])
+
+    num_vertices = num_spots
+    vertex_weights = [1 for _ in range(num_vertices)]
+    num_edges = len(edges)
+
+    graph = mtkahypar.Graph(
+        num_vertices,
+        num_edges,
+        edges,
+        vertex_weights,
+        edge_weights,
+    )
+
+    partioned_graph = graph.mapOntoGraph(graph, context)
+
+    initial_placement = {i: [] for i in range(num_zones)}
+    block_assignments = {i: [] for i in range(num_zones)}
+    for vertex in range(n_qubits):
+        block_assignments[partioned_graph.blockID(vertex)].append(f"q{vertex}")
+        initial_placement[partioned_graph.blockID(vertex)].append(vertex)
+    for vertex in range(n_qubits, num_vertices):
+        block_assignments[partioned_graph.blockID(vertex)].append(f"X")
+
+    print("block ass: ", block_assignments)
+    print("init place: ", initial_placement)
     return initial_placement
 
 
