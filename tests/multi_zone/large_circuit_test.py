@@ -62,7 +62,7 @@ def test_large_circuit() -> None:
     backend = AQTMultiZoneBackend(architecture=racetrack, access_token="invalid")
     end = time.time()
     print("backend construct time: ", end - start)
-    mz_circuit = backend.compile_circuit_with_routing(U, optimisation_level=1)
+    mz_circuit = backend.compile_circuit_with_routing(U, optimisation_level=0)
     n_shuttles = mz_circuit.get_n_shuttles()
     n_pswaps = mz_circuit.get_n_pswaps()
     print("shuttles: ", n_shuttles)

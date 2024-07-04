@@ -1,3 +1,4 @@
+import math
 import multiprocessing
 from copy import deepcopy
 import time
@@ -267,6 +268,8 @@ def route_circuit(
         initial_placement = _initial_placement_graph_partition_alg(
             n_qubits, arch, depth_list
         )
+    depth_list = _get_updated_depth_list(n_qubits, initial_placement, depth_list)
+
     mz_circuit = MultiZoneCircuit(arch, initial_placement, n_qubits, circuit.n_bits)
     current_qubit_to_zone = {}
     for zone, qubit_list in initial_placement.items():
@@ -297,7 +300,25 @@ def route_circuit(
     return mz_circuit
 
 
-def _get_depth_list(circuit: Circuit):
+def _get_updated_depth_list(
+    n_qubits: int, placement: ZonePlacement, depth_list: list[list[tuple[int, int]]]
+) -> list[list[tuple[int, int]]]:
+    new_depth_list = depth_list.copy()
+    qubit_to_zone: list[int] = [-1] * n_qubits
+    for zone, qubits in placement.items():
+        for qubit in qubits:
+            qubit_to_zone[qubit] = zone
+    for i, depth in enumerate(depth_list):
+        for qubit_pair in depth:
+            if qubit_to_zone[qubit_pair[0]] == qubit_to_zone[qubit_pair[1]]:
+                new_depth_list[i].remove((qubit_pair[0], qubit_pair[1]))
+        if new_depth_list[i]:
+            break
+    new_depth_list = [depth for depth in new_depth_list if depth]
+    return new_depth_list
+
+
+def _get_depth_list(circuit: Circuit) -> list[list[tuple[int, int]]]:
     depth_list: list[list[tuple[int, int]]] = []
     n_qubits = circuit.n_qubits
     current_depth_per_qubit: list[int] = [0] * n_qubits
@@ -371,14 +392,21 @@ def _initial_placement_graph_partition_alg(
     edge_weights: list[int] = []
 
     start = time.time()
-    max_depth = len(depth_list)
+    max_considered_depth = min(20, len(depth_list))
     for i, pairs in enumerate(depth_list):
-        weight = max_depth - i * 2
+        weight = math.ceil(math.exp(max_considered_depth - i))
         if weight < 1:
             break
-        edges.extend(pairs)
-        edge_weights.extend([weight] * len(pairs))
+        for pair in pairs:
+            if pair in edges:
+                index = edges.index(pair)
+                edge_weights[index] = edge_weights[index] + weight
+            else:
+                edges.append(pair)
+                edge_weights.append(weight)
+
     end = time.time()
+    # edge_weight_map = {edges[i]: edge_weights[i] for i in range(0, len(edges))}
     print("edges time: ", end - start)
 
     num_vertices = num_spots
@@ -394,21 +422,61 @@ def _initial_placement_graph_partition_alg(
     )
 
     start = time.time()
-    partioned_graph = graph.mapOntoGraph(arch_graph, context)
+    # partioned_graph = graph.mapOntoGraph(arch_graph, context)
+    partioned_graph = graph.partition(context)
     end = time.time()
     print("mapping time: ", end - start)
 
     initial_placement = {i: [] for i in range(num_zones)}
     block_assignments = {i: [] for i in range(num_zones)}
+    qubits_in_blocks: list[int] = [-1] * n_qubits
     for vertex in range(n_qubits):
         block_assignments[partioned_graph.blockID(vertex)].append(f"q{vertex}")
         initial_placement[partioned_graph.blockID(vertex)].append(vertex)
+        qubits_in_blocks[vertex] = partioned_graph.blockID(vertex)
     for vertex in range(n_qubits, num_vertices):
         block_assignments[partioned_graph.blockID(vertex)].append(f"X")
 
+    block_edges = []
+    block_edge_weights = []
+    for block in range(num_zones):
+        for block2 in range(block + 1, num_zones):
+            weight = 0
+            for qubit in initial_placement[block]:
+                for qubit2 in initial_placement[block2]:
+                    if (qubit, qubit2) in edges:
+                        index = edges.index((qubit, qubit2))
+                        weight += edge_weights[index]
+                    if (qubit2, qubit) in edges:
+                        index = edges.index((qubit2, qubit))
+                        weight += edge_weights[index]
+            if weight > 0:
+                block_edges.append((block, block2))
+                block_edge_weights.append(weight)
+    # block_edge_weight_map = {
+    #     block_edges[i]: block_edge_weights[i] for i in range(0, len(block_edges))
+    # }
+
+    block_graph = mtkahypar.Graph(
+        num_zones,
+        len(block_edges),
+        block_edges,
+        [1] * num_zones,
+        block_edge_weights,
+    )
+
+    sortgr = block_graph.mapOntoGraph(arch_graph, context)
+
+    initial_placement2 = {i: [] for i in range(num_zones)}
+    mapping = {}
+    for zone in range(num_zones):
+        mapping[zone] = sortgr.blockID(zone)
+        initial_placement2[sortgr.blockID(zone)] = initial_placement[zone]
+
     print(block_assignments)
     print(initial_placement)
-    return initial_placement
+    print(initial_placement2)
+    return initial_placement2
 
 
 def _new_placement_graph_partition_alg(
