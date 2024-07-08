@@ -1,4 +1,5 @@
 import math
+import numpy as np
 
 # import multiprocessing
 from copy import deepcopy
@@ -10,6 +11,7 @@ import kahypar
 import mtkahypar
 from pytket import Qubit
 from pytket.circuit import Circuit
+from pytket.circuit import Command
 from ..architecture import MultiZoneArchitecture
 from ..circuit.multizone_circuit import MultiZoneCircuit
 from ..macro_architecture_graph import empty_macro_arch_from_architecture, ZoneId
@@ -73,6 +75,113 @@ def _make_necessary_moves(
             _move_qubit(qubits[0], zone0, zone1)
         case (a, b) if a < 0 or b < 0:
             raise ValueError("Should never be negative")
+        case (free0, free1) if free0 >= free1:
+            _move_qubit(qubits[1], zone1, zone0)
+        case (_, _):
+            _move_qubit(qubits[0], zone0, zone1)
+
+
+def _count_num_gates(qubit_idx: int, qubits_in_zone: list[int],
+                     list_of_commands: list[Command]) -> int:
+    """
+    This function counts the number of gates
+    """
+    count = 0
+    num_commands = len(list_of_commands)
+    for cmd_idx, cmd in enumerate(list_of_commands):
+        if len(cmd.args) == 2:
+            if cmd.args[0].index[0] == qubit_idx and cmd.args[1].index[0] in qubits_in_zone:
+                count += 1  # (num_commands - cmd_idx)
+            elif cmd.args[1].index[0] == qubit_idx and cmd.args[0].index[0] in qubits_in_zone:
+                count += 1  # (num_commands - cmd_idx)
+        else:
+            pass
+
+    return count
+
+
+def _make_necessary_moves_based_on_score(
+    qubits: tuple[int, int],
+    mz_circ: MultiZoneCircuit,
+    current_qubit_to_zone: dict[int, int],
+    current_placement: ZonePlacement,
+    list_of_commands: list[Command],
+    current_cmd_idx: int,
+) -> None:
+    """
+    This routine performs the necessary operations within a multi-zone circuit
+     to move two qubits into the same zone.
+     The decision is based on the score function counting the possible futrue
+     gates satisfied by the move.
+
+    :param qubits: tuple of two qubits
+    :param mz_circ: the MultiZoneCircuit
+    :param current_qubit_to_zone: dictionary containing the current
+     mapping of qubits to zones (may be altered)
+    :param current_placement: dictionary the current mapping of zones
+     to lists of qubits contained within them (may be altered)
+    """
+
+    def _move_qubit(qubit_to_move: int, starting_zone: int, target_zone: int) -> None:
+        mz_circ.move_qubit(qubit_to_move, target_zone, precompiled=True)
+        current_placement[starting_zone].remove(qubit_to_move)
+        current_placement[target_zone].append(qubit_to_move)
+        current_qubit_to_zone[qubit_to_move] = target_zone
+
+    qubit0 = qubits[0]
+    qubit1 = qubits[1]
+
+    zone0 = current_qubit_to_zone[qubit0]
+    zone1 = current_qubit_to_zone[qubit1]
+    if zone0 == zone1:
+        return
+    free_space_zone_0 = mz_circ.architecture.get_zone_max_ions(zone0) - len(
+        current_placement[zone0]
+    )
+    free_space_zone_1 = mz_circ.architecture.get_zone_max_ions(zone1) - len(
+        current_placement[zone1]
+    )
+
+    match (free_space_zone_0, free_space_zone_1):
+        case (0, 0):
+            raise ValueError("Should not allow two full registers")
+        case (1, 1):
+            # find first qubit in zone1 that isn't qubit1
+            uninvolved_qubit = [
+                qubit for qubit in current_placement[zone1] if qubit != qubits[1]
+            ][0]
+            # send it to zone0
+            _move_qubit(uninvolved_qubit, zone1, zone0)
+            # send qubit0 to zone1
+            _move_qubit(qubits[0], zone0, zone1)
+        case (a, b) if a < 0 or b < 0:
+            raise ValueError("Should never be negative")
+        case (a, b) if a > 1 and b > 1:
+            k = 6
+            num_qubits = 64
+            slice_of_commands = list_of_commands[current_cmd_idx:current_cmd_idx + int(k * num_qubits)]
+            qubits_in_zone0 = current_placement[zone0]
+            qubits_in_zone1 = current_placement[zone1]
+            if False:
+                print("counting commands:", slice_of_commands,
+                      "involving qubit0", qubit0,
+                      "involving qubit1", qubit1,
+                      "in zone0:", qubits_in_zone0,
+                      "in zone1:", qubits_in_zone1,
+                      )
+            score_qubit_0_trap_0 = _count_num_gates(qubit0, qubits_in_zone0, slice_of_commands)
+            score_qubit_0_trap_1 = _count_num_gates(qubit0, qubits_in_zone1, slice_of_commands)
+            score_qubit_1_trap_0 = _count_num_gates(qubit1, qubits_in_zone0, slice_of_commands)
+            score_qubit_1_trap_1 = _count_num_gates(qubit1, qubits_in_zone1, slice_of_commands)
+            if False:
+                print("score_qubit_0_trap_0=", score_qubit_0_trap_0,
+                      "score_qubit_0_trap_1=", score_qubit_0_trap_1,
+                      "score_qubit_1_trap_0=", score_qubit_1_trap_0,
+                      "score_qubit_1_trap_1=", score_qubit_1_trap_0)
+            if score_qubit_0_trap_0 + score_qubit_1_trap_0 > score_qubit_0_trap_1 + score_qubit_1_trap_1:
+                _move_qubit(qubits[1], zone1, zone0)
+            else:
+                _move_qubit(qubits[0], zone0, zone1)
         case (free0, free1) if free0 >= free1:
             _move_qubit(qubits[1], zone1, zone0)
         case (_, _):
@@ -277,27 +386,46 @@ def route_circuit(
         for qubit in qubit_list:
             current_qubit_to_zone[qubit] = zone
     current_zone_to_qubits = deepcopy(initial_placement)
+    for key in current_zone_to_qubits: print("key=", key, "len=", len(current_zone_to_qubits[key]))
 
     # _kahypar(circuit, arch, initial_placement)
 
     start = time.time()
-    for cmd in circuit.get_commands():
+    list_of_commands = circuit.get_commands()
+    for cmd_idx, cmd in enumerate(list_of_commands):
+        '''
+        cmd -> <class 'pytket._tket.circuit.Command'>
+        cmd.op : cmd.op.type + cmd.op.params
+        cmd.args : cmd.args[i].index
+        '''
         n_args = len(cmd.args)
         if n_args == 1:
             mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
         elif n_args == 2:
             if isinstance(cmd.args[0], Qubit) and isinstance(cmd.args[1], Qubit):
-                _make_necessary_moves(
-                    (cmd.args[0].index[0], cmd.args[1].index[0]),
-                    mz_circuit,
-                    current_qubit_to_zone,
-                    current_zone_to_qubits,
-                )
+                score = False
+                if not score:
+                    _make_necessary_moves(
+                        (cmd.args[0].index[0], cmd.args[1].index[0]),
+                        mz_circuit,
+                        current_qubit_to_zone,
+                        current_zone_to_qubits,
+                    )
+                else:
+                    _make_necessary_moves_based_on_score(
+                        (cmd.args[0].index[0], cmd.args[1].index[0]),
+                        mz_circuit,
+                        current_qubit_to_zone,
+                        current_zone_to_qubits,
+                        list_of_commands,
+                        cmd_idx,
+                    )
             mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
         else:
             raise ZoneRoutingError("Circuit must be rebased to the AQT gate set")
     end = time.time()
     print("rest time: ", end - start)
+    print("final placement: ", current_zone_to_qubits)
     return mz_circuit
 
 
@@ -380,7 +508,10 @@ def _initial_placement_graph_partition_alg(
         mtkahypar.Objective.CUT,
     )
     context.logging = False
-    mtkahypar.setSeed(32)
+    mtkahypar.setSeed(446)
+    # seed = np.random.randint(1024)
+    # print("using seed =", seed)
+    # mtkahypar.setSeed(seed)
 
     arch_graph = mtkahypar.Graph(
         num_zones, len(arch_edges), arch_edges, arch_node_weights, arch_edge_weights
@@ -477,6 +608,8 @@ def _initial_placement_graph_partition_alg(
 
     initial_placement2 = {i: [] for i in range(num_zones)}
     mapping = {}
+    print("sortgr.blockID(zone)=", [sortgr.blockID(zone) for zone in range(num_zones)])
+    # import pdb;pdb.set_trace()
     for zone in range(num_zones):
         mapping[zone] = sortgr.blockID(zone)
         initial_placement2[sortgr.blockID(zone)] = initial_placement[zone]

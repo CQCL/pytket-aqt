@@ -264,9 +264,89 @@ four_zones_diamond_pattern = MultiZoneArchitecture(
     ],
 )
 
+six_zones_in_a_line_102 = MultiZoneArchitecture(
+    n_qubits_max=102,
+    n_zones=6,
+    zone_types=[
+        ZoneType(
+            name="LeftEdge",
+            max_ions=17,
+            min_ions=0,
+            zone_connections={
+                "RL": ZoneConnection(
+                    connection_type=ConnectionType.RightToLeft, max_transfer=2
+                )
+            },
+            operations=standardOperations
+            + [
+                Operation(
+                    operation_spec="[SHUTTLE, n, [[self, o, p], [RL, o, p]]]",
+                    fidelity="0.999",
+                )
+            ],
+        ),
+        ZoneType(
+            name="Middle",
+            max_ions=17,
+            min_ions=0,
+            zone_connections={
+                "LR": ZoneConnection(
+                    connection_type=ConnectionType.LeftToRight, max_transfer=2
+                ),
+                "RL": ZoneConnection(
+                    connection_type=ConnectionType.RightToLeft, max_transfer=2
+                ),
+            },
+            operations=standardOperations
+            + [
+                Operation(
+                    operation_spec="[SHUTTLE, n, [[self, o, p], [LR, o, p]]]",
+                    fidelity="0.999",
+                ),
+                Operation(
+                    operation_spec="[SHUTTLE, n, [[self, o, p], [RL, o, p]]]",
+                    fidelity="0.999",
+                ),
+            ],
+        ),
+        ZoneType(
+            name="RightEdge",
+            max_ions=17,
+            min_ions=0,
+            zone_connections={
+                "LR": ZoneConnection(
+                    connection_type=ConnectionType.LeftToRight, max_transfer=2
+                ),
+            },
+            operations=standardOperations
+            + [
+                Operation(
+                    operation_spec="[SHUTTLE, n, [[self, o, p], [LR, o, p]]]",
+                    fidelity="0.999",
+                ),
+            ],
+        ),
+    ],
+    zones=[
+        Zone(name="LeftEdge", zone_type_id=0, connected_zones={1: "RL"}),
+        Zone(name="Interior1", zone_type_id=1, connected_zones={0: "LR", 2: "RL"}),
+        Zone(name="Interior2", zone_type_id=1, connected_zones={1: "LR", 3: "RL"}),
+        Zone(name="Interior3", zone_type_id=1, connected_zones={2: "LR", 4: "RL"}),
+        Zone(name="Interior4", zone_type_id=1, connected_zones={3: "LR", 5: "RL"}),
+        Zone(
+            name="RightEdge",
+            zone_type_id=2,
+            connected_zones={
+                4: "LR",
+            },
+        ),
+    ],
+)
+
+
 
 racetrack = MultiZoneArchitecture(
-    n_qubits_max=56,
+    n_qubits_max=64,
     n_zones=28,
     zone_types=[
         ZoneType(
