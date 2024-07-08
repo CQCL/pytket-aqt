@@ -13,7 +13,7 @@ def test_large_circuit() -> None:
     total_t = time.time()
     start = time.time()
     Lx = 7
-    Ly = 7
+    Ly = 8
 
     N = Lx * Ly
     Ntrot = 30

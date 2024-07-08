@@ -500,18 +500,19 @@ def _initial_placement_graph_partition_alg(
                 # TODO: Replace with connectivity cost
                 arch_edge_weights.append(1)
 
+    block_weights = [arch.get_zone_max_ions(i) - 1 for i, _ in enumerate(arch.zones)]
+    num_spots = sum([m for m in block_weights])
+    avg_block_weight = num_spots / num_zones
+
     context = mtkahypar.Context()
     context.loadPreset(mtkahypar.PresetType.DEFAULT)
     context.setPartitioningParameters(
         num_zones,
-        0.1,
+        0.5 / avg_block_weight,
         mtkahypar.Objective.CUT,
     )
     context.logging = False
-    mtkahypar.setSeed(446)
-    # seed = np.random.randint(1024)
-    # print("using seed =", seed)
-    # mtkahypar.setSeed(seed)
+    mtkahypar.setSeed(100)
 
     arch_graph = mtkahypar.Graph(
         num_zones, len(arch_edges), arch_edges, arch_node_weights, arch_edge_weights
