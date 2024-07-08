@@ -1,5 +1,6 @@
 import math
-import multiprocessing
+
+# import multiprocessing
 from copy import deepcopy
 import time
 from typing import Optional, Sequence
@@ -348,8 +349,8 @@ def _initial_placement_graph_partition_alg(
     arch: MultiZoneArchitecture,
     depth_list: list[list[tuple[int, int]]],
 ) -> ZonePlacement:
-    n_threads = multiprocessing.cpu_count()
-    mtkahypar.initializeThreadPool(n_threads)
+    # n_threads = multiprocessing.cpu_count()
+    mtkahypar.initializeThreadPool(1)
     n_qubits_max = arch.n_qubits_max
     if n_qubits > n_qubits_max:
         raise ZoneRoutingError(
@@ -466,6 +467,13 @@ def _initial_placement_graph_partition_alg(
     )
 
     sortgr = block_graph.mapOntoGraph(arch_graph, context)
+    map_zone = set()
+    for zone in range(num_zones):
+        new_zone = sortgr.blockID(zone)
+        if new_zone in map_zone:
+            print("duplicate", zone, new_zone)
+            raise Exception("Process mapping did not create a 1 to 1 map, thats bad!")
+        map_zone.add(new_zone)
 
     initial_placement2 = {i: [] for i in range(num_zones)}
     mapping = {}
@@ -493,7 +501,7 @@ def _new_placement_graph_partition_alg(
         )
 
     num_zones = arch.n_zones
-    mtkahypar.initializeThreadPool(multiprocessing.cpu_count())
+    mtkahypar.initializeThreadPool(1)
     context = mtkahypar.Context()
     context.loadPreset(mtkahypar.PresetType.DEFAULT)
     context.setPartitioningParameters(
