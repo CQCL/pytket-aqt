@@ -188,6 +188,69 @@ def _make_necessary_moves_based_on_score(
             _move_qubit(qubits[0], zone0, zone1)
 
 
+def _make_necessary_config_moves(
+    configs: tuple[ZonePlacement, ZonePlacement],
+    mz_circ: MultiZoneCircuit,
+) -> None:
+    """
+    This routine performs the necessary operations within a multi-zone circuit
+     to move from one zone placement to another
+    :param configs: tuple of two ZonePlacements [Old, New]
+    :param mz_circ: the MultiZoneCircuit
+    :param current_qubit_to_zone: dictionary containing the current
+     mapping of qubits to zones (may be altered)
+    """
+    n_qubits = mz_circ.pytket_circuit.n_qubits
+    old_place = configs[0]
+    new_place = configs[1]
+    qubit_to_zone_old = _get_qubit_to_zone(n_qubits, old_place)
+    qubit_to_zone_new = _get_qubit_to_zone(n_qubits, new_place)
+    qubits_to_move: list[tuple[int, int, int]] = []
+    for qubit in range(n_qubits):
+        if qubit_to_zone_old[qubit] != qubit_to_zone_new[qubit]:
+            qubits_to_move.append(
+                (qubit, qubit_to_zone_old[qubit], qubit_to_zone_new[qubit])
+            )
+    # print("N qubits to move: ", len(qubits_to_move))
+    current_placement = deepcopy(old_place)
+
+    def _move_qubit(qubit_to_move: int, starting_zone: int, target_zone: int) -> None:
+        mz_circ.move_qubit(qubit_to_move, target_zone, precompiled=True)
+        current_placement[starting_zone].remove(qubit_to_move)
+        current_placement[target_zone].append(qubit_to_move)
+
+    while qubits_to_move:
+        qubit, start, targ = qubits_to_move[-1]
+        free_space_target_zone = mz_circ.architecture.get_zone_max_ions(targ) - len(
+            current_placement[targ]
+        )
+        match free_space_target_zone:
+            case 0:
+                raise ValueError("Should not allow full register here")
+            case 1:
+                _move_qubit(qubit, start, targ)
+                # remove this move from list
+                qubits_to_move.pop()
+                # find a qubit in target zone that needs to move and put it at end
+                # of qubits_to_move, so it comes next
+                moves_with_start_equals_current_targ = [
+                    i
+                    for i, move_tup in enumerate(qubits_to_move)
+                    if move_tup[1] == targ
+                ]
+                if not moves_with_start_equals_current_targ:
+                    raise ValueError("This shouldn't happen")
+                next_move_index = moves_with_start_equals_current_targ[0]
+                next_move = qubits_to_move.pop(next_move_index)
+                qubits_to_move.append(next_move)
+            case a if a < 0:
+                raise ValueError("Should never be negative")
+            case _:
+                _move_qubit(qubit, start, targ)
+                # remove this move from list
+                qubits_to_move.pop()
+
+
 def kahypar_edge_translation(edges: list[Sequence[int]]) -> tuple[list[int], list[int]]:
     edges_kahypar = [node for edge in edges for node in edge]
     edge_indices_kahypar = [0]
