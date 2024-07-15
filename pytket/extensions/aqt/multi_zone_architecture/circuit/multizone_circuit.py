@@ -232,6 +232,9 @@ class MultiZoneCircuit:
             custom_init = CustomGateDef("INIT", init_def_circ, [dz])
             self.pytket_circuit.add_custom_gate(custom_init, [zone], qubit_list)
 
+        self._n_shuttles = 0
+        self._n_pswaps = 0
+
     def __iter__(self) -> Iterator:
         return self.pytket_circuit.__iter__()
 
@@ -361,6 +364,10 @@ class MultiZoneCircuit:
         self.multi_zone_operations[qubit].append(move_operations)
         if precompiled:
             for multi_op in move_operations:
+                if isinstance(multi_op, Shuttle):
+                    self._n_shuttles += 1
+                if isinstance(multi_op, SwapWithinZone):
+                    self._n_pswaps += 1
                 multi_op.append_to_circuit(self)
 
     def add_gate(
@@ -400,27 +407,13 @@ class MultiZoneCircuit:
         """
         Get the number of shuttles used to route the circuit to the architecture
         """
-        count = 0
-        for cmd in self.pytket_circuit.get_commands():
-            op = cmd.op
-            optype = op.type
-            op_string = f"{op}"
-            if optype == OpType.CustomGate and "SHUTTLE" in op_string:
-                count += 1
-        return count
+        return self._n_shuttles
 
     def get_n_pswaps(self) -> int:
         """
         Get the number of pswaps used to route the circuit to the architecture
         """
-        count = 0
-        for cmd in self.pytket_circuit.get_commands():
-            op = cmd.op
-            optype = op.type
-            op_string = f"{op}"
-            if optype == OpType.CustomGate and "PSWAP" in op_string:
-                count += 1
-        return count
+        return self._n_pswaps
 
     def validate(self) -> None:
         if self._is_compiled:
