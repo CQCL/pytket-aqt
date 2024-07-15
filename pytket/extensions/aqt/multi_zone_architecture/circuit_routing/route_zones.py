@@ -195,6 +195,7 @@ def _make_necessary_config_moves(
     """
     This routine performs the necessary operations within a multi-zone circuit
      to move from one zone placement to another
+
     :param configs: tuple of two ZonePlacements [Old, New]
     :param mz_circ: the MultiZoneCircuit
     :param current_qubit_to_zone: dictionary containing the current
@@ -337,88 +338,34 @@ def _kahypar(
     return
 
 
-def _mt_kahypar_new_placement(
-    circuit: Circuit,
+def _placement_generator(
+    n_qubits: int,
     arch: MultiZoneArchitecture,
     initial_placement: ZonePlacement,
-) -> None:
-    context = kahypar.Context()
-    package_path = importlib_resources.files("pytket.extensions.aqt")
-    default_ini = (
-        f"{package_path}/multi_zone_architecture/circuit_routing/cut_kKaHyPar_sea20.ini"
-    )
-    context.loadINIconfiguration(default_ini)
-    num_zones = arch.n_zones
-
-    context.setK(num_zones)
-    block_weights = [arch.get_zone_max_ions(i) + 1 for i, _ in enumerate(arch.zones)]
-    context.setCustomTargetBlockWeights(block_weights)
-    context.setEpsilon(num_zones)
-
-    edges: list[tuple[int, int]] = []
-    edge_weights: list[int] = []
-
-    for zone, qubits in initial_placement.items():
-        edges.extend([(zone, qubit + num_zones) for qubit in qubits])
-        edge_weights.extend([10000 for _ in qubits])
-
-    for cmd in circuit.get_commands():
-        n_args = len(cmd.args)
-        if n_args == 1:
-            continue
-        elif n_args == 2:
-            if isinstance(cmd.args[0], Qubit) and isinstance(cmd.args[1], Qubit):
-                q_node_0 = cmd.args[0].index[0] + num_zones
-                q_node_1 = cmd.args[1].index[0] + num_zones
-                weight = 1
-                edges.append((q_node_0, q_node_1))
-                edge_weights.append(weight)
-        else:
-            raise ZoneRoutingError("Circuit must be rebased to the AQT gate set")
-
-    edge_indices_kahypar, edges_kahypar = kahypar_edge_translation(edges)
-
-    num_fake_vertices = circuit.n_qubits
-    num_vertices = num_zones + circuit.n_qubits + num_fake_vertices
-    vertex_weights = [1 for _ in range(num_zones)] + [
-        1 for _ in range(num_zones, num_vertices)
-    ]
-    num_edges = len(edges)
-
-    hypergraph = kahypar.Hypergraph(
-        num_vertices,
-        num_edges,
-        edge_indices_kahypar,
-        edges_kahypar,
-        num_zones,
-        edge_weights,
-        vertex_weights,
-    )
-    # for i in range(num_zones):
-    #    hypergraph.fixNodeToBlock(i, i)
-
-    kahypar.partition(hypergraph, context)
-
-    block_assignments = {i: [] for i in range(num_zones)}
-    for vertex in range(num_vertices):
-        if vertex < num_zones:
-            block_assignments[hypergraph.blockID(vertex)].append(f"Z{vertex}")
-        elif vertex < num_zones + circuit.n_qubits:
-            block_assignments[hypergraph.blockID(vertex)].append(
-                f"q{vertex - num_zones}"
-            )
-        else:
-            block_assignments[hypergraph.blockID(vertex)].append("X")
-
-    print(block_assignments)
-    print(initial_placement)
-    return
+    depth_list: list[list[tuple[int, int]]],
+) -> tuple[ZonePlacement, ZonePlacement]:
+    # generates pairs of configs representing one shuttling step
+    current_placement = deepcopy(initial_placement)
+    depth_list = _get_updated_depth_list(n_qubits, initial_placement, depth_list)
+    max_iter = len(depth_list)
+    iteration = 0
+    while depth_list:
+        new_placement = _new_placement_graph_partition_alg(
+            n_qubits, arch, depth_list, current_placement
+        )
+        depth_list = _get_updated_depth_list(n_qubits, new_placement, depth_list)
+        yield current_placement, new_placement
+        current_placement = new_placement
+        if iteration > max_iter:
+            raise Exception("placement alg is not converging")
+        iteration += 1
 
 
 def route_circuit(
     circuit: Circuit,
     arch: MultiZoneArchitecture,
     initial_placement: Optional[ZonePlacement] = None,
+    routing_alg: str = "partitioning",
 ) -> MultiZoneCircuit:
     """
     Route a Circuit to a given MultiZoneArchitecture by adding
@@ -433,105 +380,188 @@ def route_circuit(
     :param circuit: A pytket Circuit to be routed
     :param arch: MultiZoneArchitecture to route into
     :param initial_placement: An optional initial mapping of architecture
+    :param routing_alg: routing algorithm "partitioning" or "greedy"
      zones to lists of qubits to use
     """
     n_qubits = circuit.n_qubits
-    depth_list = _get_depth_list(circuit)
+    gate_pairs = _get_2q_gate_pairs_from_circuit(circuit)
+    depth_list = _get_depth_list(n_qubits, gate_pairs)
     if not initial_placement:
         initial_placement = _initial_placement_graph_partition_alg(
             n_qubits, arch, depth_list
         )
-    depth_list = _get_updated_depth_list(n_qubits, initial_placement, depth_list)
 
     mz_circuit = MultiZoneCircuit(arch, initial_placement, n_qubits, circuit.n_bits)
-    current_qubit_to_zone = {}
-    for zone, qubit_list in initial_placement.items():
-        for qubit in qubit_list:
-            current_qubit_to_zone[qubit] = zone
-    current_zone_to_qubits = deepcopy(initial_placement)
-    for key in current_zone_to_qubits: print("key=", key, "len=", len(current_zone_to_qubits[key]))
-
-    # _kahypar(circuit, arch, initial_placement)
 
     start = time.time()
-    list_of_commands = circuit.get_commands()
-    for cmd_idx, cmd in enumerate(list_of_commands):
-        '''
-        cmd -> <class 'pytket._tket.circuit.Command'>
-        cmd.op : cmd.op.type + cmd.op.params
-        cmd.args : cmd.args[i].index
-        '''
-        n_args = len(cmd.args)
-        if n_args == 1:
-            mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
-        elif n_args == 2:
-            if isinstance(cmd.args[0], Qubit) and isinstance(cmd.args[1], Qubit):
-                score = False
-                if not score:
-                    _make_necessary_moves(
-                        (cmd.args[0].index[0], cmd.args[1].index[0]),
-                        mz_circuit,
-                        current_qubit_to_zone,
-                        current_zone_to_qubits,
-                    )
-                else:
-                    _make_necessary_moves_based_on_score(
-                        (cmd.args[0].index[0], cmd.args[1].index[0]),
-                        mz_circuit,
-                        current_qubit_to_zone,
-                        current_zone_to_qubits,
-                        list_of_commands,
-                        cmd_idx,
-                    )
-            mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
-        else:
-            raise ZoneRoutingError("Circuit must be rebased to the AQT gate set")
+
+    if routing_alg == "partitioning":
+        commands = circuit.get_commands()
+        for old_place, new_place in _placement_generator(
+            n_qubits, arch, initial_placement, depth_list
+        ):
+            # for zone in old_place.keys():
+            #    print("zone ", zone, ": ", old_place[zone], new_place[zone])
+            leftovers = []
+            stragglers: set[int] = set()
+            qubit_to_zone_old = _get_qubit_to_zone(n_qubits, old_place)
+            for cmd in commands:
+                n_args = len(cmd.args)
+                if n_args == 1:
+                    mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
+                elif n_args == 2:
+                    qubit0 = cmd.args[0].index[0]
+                    qubit1 = cmd.args[1].index[0]
+                    if qubit0 in stragglers:
+                        stragglers.add(qubit1)
+                        leftovers.append(cmd)
+                        continue
+                    if qubit1 in stragglers:
+                        stragglers.add(qubit0)
+                        leftovers.append(cmd)
+                        continue
+                    if qubit_to_zone_old[qubit0] == qubit_to_zone_old[qubit1]:
+                        mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
+                    else:
+                        leftovers.append(cmd)
+                        stragglers.update([qubit0, qubit1])
+                if len(stragglers) >= n_qubits - 1:
+                    break
+            # old_n_shuttles = mz_circuit.get_n_shuttles()
+            _make_necessary_config_moves((old_place, new_place), mz_circuit)
+            # print("Added shuttles: ", mz_circuit.get_n_shuttles() - old_n_shuttles)
+    else:
+        current_qubit_to_zone = {}
+        for zone, qubit_list in initial_placement.items():
+            for qubit in qubit_list:
+                current_qubit_to_zone[qubit] = zone
+        current_zone_to_qubits = deepcopy(initial_placement)
+        for key in current_zone_to_qubits: print("key=", key, "len=", len(current_zone_to_qubits[key]))
+
+
+        list_of_commands = circuit.get_commands()
+        for cmd_idx, cmd in enumerate(list_of_commands):
+            '''
+            cmd -> <class 'pytket._tket.circuit.Command'>
+            cmd.op : cmd.op.type + cmd.op.params
+            cmd.args : cmd.args[i].index
+            '''
+            n_args = len(cmd.args)
+            if n_args == 1:
+                mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
+            elif n_args == 2:
+                if isinstance(cmd.args[0], Qubit) and isinstance(cmd.args[1], Qubit):
+                    if routing_alg == 'greedy':
+                        _make_necessary_moves(
+                            (cmd.args[0].index[0], cmd.args[1].index[0]),
+                            mz_circuit,
+                            current_qubit_to_zone,
+                            current_zone_to_qubits,
+                        )
+                    elif routing_alg == 'score':
+                        _make_necessary_moves_based_on_score(
+                            (cmd.args[0].index[0], cmd.args[1].index[0]),
+                            mz_circuit,
+                            current_qubit_to_zone,
+                            current_zone_to_qubits,
+                            list_of_commands,
+                            cmd_idx,
+                        )
+                    else:
+                        raise NotImplementedError
+
+                mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
+            else:
+                raise ZoneRoutingError("Circuit must be rebased to the AQT gate set")
+
+        print("final placement: ", current_zone_to_qubits)
+
     end = time.time()
-    print("rest time: ", end - start)
-    print("final placement: ", current_zone_to_qubits)
+    print("routing time: ", end - start)
     return mz_circuit
+
+
+def _get_qubit_to_zone(n_qubits: int, placement: ZonePlacement) -> list[int]:
+    qubit_to_zone: list[int] = [-1] * n_qubits
+    for zone, qubits in placement.items():
+        for qubit in qubits:
+            qubit_to_zone[qubit] = zone
+    return qubit_to_zone
 
 
 def _get_updated_depth_list(
     n_qubits: int, placement: ZonePlacement, depth_list: list[list[tuple[int, int]]]
 ) -> list[list[tuple[int, int]]]:
-    new_depth_list = depth_list.copy()
-    qubit_to_zone: list[int] = [-1] * n_qubits
-    for zone, qubits in placement.items():
-        for qubit in qubits:
-            qubit_to_zone[qubit] = zone
+    pruned_depth_list = [depth.copy() for depth in depth_list]
+    qubit_to_zone = _get_qubit_to_zone(n_qubits, placement)
+    # prune current depth list
+    prune_stage = False
+    prune_touched = set()
     for i, depth in enumerate(depth_list):
         for qubit_pair in depth:
             if qubit_to_zone[qubit_pair[0]] == qubit_to_zone[qubit_pair[1]]:
-                new_depth_list[i].remove((qubit_pair[0], qubit_pair[1]))
-        if new_depth_list[i]:
+                if not prune_stage:
+                    pruned_depth_list[i].remove(qubit_pair)
+                elif (
+                    qubit_pair[0] not in prune_touched
+                    and qubit_pair[1] not in prune_touched
+                ):
+                    pruned_depth_list[i].remove(qubit_pair)
+                else:
+                    prune_touched.update({qubit_pair[0], qubit_pair[1]})
+            else:
+                prune_touched.update({qubit_pair[0], qubit_pair[1]})
+        if pruned_depth_list[i]:
+            prune_stage = True
+        if len(prune_touched) >= n_qubits - 1:
             break
-    new_depth_list = [depth for depth in new_depth_list if depth]
+    # flatten depth list
+    flattened_depth_list = [pair for depth in pruned_depth_list for pair in depth]
+    # new depth list
+    new_depth_list = _get_depth_list(n_qubits, flattened_depth_list)
     return new_depth_list
 
 
-def _get_depth_list(circuit: Circuit) -> list[list[tuple[int, int]]]:
-    depth_list: list[list[tuple[int, int]]] = []
-    n_qubits = circuit.n_qubits
-    current_depth_per_qubit: list[int] = [0] * n_qubits
+def _get_2q_gate_pairs_from_circuit(circuit: Circuit) -> list[tuple[int, int]]:
+    pair_list: list[tuple[int, int]] = []
     for cmd in circuit.get_commands():
         n_args = len(cmd.args)
         if n_args == 1:
             continue
-        elif n_args == 2:
-            if isinstance(cmd.args[0], Qubit) and isinstance(cmd.args[1], Qubit):
-                qubit0 = cmd.args[0].index[0]
-                qubit1 = cmd.args[1].index[0]
-                depth = max(
-                    current_depth_per_qubit[qubit0], current_depth_per_qubit[qubit1]
-                )
-                assert len(depth_list) >= depth
-                if len(depth_list) > depth:
-                    depth_list[depth].append((qubit0, qubit1))
-                else:
-                    depth_list.append([(qubit0, qubit1)])
-                current_depth_per_qubit[qubit0] = depth + 1
-                current_depth_per_qubit[qubit1] = depth + 1
+        elif (
+            n_args == 2
+            and isinstance(cmd.args[0], Qubit)
+            and isinstance(cmd.args[1], Qubit)
+        ):
+            qubit0 = cmd.args[0].index[0]
+            qubit1 = cmd.args[1].index[0]
+            pair_list.append((qubit0, qubit1))
+    return pair_list
+
+
+def _get_depth_list(
+    n_qubits, gate_pairs: list[tuple[int, int]]
+) -> list[list[tuple[int, int]]]:
+    depth_list: list[list[tuple[int, int]]] = []
+    current_depth_per_qubit: list[int] = [0] * n_qubits
+    for pair in gate_pairs:
+        qubit0 = pair[0]
+        qubit1 = pair[1]
+        depth = max(current_depth_per_qubit[qubit0], current_depth_per_qubit[qubit1])
+        assert len(depth_list) >= depth
+        if depth > 0:
+            if (qubit0, qubit1) in depth_list[depth - 1] or (
+                qubit1,
+                qubit0,
+            ) in depth_list[depth - 1]:
+                depth_list[depth - 1].append((qubit0, qubit1))
+                continue
+        if len(depth_list) > depth:
+            depth_list[depth].append((qubit0, qubit1))
+        else:
+            depth_list.append([(qubit0, qubit1)])
+        current_depth_per_qubit[qubit0] = depth + 1
+        current_depth_per_qubit[qubit1] = depth + 1
     return depth_list
 
 
@@ -563,8 +593,7 @@ def _initial_placement_graph_partition_alg(
                 # TODO: Replace with connectivity cost
                 arch_edge_weights.append(1)
 
-    block_weights = [arch.get_zone_max_ions(i) - 1 for i, _ in enumerate(arch.zones)]
-    num_spots = sum([m for m in block_weights])
+    num_spots = sum([arch.get_zone_max_ions(i) - 1 for i, _ in enumerate(arch.zones)])
     avg_block_weight = num_spots / num_zones
 
     context = mtkahypar.Context()
@@ -588,11 +617,13 @@ def _initial_placement_graph_partition_alg(
     edge_weights: list[int] = []
 
     start = time.time()
-    max_considered_depth = min(20, len(depth_list))
+    max_considered_depth = min(200, len(depth_list))
+    max_weight = math.pow(2, 20)
     for i, pairs in enumerate(depth_list):
-        weight = math.ceil(math.exp(max_considered_depth - i))
-        if weight < 1:
+        if i > max_considered_depth:
             break
+        # weight = math.ceil(math.exp(-3/avg_block_weight * i) * max_weight)
+        weight = math.ceil(math.exp(-1 * i) * max_weight)
         for pair in pairs:
             if pair in edges:
                 index = edges.index(pair)
@@ -681,6 +712,14 @@ def _initial_placement_graph_partition_alg(
     print(block_assignments)
     print(initial_placement)
     print(initial_placement2)
+    all_qubits = []
+    # check for duplicate qubits
+    for zone, qubits in initial_placement2.items():
+        for qubit in qubits:
+            if qubit in all_qubits:
+                raise ValueError("duplicate qubit")
+            all_qubits.append(qubit)
+
     return initial_placement2
 
 
@@ -698,55 +737,89 @@ def _new_placement_graph_partition_alg(
         )
 
     num_zones = arch.n_zones
+
+    num_spots = sum([arch.get_zone_max_ions(i) for i, _ in enumerate(arch.zones)])
+    avg_block_weight = num_spots / num_zones
+
     mtkahypar.initializeThreadPool(1)
     context = mtkahypar.Context()
     context.loadPreset(mtkahypar.PresetType.DEFAULT)
     context.setPartitioningParameters(
         num_zones,
-        0.1,
+        0.5 / avg_block_weight,
         mtkahypar.Objective.CUT,
     )
     context.logging = False
-    mtkahypar.setSeed(32)
-
-    block_weights = [arch.get_zone_max_ions(i) - 2 for i, _ in enumerate(arch.zones)]
-    num_spots = sum([m for m in block_weights])
+    mtkahypar.setSeed(100)
 
     edges: list[tuple[int, int]] = []
     edge_weights: list[int] = []
 
     # add gate edges
-    max_depth = len(depth_list)
+    max_considered_depth = min(200, len(depth_list))
+    max_weight = math.ceil(math.pow(2, 20))
     for i, pairs in enumerate(depth_list):
-        edges.extend(pairs)
-        weight = max_depth - i
-        edge_weights.extend([weight] * len(pairs))
+        if i > max_considered_depth:
+            break
+        # weight = math.ceil(math.exp(-3/avg_block_weight * i) * max_weight)
+        weight = math.ceil(math.exp(-1 * i) * max_weight)
+        for pair in pairs:
+            if pair in edges:
+                index = edges.index(pair)
+                edge_weights[index] = edge_weights[index] + weight
+            else:
+                edges.append(pair)
+                edge_weights.append(weight)
 
     # add edges to ensure zones are separated
-    zone_zone_edges = [
-        (zone1, zone2)
-        for zone1 in range(num_zones)
-        for zone2 in range(num_zones)
-        if zone1 != zone2
-    ]
-    edges.extend(zone_zone_edges)
-    edge_weights.extend([-1000 * max_depth] * len(zone_zone_edges))
+    # zone_zone_edges = [
+    #    (zone1, zone2)
+    #    for zone1 in range(n_qubits, n_qubits + num_zones)
+    #    for zone2 in range(n_qubits, n_qubits + num_zones)
+    #    if zone1 != zone2
+    # ]
+    # edges.extend(zone_zone_edges)
+    # edge_weights.extend([-max_weight * 2] * len(zone_zone_edges))
 
     # add shuttling penalty (just distance between zones for now,
     # should later be dependent on shuttling cost)
 
     macro_arch = empty_macro_arch_from_architecture(arch)
+    zone_qbit_edges: list[tuple[str, str, int]] = []
 
-    def shuttling_penalty(zone: int, other_zone: int):
-        shortest_path = macro_arch.shortest_path(ZoneId(zone), ZoneId(other_zone))
-        return -len(shortest_path)
+    def shuttling_penalty(zone1: int, other_zone1: int):
+        shortest_path = macro_arch.shortest_path(ZoneId(zone1), ZoneId(other_zone1))
+        return len(shortest_path)
 
+    # max_shuttle_weight = math.ceil(math.exp(-3/avg_block_weight * 5) * max_weight)
+    max_shuttle_weight = math.ceil(math.exp(-0.5 * 5) * max_weight)
     for zone, qubits in initial_placement.items():
         for other_zone in range(num_zones):
-            if other_zone == zone:
-                continue
-            edges.extend([(other_zone, qubit + num_zones) for qubit in qubits])
-            edge_weights.extend([shuttling_penalty(zone, other_zone) for _ in qubits])
+            edges.extend([(other_zone + n_qubits, qubit) for qubit in qubits])
+            edge_weights.extend(
+                [
+                    max(
+                        0,
+                        max_shuttle_weight
+                        - shuttling_penalty(zone, other_zone) ** 2 * 1000,
+                    )
+                    for _ in qubits
+                ]
+            )
+            zone_qbit_edges.extend(
+                [
+                    (
+                        f"Z{other_zone}",
+                        f"q{qubit}",
+                        max(
+                            0,
+                            max_shuttle_weight
+                            - shuttling_penalty(zone, other_zone) ** 2 * 1000,
+                        ),
+                    )
+                    for qubit in qubits
+                ]
+            )
 
     num_vertices = num_spots
     vertex_weights = [1 for _ in range(num_vertices)]
@@ -759,20 +832,35 @@ def _new_placement_graph_partition_alg(
         vertex_weights,
         edge_weights,
     )
+    fixed_list = (
+        [-1] * n_qubits
+        + [zone for zone in range(num_zones)]
+        + [-1] * (num_vertices - n_qubits - num_zones)
+    )
+    graph.addFixedVertices(fixed_list, num_zones)
 
-    partioned_graph = graph.mapOntoGraph(graph, context)
+    partioned_graph = graph.partition(context)
 
-    initial_placement = {i: [] for i in range(num_zones)}
+    new_placement = {i: [] for i in range(num_zones)}
     block_assignments = {i: [] for i in range(num_zones)}
+    mapping = [-1] * num_zones
+    for vertex in range(n_qubits, n_qubits + num_zones):
+        block_assignments[partioned_graph.blockID(vertex)].append(f"Z{vertex-n_qubits}")
+        mapping[partioned_graph.blockID(vertex)] = vertex - n_qubits
     for vertex in range(n_qubits):
         block_assignments[partioned_graph.blockID(vertex)].append(f"q{vertex}")
-        initial_placement[partioned_graph.blockID(vertex)].append(vertex)
-    for vertex in range(n_qubits, num_vertices):
+        new_placement[mapping[partioned_graph.blockID(vertex)]].append(vertex)
+    for vertex in range(n_qubits + num_zones, num_vertices):
         block_assignments[partioned_graph.blockID(vertex)].append(f"X")
 
-    print("block ass: ", block_assignments)
-    print("init place: ", initial_placement)
-    return initial_placement
+    # check for duplicate qubits
+    all_qubits = []
+    for zone, qubits in new_placement.items():
+        for qubit in qubits:
+            if qubit in all_qubits:
+                raise ValueError("duplicate qubit")
+            all_qubits.append(qubit)
+    return new_placement
 
 
 def _calc_initial_placement(

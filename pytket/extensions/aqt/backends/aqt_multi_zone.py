@@ -252,6 +252,7 @@ class AQTMultiZoneBackend(Backend):
         circuit: Circuit,
         initial_placement: Optional[ZonePlacement] = None,
         optimisation_level: int = 2,
+        routing_alg: str = "partitioning",
     ) -> MultiZoneCircuit:
         """
         Compile a pytket Circuit and route it to the backend architecture
@@ -273,7 +274,9 @@ class AQTMultiZoneBackend(Backend):
             for qubit in compiled.qubits
         }
         compiled.rename_units(qubit_map)
-        routed = route_circuit(compiled, self._architecture, initial_placement)
+        routed = route_circuit(
+            compiled, self._architecture, initial_placement, routing_alg
+        )
         routed.is_compiled = True
         return routed
 

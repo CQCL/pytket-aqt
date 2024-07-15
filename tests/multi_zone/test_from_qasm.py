@@ -14,7 +14,7 @@ from pytket.extensions.aqt.multi_zone_architecture.named_architectures import (
 )
 
 
-def test_circuit(qasm_filename, graph_init, shuttle_strategy) -> None:
+def test_circuit(qasm_filename, graph_init, routing_alg) -> None:
     total_t = time.time()
     start = time.time()
     print("loading circuit :", qasm_filename)
@@ -47,7 +47,7 @@ def test_circuit(qasm_filename, graph_init, shuttle_strategy) -> None:
 
     mz_circuit = backend.compile_circuit_with_routing(C, optimisation_level=0,
                                                       initial_placement=initial_placement,
-                                                      shuttle_strategy=shuttle_strategy,
+                                                      routing_alg=routing_alg,
                                                       )
     n_shuttles = mz_circuit.get_n_shuttles()
     n_pswaps = mz_circuit.get_n_pswaps()
@@ -59,6 +59,6 @@ def test_circuit(qasm_filename, graph_init, shuttle_strategy) -> None:
 if __name__ == "__main__":
     qasm_filename = sys.argv[1]
     graph_init = bool(int(sys.argv[2]))
-    shuttle_strategy = sys.argv[3]
-    test_circuit(qasm_filename, graph_init, shuttle_strategy)
+    routing_alg = sys.argv[3]
+    test_circuit(qasm_filename, graph_init, routing_alg)
 
