@@ -405,7 +405,8 @@ def route_circuit(
             leftovers = []
             stragglers: set[int] = set()
             qubit_to_zone_old = _get_qubit_to_zone(n_qubits, old_place)
-            for cmd in commands:
+            last_cmd_index = 0
+            for i, cmd in enumerate(commands):
                 n_args = len(cmd.args)
                 if n_args == 1:
                     mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
@@ -426,7 +427,9 @@ def route_circuit(
                         leftovers.append(cmd)
                         stragglers.update([qubit0, qubit1])
                 if len(stragglers) >= n_qubits - 1:
+                    last_cmd_index = i
                     break
+            commands = leftovers + commands[last_cmd_index + 1 :]
             # old_n_shuttles = mz_circuit.get_n_shuttles()
             _make_necessary_config_moves((old_place, new_place), mz_circuit)
             # print("Added shuttles: ", mz_circuit.get_n_shuttles() - old_n_shuttles)
