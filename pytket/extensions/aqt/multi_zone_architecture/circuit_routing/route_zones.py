@@ -317,8 +317,8 @@ def route_circuit(
                     else:
                         leftovers.append(cmd)
                         stragglers.update([qubit0, qubit1])
+                last_cmd_index = i
                 if len(stragglers) >= n_qubits - 1:
-                    last_cmd_index = i
                     break
             commands = leftovers + commands[last_cmd_index + 1 :]
             # old_n_shuttles = mz_circuit.get_n_shuttles()
