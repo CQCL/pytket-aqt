@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import itertools
-import logging
 from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
@@ -27,7 +26,7 @@ from pytket.circuit import Circuit
 from pytket.circuit import CustomGateDef
 from pytket.circuit import OpType
 
-from ..architecture import EdgeType
+from ..architecture import EdgeType, ConnectionType
 from ..architecture import MultiZoneArchitecture
 from ..architecture import source_edge_type
 from ..architecture import target_edge_type
@@ -369,6 +368,7 @@ class MultiZoneCircuit:
                 if isinstance(multi_op, SwapWithinZone):
                     self._n_pswaps += 1
                 multi_op.append_to_circuit(self)
+            self.add_move_barrier()
 
     def add_gate(
         self,
@@ -417,11 +417,9 @@ class MultiZoneCircuit:
 
     def validate(self) -> None:
         if self._is_compiled:
-            logging.warning(
-                "Skipping requested validation because circuit is already compiled"
-                "MultiZoneCircuit.validate() only validates circuits pre-compilation"
-            )
+            self._validate_compiled()
             return
+
         current_multiop_index_per_qubit: dict[int, int] = {
             k: 0 for k in self.multi_zone_operations.keys()
         }
@@ -450,3 +448,91 @@ class MultiZoneCircuit:
                         f"Operation {i} = {cmd} involved qubits across multiple"
                         f"zones. {qubit_to_zone_message}"
                     )
+
+    def _validate_compiled(self) -> None:
+        current_placement = deepcopy(self.initial_zone_to_qubits)
+        current_qubit_to_zone = _get_qubit_to_zone(
+            self.pytket_circuit.n_qubits, current_placement
+        )
+        commands = self.pytket_circuit.get_commands()
+        for i, cmd in enumerate(commands):
+            op = cmd.op
+            optype = op.type
+            op_string = f"{op}"
+            # check init
+            if i < self.architecture.n_zones:
+                assert "INIT" in op_string
+                target_zone = int(op.params[0])
+                assert current_placement[target_zone] == [
+                    arg.index[0] for arg in cmd.args
+                ]
+            elif "MOVE_BARRIER" in op_string:
+                pass
+            elif "PSWAP" in op_string:
+                # check swap
+                qubit_1 = cmd.args[0].index[0]
+                qubit_2 = cmd.args[1].index[0]
+                zone = current_qubit_to_zone[qubit_1]
+                assert zone == current_qubit_to_zone[qubit_2]
+                index1 = current_placement[zone].index(qubit_1)
+                index2 = current_placement[zone].index(qubit_2)
+                assert abs(index1 - index2) == 1
+                # perform swap
+                current_placement[zone][index1] = qubit_2
+                current_placement[zone][index2] = qubit_1
+            elif "SHUTTLE" in op_string:
+                qubit = cmd.args[0].index[0]
+                target_zone = int(op.params[0])
+                origin_zone = current_qubit_to_zone[qubit]
+                # check zones connected
+                assert (
+                    target_zone in self.architecture.zones[origin_zone].connected_zones
+                )
+                connection_type = self.architecture.get_connection_type(
+                    origin_zone, target_zone
+                )
+                # check connection exists and perform shuttle
+                match connection_type:
+                    case ConnectionType.LeftToLeft:
+                        assert current_placement[origin_zone].index(qubit) == 0
+                        current_placement[origin_zone].pop(0)
+                        current_placement[target_zone].insert(0, qubit)
+                    case ConnectionType.LeftToRight:
+                        assert current_placement[origin_zone].index(qubit) == 0
+                        current_placement[origin_zone].pop(0)
+                        current_placement[target_zone].append(qubit)
+                    case ConnectionType.RightToLeft:
+                        assert (
+                            current_placement[origin_zone].index(qubit)
+                            == len(current_placement[origin_zone]) - 1
+                        )
+                        current_placement[origin_zone].pop()
+                        current_placement[target_zone].insert(0, qubit)
+                    case ConnectionType.RightToRight:
+                        assert (
+                            current_placement[origin_zone].index(qubit)
+                            == len(current_placement[origin_zone]) - 1
+                        )
+                        current_placement[origin_zone].pop()
+                        current_placement[target_zone].append(qubit)
+                current_qubit_to_zone[qubit] = target_zone
+            elif len(cmd.args) == 2:
+                qubit_1 = cmd.args[0].index[0]
+                qubit_2 = cmd.args[1].index[0]
+                assert current_qubit_to_zone[qubit_1] == current_qubit_to_zone[qubit_2]
+            else:
+                assert optype in [
+                    OpType.Rx,
+                    OpType.Ry,
+                    OpType.Rz,
+                    OpType.Measure,
+                    OpType.Barrier,
+                ]
+
+
+def _get_qubit_to_zone(n_qubits: int, placement: dict[int, list[int]]) -> list[int]:
+    qubit_to_zone: list[int] = [-1] * n_qubits
+    for zone, qubits in placement.items():
+        for qubit in qubits:
+            qubit_to_zone[qubit] = zone
+    return qubit_to_zone

@@ -84,6 +84,10 @@ def test_large_circuit(
     print("pswaps: ", n_pswaps)
     end_total_t = time.time()
     print("total time: ", end_total_t - total_t)
+    start = time.time()
+    mz_circuit.validate()
+    end = time.time()
+    print("validate time: ", end - start)
 
 
 def test_large_circuit2(
@@ -109,6 +113,7 @@ def test_large_circuit2(
     print("pswaps: ", n_pswaps)
     end_total_t = time.time()
     print("total time: ", end_total_t - total_t)
+    mz_circuit.validate()
 
 
 def test_large_circuit3(
@@ -133,6 +138,7 @@ def test_large_circuit3(
     print("pswaps: ", n_pswaps)
     end_total_t = time.time()
     print("total time: ", end_total_t - total_t)
+    mz_circuit.validate()
 
 
 def test_large_circuit_greedy(
@@ -151,6 +157,7 @@ def test_large_circuit_greedy(
     print("pswaps: ", n_pswaps)
     end_total_t = time.time()
     print("total time: ", end_total_t - total_t)
+    mz_circuit.validate()
 
 
 def test_large_circuit_greedy2(
@@ -175,6 +182,7 @@ def test_large_circuit_greedy2(
     print("pswaps: ", n_pswaps)
     end_total_t = time.time()
     print("total time: ", end_total_t - total_t)
+    mz_circuit.validate()
 
 
 def test_large_circuit_greedy3(
@@ -198,3 +206,4 @@ def test_large_circuit_greedy3(
     print("pswaps: ", n_pswaps)
     end_total_t = time.time()
     print("total time: ", end_total_t - total_t)
+    mz_circuit.validate()
