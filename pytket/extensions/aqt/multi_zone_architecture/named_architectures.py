@@ -346,7 +346,7 @@ six_zones_in_a_line_102 = MultiZoneArchitecture(
 
 
 racetrack = MultiZoneArchitecture(
-    n_qubits_max=64,
+    n_qubits_max=140,
     n_zones=28,
     zone_types=[
         ZoneType(
