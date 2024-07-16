@@ -98,13 +98,19 @@ def _make_necessary_config_moves(
     qubit_to_zone_old = _get_qubit_to_zone(n_qubits, old_place)
     qubit_to_zone_new = _get_qubit_to_zone(n_qubits, new_place)
     qubits_to_move: list[tuple[int, int, int]] = []
+    current_placement = deepcopy(old_place)
     for qubit in range(n_qubits):
-        if qubit_to_zone_old[qubit] != qubit_to_zone_new[qubit]:
+        old_zone = qubit_to_zone_old[qubit]
+        new_zone = qubit_to_zone_new[qubit]
+        if old_zone != new_zone:
             qubits_to_move.append(
                 (qubit, qubit_to_zone_old[qubit], qubit_to_zone_new[qubit])
             )
-    # print("N qubits to move: ", len(qubits_to_move))
-    current_placement = deepcopy(old_place)
+    # sort based on ascending number of free places in the target zone (at beginning)
+    qubits_to_move.sort(
+        key=lambda x: mz_circ.architecture.get_zone_max_ions(x[2])
+        - len(current_placement[x[2]])
+    )
 
     def _move_qubit(qubit_to_move: int, starting_zone: int, target_zone: int) -> None:
         mz_circ.move_qubit(qubit_to_move, target_zone, precompiled=True)
@@ -287,20 +293,27 @@ def route_circuit(
     start = time.time()
 
     if routing_alg == "partitioning":
-        commands = circuit.get_commands()
+        commands = circuit.get_commands().copy()
         for old_place, new_place in _placement_generator(
             n_qubits, arch, initial_placement, depth_list
         ):
             # for zone in old_place.keys():
             #    print("zone ", zone, ": ", old_place[zone], new_place[zone])
             leftovers = []
+            # stragglers are qubits with pending 2 qubit gates that cannot
+            # be performed in the old placement
+            # they have to wait for the next iteration
             stragglers: set[int] = set()
             qubit_to_zone_old = _get_qubit_to_zone(n_qubits, old_place)
             last_cmd_index = 0
             for i, cmd in enumerate(commands):
                 n_args = len(cmd.args)
                 if n_args == 1:
-                    mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
+                    qubit0 = cmd.args[0].index[0]
+                    if qubit0 in stragglers:
+                        leftovers.append(cmd)
+                    else:
+                        mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
                 elif n_args == 2:
                     qubit0 = cmd.args[0].index[0]
                     qubit1 = cmd.args[1].index[0]
@@ -320,7 +333,10 @@ def route_circuit(
                 last_cmd_index = i
                 if len(stragglers) >= n_qubits - 1:
                     break
-            commands = leftovers + commands[last_cmd_index + 1 :]
+            if last_cmd_index == len(commands) - 1:
+                commands = leftovers
+            else:
+                commands = leftovers + commands[last_cmd_index + 1 :]
             # old_n_shuttles = mz_circuit.get_n_shuttles()
             _make_necessary_config_moves((old_place, new_place), mz_circuit)
             # print("Added shuttles: ", mz_circuit.get_n_shuttles() - old_n_shuttles)
