@@ -501,7 +501,15 @@ def _initial_placement_graph_partition_alg(
         num_zones, len(arch_edges), arch_edges, arch_node_weights, arch_edge_weights
     )
 
-    block_weights = [arch.get_zone_max_ions(i) - 1 for i, _ in enumerate(arch.zones)]
+    # Leave
+    free_places_per_zone = [
+        2 if arch.get_zone_max_ions(i) > 3 else 1 for i, _ in enumerate(arch.zones)
+    ]
+
+    block_weights = [
+        arch.get_zone_max_ions(i) - free_places_per_zone[i]
+        for i, _ in enumerate(arch.zones)
+    ]
     num_spots = sum([m for m in block_weights])
 
     edges: list[tuple[int, int]] = []
@@ -660,16 +668,6 @@ def _new_placement_graph_partition_alg(
             else:
                 edges.append(pair)
                 edge_weights.append(weight)
-
-    # add edges to ensure zones are separated
-    # zone_zone_edges = [
-    #    (zone1, zone2)
-    #    for zone1 in range(n_qubits, n_qubits + num_zones)
-    #    for zone2 in range(n_qubits, n_qubits + num_zones)
-    #    if zone1 != zone2
-    # ]
-    # edges.extend(zone_zone_edges)
-    # edge_weights.extend([-max_weight * 2] * len(zone_zone_edges))
 
     # add shuttling penalty (just distance between zones for now,
     # should later be dependent on shuttling cost)

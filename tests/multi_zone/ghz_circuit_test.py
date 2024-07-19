@@ -92,19 +92,7 @@ def test_ghz_circuit_greedy(
     backend = AQTMultiZoneBackend(architecture=test_arch, access_token="invalid")
     end = time.time()
     print("backend construct time: ", end - start)
-    inital = {
-        0: [0, 1, 2],
-        1: [3, 4],
-        2: [5, 6],
-        3: [7, 8],
-        4: [9, 10],
-        5: [11, 12],
-        6: [13, 14],
-        7: [15],
-    }
-    for i in range(8, test_arch.n_zones):
-        inital[i] = []
-    mz_circuit = backend.compile_circuit_with_routing(ghz_circuit, inital, 0, "greedy")
+    mz_circuit = backend.compile_circuit_with_routing(ghz_circuit, None, 0, "greedy")
     n_shuttles = mz_circuit.get_n_shuttles()
     n_pswaps = mz_circuit.get_n_pswaps()
     print("shuttles: ", n_shuttles)
@@ -123,7 +111,19 @@ def test_ghz_circuit_greedy_hand_optimized_intitial_placement(
     backend = AQTMultiZoneBackend(architecture=test_arch, access_token="invalid")
     end = time.time()
     print("backend construct time: ", end - start)
-    mz_circuit = backend.compile_circuit_with_routing(ghz_circuit, None, 0, "greedy")
+    inital = {
+        0: [0, 1, 2],
+        1: [3, 4],
+        2: [5, 6],
+        3: [7, 8],
+        4: [9, 10],
+        5: [11, 12],
+        6: [13, 14],
+        7: [15],
+    }
+    for i in range(8, test_arch.n_zones):
+        inital[i] = []
+    mz_circuit = backend.compile_circuit_with_routing(ghz_circuit, inital, 0, "greedy")
     n_shuttles = mz_circuit.get_n_shuttles()
     n_pswaps = mz_circuit.get_n_pswaps()
     print("shuttles: ", n_shuttles)
