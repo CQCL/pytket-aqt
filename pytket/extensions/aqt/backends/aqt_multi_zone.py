@@ -21,7 +21,8 @@ from typing import Sequence
 from typing import Tuple
 from typing import Union
 
-from pytket._tket.unit_id import UnitID
+
+from pytket.unit_id import UnitID
 from pytket.backends import Backend
 from pytket.backends import CircuitStatus
 from pytket.backends import ResultHandle
@@ -59,7 +60,10 @@ from ..multi_zone_architecture.circuit.multizone_circuit import (
 from ..extension_version import __extension_version__
 from ..multi_zone_architecture.circuit_routing.route_zones import (
     route_circuit,
-    ZonePlacement,
+)
+from ..multi_zone_architecture.compilation_settings import CompilationSettings
+from ..multi_zone_architecture.initial_placement.initial_placement_generators import (
+    get_initial_placement_generator,
 )
 
 AQT_URL_PREFIX = "https://gateway.aqt.eu/marmot/"
@@ -249,8 +253,7 @@ class AQTMultiZoneBackend(Backend):
     def compile_circuit_with_routing(
         self,
         circuit: Circuit,
-        initial_placement: Optional[ZonePlacement] = None,
-        optimisation_level: int = 2,
+        compilation_settings: CompilationSettings = CompilationSettings.default(),
     ) -> MultiZoneCircuit:
         """
         Compile a pytket Circuit and route it to the backend architecture
@@ -260,13 +263,21 @@ class AQTMultiZoneBackend(Backend):
         """
         if not circuit.is_simple:
             raise ValueError(f"{type(self).__name__} only supports simple circuits")
-        compiled = super().get_compiled_circuit(circuit, optimisation_level)
+        compiled = super().get_compiled_circuit(
+            circuit, compilation_settings.pytket_optimisation_level
+        )
         # compilation renames qbit register to "fcNode" so rename back to "q"
         qubit_map = {
             cast(UnitID, qubit): cast(UnitID, Qubit(qubit.index[0]))
             for qubit in compiled.qubits
         }
         compiled.rename_units(qubit_map)
+        initial_placement_generator = get_initial_placement_generator(
+            compilation_settings.initial_placement,
+        )
+        initial_placement = initial_placement_generator.initial_placement(
+            circuit, self._architecture
+        )
         routed = route_circuit(compiled, self._architecture, initial_placement)
         routed.is_compiled = True
         return routed
