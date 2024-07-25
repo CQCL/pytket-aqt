@@ -293,7 +293,7 @@ class AQTMultiZoneBackend(Backend):
         optimisation level. The barriers within the Circuit mark move points
         which should not be optimised through.
 
-        Afterwards, the precomputed "PSWAP" and "SHUTTLE" operations are added
+        Afterward, the precomputed "PSWAP" and "SHUTTLE" operations are added
         at the appropriate barrier points.
         """
 

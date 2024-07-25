@@ -195,7 +195,7 @@ def test_automatically_routed_circuit_has_correct_syntax(
     circuit.CX(1, 2).CX(3, 4).CX(5, 6).CX(7, 0)
     circuit.measure_all()
     init_pl_settings = InitialPlacementSettings(
-        initial_placement_alg=InitialPlacementAlg.manual,
+        algorithm=InitialPlacementAlg.manual,
         manual_placement=initial_placement,
     )
     compilation_settings = CompilationSettings(initial_placement=init_pl_settings)

@@ -14,14 +14,14 @@ class RoutingAlg(Enum):
 
 @dataclass
 class RoutingSettings:
-    routing_alg: RoutingAlg
+    algorithm: RoutingAlg = RoutingAlg.graph_partition
 
     def __post_init__(self):
-        if not isinstance(self.routing_alg, RoutingAlg):
+        if not isinstance(self.algorithm, RoutingAlg):
             raise RoutingSettingsError(
-                f"{self.routing_alg.__name__}" f" must be of type {RoutingAlg.__name__}"
+                f"{self.algorithm.__name__}" f" must be of type {RoutingAlg.__name__}"
             )
 
     @classmethod
     def default(cls) -> RoutingSettings:
-        return RoutingSettings(routing_alg=RoutingAlg.graph_partition)
+        return RoutingSettings()

@@ -98,7 +98,7 @@ class GraphMapInitialPlacement(InitialPlacementGenerator):
 def get_initial_placement_generator(
     settings: InitialPlacementSettings,
 ) -> InitialPlacementGenerator:
-    match settings.initial_placement_alg:
+    match settings.algorithm:
         case InitialPlacementAlg.graph_partition:
             return GraphMapInitialPlacement(zone_free_space=settings.zone_free_space)
         case InitialPlacementAlg.qubit_order:
