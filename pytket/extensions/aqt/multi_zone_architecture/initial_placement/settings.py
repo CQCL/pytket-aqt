@@ -24,6 +24,8 @@ class InitialPlacementSettings:
     algorithm: InitialPlacementAlg = InitialPlacementAlg.graph_partition
     zone_free_space: int = 2
     manual_placement: ZonePlacement | None = None
+    n_threads: int = 1
+    max_depth: int = 200
 
     def __post_init__(self):
         if self.zone_free_space < MIN_ZONE_FREE_SPACE:
