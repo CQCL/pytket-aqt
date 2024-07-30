@@ -70,7 +70,7 @@ pyupgrade = ">=2.29,<4.0"
 optional = true
 
 [tool.poetry.group.docs.dependencies]
-sphinx  = ">=4.3.2,<8.0.0"
+sphinx  = ">=4.3.2,<9.0.0"
 sphinx_book_theme = ">= 1.0.1, < 2.0"
 sphinx-copybutton = "*"
 docutils = "*"
