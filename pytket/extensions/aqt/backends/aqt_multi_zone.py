@@ -58,12 +58,12 @@ from ..multi_zone_architecture.circuit.multizone_circuit import (
     MultiZoneCircuit,
 )
 from ..extension_version import __extension_version__
-from ..multi_zone_architecture.circuit_routing.route_zones import (
+from ..multi_zone_architecture.circuit_routing.route_circuit import (
     route_circuit,
 )
 from ..multi_zone_architecture.compilation_settings import CompilationSettings
 from ..multi_zone_architecture.initial_placement.initial_placement_generators import (
-    get_initial_placement_generator,
+    get_initial_placement,
 )
 
 AQT_URL_PREFIX = "https://gateway.aqt.eu/marmot/"
@@ -272,13 +272,16 @@ class AQTMultiZoneBackend(Backend):
             for qubit in compiled.qubits
         }
         compiled.rename_units(qubit_map)
-        initial_placement_generator = get_initial_placement_generator(
-            compilation_settings.initial_placement,
+
+        initial_placement = get_initial_placement(
+            compilation_settings.initial_placement, circuit, self._architecture
         )
-        initial_placement = initial_placement_generator.initial_placement(
-            circuit, self._architecture
+        routed = route_circuit(
+            compilation_settings.routing,
+            compiled,
+            self._architecture,
+            initial_placement,
         )
-        routed = route_circuit(compiled, self._architecture, initial_placement)
         routed.is_compiled = True
         return routed
 

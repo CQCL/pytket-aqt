@@ -1,3 +1,5 @@
+from typing import Optional
+
 import mtkahypar
 
 from pytket.extensions.aqt.multi_zone_architecture.graph_algs.graph import GraphData
@@ -21,7 +23,12 @@ class MtKahyparPartitioner:
         self.context.loadPreset(mtkahypar.PresetType.DEFAULT)
         self.context.logging = False
 
-    def partition_graph(self, graph_data: GraphData, num_parts: int) -> list[int]:
+    def partition_graph(
+        self,
+        graph_data: GraphData,
+        num_parts: int,
+        fixed_list: Optional[list[int]] = None,
+    ) -> list[int]:
         """Partition vertices of graph into num_parts parts
 
         Returns a list whose i'th element is the part that vertex i is assigned to
@@ -33,6 +40,8 @@ class MtKahyparPartitioner:
             mtkahypar.Objective.CUT,
         )
         graph = graph_data_to_mtkahypar_graph(graph_data)
+        if fixed_list:
+            graph.addFixedVertices(fixed_list, num_parts)
         part_graph = graph.partition(self.context)
         vertex_part_id: list[int] = []
         for vertex in range(graph_data.n_vertices):

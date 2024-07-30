@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Final
 
-from ..circuit_routing.route_zones import ZonePlacement
+from ..circuit_routing.route_circuit import ZonePlacement
 
 
 class InitialPlacementSettingsError(Exception):

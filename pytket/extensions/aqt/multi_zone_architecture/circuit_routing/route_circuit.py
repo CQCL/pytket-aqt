@@ -1,17 +1,13 @@
 from copy import deepcopy
-from typing import Optional
 
 from pytket import Qubit
 from pytket.circuit import Circuit
+
+from .partition_routing import PartitionCircuitRouter
+from .settings import RoutingSettings, RoutingAlg
 from ..architecture import MultiZoneArchitecture
+from ..circuit.helpers import ZonePlacement, ZoneRoutingError
 from ..circuit.multizone_circuit import MultiZoneCircuit
-
-ZonePlacement = dict[int, list[int]]
-QubitPlacement = dict[int, int]
-
-
-class ZoneRoutingError(Exception):
-    pass
 
 
 def _make_necessary_moves(
@@ -72,9 +68,10 @@ def _make_necessary_moves(
 
 
 def route_circuit(
+    settings: RoutingSettings,
     circuit: Circuit,
     arch: MultiZoneArchitecture,
-    initial_placement: Optional[ZonePlacement] = None,
+    initial_placement: ZonePlacement,
 ) -> MultiZoneCircuit:
     """
     Route a Circuit to a given MultiZoneArchitecture by adding
@@ -86,37 +83,50 @@ def route_circuit(
      placed using an internal algorithm in a "balanced" way across
     the available zones.
 
+    :param settings: Settings used to Route Circuit
     :param circuit: A pytket Circuit to be routed
     :param arch: MultiZoneArchitecture to route into
-    :param initial_placement: An optional initial mapping of architecture
-     zones to lists of qubits to use
+    :param initial_placement: The initial mapping of architecture
+     zones to lists of qubits
     """
-    n_qubits = circuit.n_qubits
-    if not initial_placement:
-        initial_placement = _calc_initial_placement(n_qubits, arch)
-    mz_circuit = MultiZoneCircuit(arch, initial_placement, n_qubits, circuit.n_bits)
-    current_qubit_to_zone = {}
-    for zone, qubit_list in initial_placement.items():
-        for qubit in qubit_list:
-            current_qubit_to_zone[qubit] = zone
-    current_zone_to_qubits = deepcopy(initial_placement)
 
-    for cmd in circuit.get_commands():
-        n_args = len(cmd.args)
-        if n_args == 1:
-            mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
-        elif n_args == 2:
-            if isinstance(cmd.args[0], Qubit) and isinstance(cmd.args[1], Qubit):
-                _make_necessary_moves(
-                    (cmd.args[0].index[0], cmd.args[1].index[0]),
-                    mz_circuit,
-                    current_qubit_to_zone,
-                    current_zone_to_qubits,
-                )
-            mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
-        else:
-            raise ZoneRoutingError("Circuit must be rebased to the AQT gate set")
-    return mz_circuit
+    match settings.algorithm:
+        case RoutingAlg.graph_partition:
+            router = PartitionCircuitRouter(circuit, arch, initial_placement, settings)
+            return router.get_routed_circuit()
+        case RoutingAlg.greedy:
+            n_qubits = circuit.n_qubits
+            mz_circuit = MultiZoneCircuit(
+                arch, initial_placement, n_qubits, circuit.n_bits
+            )
+            current_qubit_to_zone = {}
+            for zone, qubit_list in initial_placement.items():
+                for qubit in qubit_list:
+                    current_qubit_to_zone[qubit] = zone
+            current_zone_to_qubits = deepcopy(initial_placement)
+
+            for cmd in circuit.get_commands():
+                n_args = len(cmd.args)
+                if n_args == 1:
+                    mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
+                elif n_args == 2:
+                    if isinstance(cmd.args[0], Qubit) and isinstance(
+                        cmd.args[1], Qubit
+                    ):
+                        _make_necessary_moves(
+                            (cmd.args[0].index[0], cmd.args[1].index[0]),
+                            mz_circuit,
+                            current_qubit_to_zone,
+                            current_zone_to_qubits,
+                        )
+                    mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
+                else:
+                    raise ZoneRoutingError(
+                        "Circuit must be rebased to the AQT gate set"
+                    )
+            return mz_circuit
+        case _:
+            raise ValueError("Unknown routing algorithm")
 
 
 def _calc_initial_placement(

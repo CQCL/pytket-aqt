@@ -4,7 +4,7 @@ from typing import Protocol
 from logging import getLogger
 
 from pytket import Circuit
-from ..circuit_routing.route_zones import ZonePlacement
+from ..circuit.helpers import ZonePlacement
 from .settings import InitialPlacementSettings, InitialPlacementAlg
 
 from ..architecture import MultiZoneArchitecture
@@ -233,3 +233,10 @@ def get_initial_placement_generator(
         case InitialPlacementAlg.manual:
             assert settings.manual_placement is not None
             return ManualInitialPlacement(placement=settings.manual_placement)
+
+
+def get_initial_placement(
+    settings: InitialPlacementSettings, circuit: Circuit, arch: MultiZoneArchitecture
+) -> ZonePlacement:
+    initial_placement_generator = get_initial_placement_generator(settings)
+    return initial_placement_generator.initial_placement(circuit, arch)
