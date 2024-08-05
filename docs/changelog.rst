@@ -1,12 +1,13 @@
 Changelog
 ~~~~~~~~~
 
-Unreleased
-----------
+0.34.0 (August 2024)
+--------------------
 
 * Implement new aqt api
 * Fix handling of ``simplify_initial`` kwarg in ``process_circuits()``.
 * Updated Qiskit AQT Provider to v1.8.
+* Updated pytket version requirement to 1.31.
 
 0.33.0 (March 2024)
 -------------------
