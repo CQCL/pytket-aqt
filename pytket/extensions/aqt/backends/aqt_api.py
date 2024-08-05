@@ -204,10 +204,10 @@ class AqtMockApi(AqtApi):
 
 def _aqt_job_from_pytket_aqt_job(
     job: PytketAqtJob,
-) -> api_models.JobSubmission:
-    """Create AQT JobSubmission from a list of circuits
+) -> api_models.SubmitJobRequest:
+    """Create AQT SubmitJobRequest from a list of circuits
     and corresponding numbers of shots"""
-    return api_models.JobSubmission(
+    return api_models.SubmitJobRequest(
         job_type="quantum_circuit",
         label="pytket",
         payload=api_models.QuantumCircuits(
