@@ -6,6 +6,7 @@ Unreleased
 
 * Implement new aqt api
 * Fix handling of ``simplify_initial`` kwarg in ``process_circuits()``.
+* Updated Qiskit AQT Provider to v1.8.
 
 0.33.0 (March 2024)
 -------------------
