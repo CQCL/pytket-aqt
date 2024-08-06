@@ -40,6 +40,10 @@ class PartitionCircuitRouter:
             self._arch, self._initial_placement, n_qubits, self._circuit.n_bits
         )
         for old_place, new_place in self.placement_generator(depth_list):
+            if self._settings.debug_level > 0:
+                print("-------")
+                for zone in range(self._arch.n_zones):
+                    print(f"{zone}: {old_place[zone]} -> {new_place[zone]}")
             leftovers = []
             # stragglers are qubits with pending 2 qubit gates that cannot
             # be performed in the old placement

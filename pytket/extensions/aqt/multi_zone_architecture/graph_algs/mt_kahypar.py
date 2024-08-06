@@ -18,7 +18,7 @@ def graph_data_to_mtkahypar_graph(graph_data: GraphData) -> mtkahypar.Graph:
 class MtKahyparPartitioner:
     def __init__(self, n_threads):
         mtkahypar.initializeThreadPool(n_threads)
-        mtkahypar.setSeed(10)
+        mtkahypar.setSeed(13)
         self.context = mtkahypar.Context()
         self.context.loadPreset(mtkahypar.PresetType.DEFAULT)
         self.context.logging = False
@@ -43,6 +43,7 @@ class MtKahyparPartitioner:
         if fixed_list:
             graph.addFixedVertices(fixed_list, num_parts)
         part_graph = graph.partition(self.context)
+        print("cut_cost: ", part_graph.cut())
         vertex_part_id: list[int] = []
         for vertex in range(graph_data.n_vertices):
             vertex_part_id.append(part_graph.blockID(vertex))

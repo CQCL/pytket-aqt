@@ -16,6 +16,7 @@ class RoutingAlg(Enum):
 class RoutingSettings:
     algorithm: RoutingAlg = RoutingAlg.graph_partition
     n_threads: int = 1
+    debug_level: int = 0
 
     def __post_init__(self):
         if not isinstance(self.algorithm, RoutingAlg):
