@@ -356,8 +356,9 @@ def _placement_generator(
     max_iter = len(depth_list)
     iteration = 0
     while depth_list:
+        printy = False
         new_placement = _new_placement_graph_partition_alg(
-            n_qubits, arch, depth_list, current_placement
+            n_qubits, arch, depth_list, current_placement, printy
         )
         depth_list = _get_updated_depth_list(n_qubits, new_placement, depth_list)
         yield current_placement, new_placement
@@ -406,8 +407,8 @@ def route_circuit(
         for old_place, new_place in _placement_generator(
             n_qubits, arch, initial_placement, depth_list
         ):
-            # for zone in old_place.keys():
-            #    print("zone ", zone, ": ", old_place[zone], new_place[zone])
+            for zone in old_place.keys():
+                print("zone ", zone, ": ", old_place[zone], new_place[zone])
             leftovers = []
             # stragglers are qubits with pending 2 qubit gates that cannot
             # be performed in the old placement
@@ -416,6 +417,7 @@ def route_circuit(
             qubit_to_zone_old = _get_qubit_to_zone(n_qubits, old_place)
             last_cmd_index = 0
             for i, cmd in enumerate(commands):
+                last_cmd_index = i
                 n_args = len(cmd.args)
                 if n_args == 1:
                     qubit0 = cmd.args[0].index[0]
@@ -439,7 +441,6 @@ def route_circuit(
                     else:
                         leftovers.append(cmd)
                         stragglers.update([qubit0, qubit1])
-                last_cmd_index = i
                 if len(stragglers) >= n_qubits - 1:
                     break
             if last_cmd_index == len(commands) - 1:
@@ -626,13 +627,21 @@ def _initial_placement_graph_partition_alg(
         mtkahypar.Objective.CUT,
     )
     context.logging = False
-    mtkahypar.setSeed(100)
+    mtkahypar.setSeed(10)
 
     arch_graph = mtkahypar.Graph(
         num_zones, len(arch_edges), arch_edges, arch_node_weights, arch_edge_weights
     )
 
-    block_weights = [arch.get_zone_max_ions(i) - 1 for i, _ in enumerate(arch.zones)]
+    # Leave
+    free_places_per_zone = [
+        2 if arch.get_zone_max_ions(i) > 3 else 1 for i, _ in enumerate(arch.zones)
+    ]
+
+    block_weights = [
+        arch.get_zone_max_ions(i) - free_places_per_zone[i]
+        for i, _ in enumerate(arch.zones)
+    ]
     num_spots = sum([m for m in block_weights])
 
     edges: list[tuple[int, int]] = []
@@ -731,8 +740,8 @@ def _initial_placement_graph_partition_alg(
         mapping[zone] = sortgr.blockID(zone)
         initial_placement2[sortgr.blockID(zone)] = initial_placement[zone]
 
-    print(block_assignments)
-    print(initial_placement)
+    # print(block_assignments)
+    # print(initial_placement)
     print(initial_placement2)
     all_qubits = []
     # check for duplicate qubits
@@ -750,6 +759,7 @@ def _new_placement_graph_partition_alg(
     arch: MultiZoneArchitecture,
     depth_list: list[list[tuple[int, int]]],
     initial_placement: ZonePlacement,
+    printy: bool = False,
 ) -> ZonePlacement:
     n_qubits_max = arch.n_qubits_max
     if n_qubits > n_qubits_max:
@@ -779,12 +789,12 @@ def _new_placement_graph_partition_alg(
 
     # add gate edges
     max_considered_depth = min(200, len(depth_list))
-    max_weight = math.ceil(math.pow(2, 20))
+    max_weight = math.ceil(math.pow(2, 18))
     for i, pairs in enumerate(depth_list):
         if i > max_considered_depth:
             break
         # weight = math.ceil(math.exp(-3/avg_block_weight * i) * max_weight)
-        weight = math.ceil(math.exp(-1 * i) * max_weight)
+        weight = math.ceil(math.exp(-2 * i) * max_weight)
         for pair in pairs:
             if pair in edges:
                 index = edges.index(pair)
@@ -793,54 +803,39 @@ def _new_placement_graph_partition_alg(
                 edges.append(pair)
                 edge_weights.append(weight)
 
-    # add edges to ensure zones are separated
-    # zone_zone_edges = [
-    #    (zone1, zone2)
-    #    for zone1 in range(n_qubits, n_qubits + num_zones)
-    #    for zone2 in range(n_qubits, n_qubits + num_zones)
-    #    if zone1 != zone2
-    # ]
-    # edges.extend(zone_zone_edges)
-    # edge_weights.extend([-max_weight * 2] * len(zone_zone_edges))
-
     # add shuttling penalty (just distance between zones for now,
     # should later be dependent on shuttling cost)
 
     macro_arch = empty_macro_arch_from_architecture(arch)
-    zone_qbit_edges: list[tuple[str, str, int]] = []
 
     def shuttling_penalty(zone1: int, other_zone1: int):
         shortest_path = macro_arch.shortest_path(ZoneId(zone1), ZoneId(other_zone1))
         return len(shortest_path)
 
     # max_shuttle_weight = math.ceil(math.exp(-3/avg_block_weight * 5) * max_weight)
-    max_shuttle_weight = math.ceil(math.exp(-0.5 * 5) * max_weight)
+    max_shuttle_weight = math.ceil(max_weight - 10000)
     for zone, qubits in initial_placement.items():
         for other_zone in range(num_zones):
-            edges.extend([(other_zone + n_qubits, qubit) for qubit in qubits])
-            edge_weights.extend(
-                [
-                    max(
-                        0,
-                        max_shuttle_weight
-                        - shuttling_penalty(zone, other_zone) ** 2 * 1000,
-                    )
-                    for _ in qubits
-                ]
+            weight = math.ceil(
+                math.exp(-0.8 * (shuttling_penalty(zone, other_zone) + 4))
+                * max_shuttle_weight
             )
-            zone_qbit_edges.extend(
-                [
-                    (
-                        f"Z{other_zone}",
-                        f"q{qubit}",
-                        max(
-                            0,
-                            max_shuttle_weight
-                            - shuttling_penalty(zone, other_zone) ** 2 * 1000,
-                        ),
-                    )
-                    for qubit in qubits
-                ]
+            if weight < 1:
+                continue
+            edges.extend([(other_zone + n_qubits, qubit) for qubit in qubits])
+            edge_weights.extend([weight for _ in qubits])
+
+    if printy:
+        print("numspots: ", num_spots)
+        for i in range(len(edges)):
+            print(
+                "edges.emplace_back(",
+                edges[i][0],
+                ",",
+                edges[i][1],
+                ",",
+                edge_weights[i],
+                ");",
             )
 
     num_vertices = num_spots

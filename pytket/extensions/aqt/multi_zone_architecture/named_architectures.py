@@ -346,12 +346,12 @@ six_zones_in_a_line_102 = MultiZoneArchitecture(
 
 
 racetrack = MultiZoneArchitecture(
-    n_qubits_max=140,
+    n_qubits_max=84,
     n_zones=28,
     zone_types=[
         ZoneType(
             name="Middle",
-            max_ions=7,
+            max_ions=4,
             min_ions=0,
             zone_connections={
                 "LR": ZoneConnection(

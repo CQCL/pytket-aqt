@@ -28,7 +28,6 @@ from pytket.extensions.aqt.multi_zone_architecture.circuit.multizone_circuit imp
 )
 from pytket.extensions.aqt.multi_zone_architecture.named_architectures import (
     four_zones_in_a_line,
-    racetrack,
 )
 
 from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.route_zones import (
@@ -38,7 +37,9 @@ from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.route_zones i
 
 @pytest.fixture()
 def backend() -> AQTMultiZoneBackend:
-    return AQTMultiZoneBackend(architecture=racetrack, access_token="invalid")
+    return AQTMultiZoneBackend(
+        architecture=four_zones_in_a_line, access_token="invalid"
+    )
 
 
 def test_not_implemented_functionality_throws(backend: AQTMultiZoneBackend) -> None:
@@ -227,8 +228,7 @@ def test_kahypar() -> None:
 
 def test_mtkahypar() -> None:
     k = 3
-
-    mtkahypar.initializeThreadPool(multiprocessing.cpu_count())
+    mtkahypar.initializeThreadPool(1)
     context = mtkahypar.Context()
     context.loadPreset(mtkahypar.PresetType.DEFAULT)
     context.setPartitioningParameters(
@@ -236,20 +236,24 @@ def test_mtkahypar() -> None:
         0.1,
         mtkahypar.Objective.CUT,
     )
-    mtkahypar.setSeed(42)
-    context.logging = True
+    mtkahypar.setSeed(45)
+    context.logging = False
 
     num_nodes = 9
     node_weights = [1] * num_nodes
 
     edges = [(0, 1), (0, 2), (3, 4), (3, 5), (6, 7), (6, 8)]
     edge_weights = [1] * len(edges)
-    edges.extend([(0, 3), (0, 6), (3, 6)])
-    edge_weights.extend([-500, -500, -500])
 
     graph = mtkahypar.Graph(num_nodes, len(edges), edges, node_weights, edge_weights)
 
+    fixed_list = [-1] * num_nodes
+    fixed_list[0] = 0
+    fixed_list[3] = 2
+    fixed_list[6] = 1
+    graph.addFixedVertices(fixed_list, k)
     partitioned_graph = graph.partition(context)
+
     block_assignments = {i: [] for i in range(k)}
     for vertex in range(num_nodes):
         block_assignments[partitioned_graph.blockID(vertex)].append(vertex)
@@ -318,7 +322,7 @@ def test_automatically_routed_circuit_has_correct_syntax(
     aqt_shuttles = 0
     aqt_pswaps = 0
     for i, operation in enumerate(aqt_operation_list):
-        if i < 4:
+        if i < backend._architecture.n_zones:
             assert operation[0] == "INIT"
         else:
             assert operation[0] != "INIT"
