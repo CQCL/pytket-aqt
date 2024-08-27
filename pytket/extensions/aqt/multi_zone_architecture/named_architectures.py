@@ -193,7 +193,7 @@ racetrack = MultiZoneArchitecture(
     zone_types=[
         ZoneType(
             name="Middle",
-            max_ions=4,
+            max_ions=6,
             min_ions=0,
             zone_connections={
                 "LR": ZoneConnection(

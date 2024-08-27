@@ -18,7 +18,6 @@ from ..macro_architecture_graph import empty_macro_arch_from_architecture, ZoneI
 
 
 class PartitionCircuitRouter:
-
     def __init__(
         self,
         circuit: Circuit,
@@ -43,7 +42,20 @@ class PartitionCircuitRouter:
             if self._settings.debug_level > 0:
                 print("-------")
                 for zone in range(self._arch.n_zones):
-                    print(f"{zone}: {old_place[zone]} -> {new_place[zone]}")
+                    changes_str = ", ".join(
+                        [
+                            f"+{i}"
+                            for i in set(new_place[zone]).difference(old_place[zone])
+                        ]
+                        + [
+                            f"-{i}"
+                            for i in set(old_place[zone]).difference(new_place[zone])
+                        ]
+                    )
+                    print(
+                        f"Z{zone}: {old_place[zone]} ->"
+                        f" {new_place[zone]} -- ({changes_str})"
+                    )
             leftovers = []
             # stragglers are qubits with pending 2 qubit gates that cannot
             # be performed in the old placement
@@ -128,7 +140,9 @@ class PartitionCircuitRouter:
         shuttle_graph_data, fixed_list = self.get_circuit_shuttle_graph_data(
             starting_placement, depth_list
         )
-        partitioner = MtKahyparPartitioner(self._settings.n_threads)
+        partitioner = MtKahyparPartitioner(
+            self._settings.n_threads, log_level=self._settings.debug_level
+        )
         vertex_to_part = partitioner.partition_graph(
             shuttle_graph_data, num_zones, fixed_list
         )

@@ -16,7 +16,7 @@ class InitialPlacementAlg(Enum):
     graph_partition = 2
 
 
-MIN_ZONE_FREE_SPACE: Final = 2
+MIN_ZONE_FREE_SPACE: Final = 1
 
 
 @dataclass

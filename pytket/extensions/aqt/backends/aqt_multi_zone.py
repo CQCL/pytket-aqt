@@ -250,6 +250,48 @@ class AQTMultiZoneBackend(Backend):
         """
         raise NotImplementedError
 
+    def precompile_circuit(
+        self,
+        circuit: Circuit,
+        compilation_settings: CompilationSettings = CompilationSettings.default(),
+    ) -> Circuit:
+        """
+        Compile a pytket Circuit assuming all to all connectivity
+
+        Returns a Circuit that conforms to the backend
+         architectures gate set but not connectivity
+
+        """
+        if not circuit.is_simple:
+            raise ValueError(f"{type(self).__name__} only supports simple circuits")
+        compiled = super().get_compiled_circuit(
+            circuit, compilation_settings.pytket_optimisation_level
+        )
+        # compilation renames qbit register to "fcNode" so rename back to "q"
+        qubit_map = {
+            cast(UnitID, qubit): cast(UnitID, Qubit(qubit.index[0]))
+            for qubit in compiled.qubits
+        }
+        compiled.rename_units(qubit_map)
+        return compiled
+
+    def route_precompiled(
+        self,
+        precompiled: Circuit,
+        compilation_settings: CompilationSettings = CompilationSettings.default(),
+    ):
+        initial_placement = get_initial_placement(
+            compilation_settings.initial_placement, precompiled, self._architecture
+        )
+        routed = route_circuit(
+            compilation_settings.routing,
+            precompiled,
+            self._architecture,
+            initial_placement,
+        )
+        routed.is_compiled = True
+        return routed
+
     def compile_circuit_with_routing(
         self,
         circuit: Circuit,
@@ -274,7 +316,7 @@ class AQTMultiZoneBackend(Backend):
         compiled.rename_units(qubit_map)
 
         initial_placement = get_initial_placement(
-            compilation_settings.initial_placement, circuit, self._architecture
+            compilation_settings.initial_placement, compiled, self._architecture
         )
         routed = route_circuit(
             compilation_settings.routing,
