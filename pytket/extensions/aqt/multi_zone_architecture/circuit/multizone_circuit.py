@@ -17,9 +17,9 @@ from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
-from typing import Any, Optional, Iterator
+from typing import Any, Optional, Iterator, TypeAlias
 
-from sympy import symbols, Expr
+from sympy import symbols, Expr  # type: ignore
 
 from pytket.circuit import UnitID
 from pytket.circuit import Circuit
@@ -34,7 +34,7 @@ from ..macro_architecture_graph import empty_macro_arch_from_architecture
 from ..macro_architecture_graph import MultiZoneMacroArch
 from ..macro_architecture_graph import ZoneId
 
-ParamType = Expr | float
+ParamType: TypeAlias = Expr | float
 
 
 class QubitPlacementError(Exception):
