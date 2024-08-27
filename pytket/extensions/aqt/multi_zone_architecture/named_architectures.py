@@ -249,9 +249,7 @@ racetrack = MultiZoneArchitecture(
 )
 
 
-grid_zone_max_ion = 5
-
-
+grid_zone_max_ion = 8
 grid7 = MultiZoneArchitecture(
     n_qubits_max=32,
     n_zones=7,
