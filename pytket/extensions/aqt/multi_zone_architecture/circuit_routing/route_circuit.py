@@ -1,11 +1,16 @@
 from pytket.circuit import Circuit
-
 from .greedy_routing import GreedyCircuitRouter
-from .partition_routing import PartitionCircuitRouter
 from .settings import RoutingSettings, RoutingAlg
 from ..architecture import MultiZoneArchitecture
 from ..circuit.helpers import ZonePlacement
 from ..circuit.multizone_circuit import MultiZoneCircuit
+from ..graph_algs.mt_kahypar_check import (
+    MT_KAHYPAR_INSTALLED,
+    MissingMtKahyparInstallError,
+)
+
+if MT_KAHYPAR_INSTALLED:
+    from .partition_routing import PartitionCircuitRouter
 
 
 def route_circuit(
@@ -32,9 +37,12 @@ def route_circuit(
     """
     match settings.algorithm:
         case RoutingAlg.graph_partition:
-            return PartitionCircuitRouter(
-                circuit, arch, initial_placement, settings
-            ).get_routed_circuit()
+            if MT_KAHYPAR_INSTALLED:
+                return PartitionCircuitRouter(
+                    circuit, arch, initial_placement, settings
+                ).get_routed_circuit()
+            else:
+                raise MissingMtKahyparInstallError()
         case RoutingAlg.greedy:
             return GreedyCircuitRouter(
                 circuit, arch, initial_placement, settings

@@ -4,6 +4,11 @@ from typing import Protocol
 from logging import getLogger
 
 from pytket import Circuit
+
+from ..graph_algs.mt_kahypar_check import (
+    MT_KAHYPAR_INSTALLED,
+    MissingMtKahyparInstallError,
+)
 from ..circuit.helpers import ZonePlacement
 from .settings import InitialPlacementSettings, InitialPlacementAlg
 
@@ -223,11 +228,14 @@ def get_initial_placement_generator(
 ) -> InitialPlacementGenerator:
     match settings.algorithm:
         case InitialPlacementAlg.graph_partition:
-            return GraphMapInitialPlacement(
-                zone_free_space=settings.zone_free_space,
-                n_threads=settings.n_threads,
-                max_depth=settings.max_depth,
-            )
+            if MT_KAHYPAR_INSTALLED:
+                return GraphMapInitialPlacement(
+                    zone_free_space=settings.zone_free_space,
+                    n_threads=settings.n_threads,
+                    max_depth=settings.max_depth,
+                )
+            else:
+                raise MissingMtKahyparInstallError()
         case InitialPlacementAlg.qubit_order:
             return QubitOrderInitialPlacement(zone_free_space=settings.zone_free_space)
         case InitialPlacementAlg.manual:

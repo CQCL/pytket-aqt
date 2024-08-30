@@ -21,7 +21,7 @@ MIN_ZONE_FREE_SPACE: Final = 1
 
 @dataclass
 class InitialPlacementSettings:
-    algorithm: InitialPlacementAlg = InitialPlacementAlg.graph_partition
+    algorithm: InitialPlacementAlg = InitialPlacementAlg.qubit_order
     zone_free_space: int = 2
     manual_placement: ZonePlacement | None = None
     n_threads: int = 1

@@ -14,7 +14,7 @@ class RoutingAlg(Enum):
 
 @dataclass
 class RoutingSettings:
-    algorithm: RoutingAlg = RoutingAlg.graph_partition
+    algorithm: RoutingAlg = RoutingAlg.greedy
     n_threads: int = 1
     debug_level: int = 0
 

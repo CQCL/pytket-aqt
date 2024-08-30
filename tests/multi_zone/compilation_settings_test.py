@@ -22,6 +22,11 @@ from pytket.extensions.aqt.multi_zone_architecture.compilation_settings import (
     CompilationSettings,
 )
 
+from pytket.extensions.aqt.multi_zone_architecture.graph_algs.mt_kahypar_check import (
+    MT_KAHYPAR_INSTALLED,
+    MissingMtKahyparInstallError,
+)
+
 
 @pytest.fixture
 def ghz_circuit() -> Circuit:
@@ -55,16 +60,20 @@ graph_routing = RoutingSettings(algorithm=RoutingAlg.graph_partition, debug_leve
 
 greedy_routing = RoutingSettings(algorithm=RoutingAlg.greedy)
 
+graph_skipif = pytest.mark.skipif(
+    not MT_KAHYPAR_INSTALLED, reason="mtkahypar required for testing graph partitioning"
+)
+
 
 @pytest.mark.parametrize(
     "opt_level, initial_pl_settings, routing_settings",
     [
-        (0, manual_placement, greedy_routing),
-        (0, manual_placement, graph_routing),
-        (0, ordered_placement, greedy_routing),
-        (0, ordered_placement, graph_routing),
-        (0, graph_placement, greedy_routing),
-        (0, graph_placement, graph_routing),
+        pytest.param(0, manual_placement, greedy_routing),
+        pytest.param(0, manual_placement, graph_routing, marks=graph_skipif),
+        pytest.param(0, ordered_placement, greedy_routing),
+        pytest.param(0, ordered_placement, graph_routing, marks=graph_skipif),
+        pytest.param(0, graph_placement, greedy_routing, marks=graph_skipif),
+        pytest.param(0, graph_placement, graph_routing, marks=graph_skipif),
     ],
 )
 def test_compilation_settings_linearch(
@@ -85,6 +94,36 @@ def test_compilation_settings_linearch(
     print("Shuttles: ", compiled.get_n_shuttles())
 
 
+mtkahypar_skipif = pytest.mark.skipif(
+    MT_KAHYPAR_INSTALLED, reason="mtkahypar is installed, so won't raise"
+)
+
+
+@pytest.mark.parametrize(
+    "opt_level, initial_pl_settings, routing_settings",
+    [
+        pytest.param(0, ordered_placement, graph_routing, marks=mtkahypar_skipif),
+        pytest.param(0, graph_placement, greedy_routing, marks=mtkahypar_skipif),
+    ],
+)
+def test_throws_mtkahypar_missing_if_graph_partition_without_mtkahypar(
+    opt_level: int,
+    initial_pl_settings: InitialPlacementSettings,
+    routing_settings: RoutingSettings,
+    ghz_circuit: Circuit,
+) -> None:
+    backend = AQTMultiZoneBackend(
+        architecture=four_zones_in_a_line, access_token="invalid"
+    )
+    compilation_settings = CompilationSettings(
+        pytket_optimisation_level=opt_level,
+        initial_placement=initial_pl_settings,
+        routing=routing_settings,
+    )
+    with pytest.raises(MissingMtKahyparInstallError):
+        backend.compile_circuit_with_routing(ghz_circuit, compilation_settings)
+
+
 manual_placement_grid = InitialPlacementSettings(
     algorithm=InitialPlacementAlg.manual,
     manual_placement={
@@ -101,12 +140,12 @@ manual_placement_grid = InitialPlacementSettings(
 @pytest.mark.parametrize(
     "opt_level, initial_pl_settings, routing_settings",
     [
-        (0, manual_placement_grid, greedy_routing),
-        (0, manual_placement_grid, graph_routing),
-        (0, ordered_placement, greedy_routing),
-        (0, ordered_placement, graph_routing),
-        (0, graph_placement, greedy_routing),
-        (0, graph_placement, graph_routing),
+        pytest.param(0, manual_placement_grid, greedy_routing),
+        pytest.param(0, manual_placement_grid, graph_routing, marks=graph_skipif),
+        pytest.param(0, ordered_placement, greedy_routing),
+        pytest.param(0, ordered_placement, graph_routing, marks=graph_skipif),
+        pytest.param(0, graph_placement, greedy_routing, marks=graph_skipif),
+        pytest.param(0, graph_placement, graph_routing, marks=graph_skipif),
     ],
 )
 def test_compilation_settings_gridarch(
