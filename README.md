@@ -31,6 +31,10 @@ prompt will store it in memory for further API use. Skip the prompt to see the a
 simulators. It is also possible to store and use your access token across sessions using
 `config.set_aqt_config`.
 
+## Ion Shuttling
+
+The `AQTMultiZoneBackend` supports routing of a circuit to a particular segmented ion-trap architecture before submission. This feature is experimental and not necessary for any currently available AQT devices. In order to use the graph partitioning based algorithms within this context, a manual installation of the [mt-kahypar](https://github.com/kahypar/mt-kahypar) package is necessary. See the instructions there for details.
+
 ## Bugs, support and feature requests
 
 Please file bugs and feature requests on the Github
