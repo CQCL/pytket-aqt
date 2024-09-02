@@ -18,6 +18,16 @@ from ..macro_architecture_graph import empty_macro_arch_from_architecture, ZoneI
 
 
 class PartitionCircuitRouter:
+    """Uses graph partitioning to add shuttles and swaps to a circuit
+
+    The routed circuit can be directly run on the given Architecture
+
+    :param circuit: The circuit to be routed
+    :param arch: The architecture to route to
+    :param initial_placement: The initial placement of ions in the ion trap zones
+    :param settings: The settings used for routing
+    """
+
     def __init__(
         self,
         circuit: Circuit,
@@ -32,6 +42,7 @@ class PartitionCircuitRouter:
         self._settings = settings
 
     def get_routed_circuit(self) -> MultiZoneCircuit:
+        """Returns the routed MultiZoneCircuit"""
         n_qubits = self._circuit.n_qubits
         depth_list = get_initial_depth_list(self._circuit)
         commands = self._circuit.get_commands().copy()
@@ -104,7 +115,14 @@ class PartitionCircuitRouter:
     def placement_generator(
         self, depth_list: DepthList
     ) -> tuple[ZonePlacement, ZonePlacement]:
-        # generates pairs of configs representing one shuttling step
+        """Generates pairs of ZonePlacements representing one shuttling step
+
+        The first placement represents the current state of the trap, the second
+        represents the "optimal" next state to implement the remaining gates in
+        the depth list.
+
+        :param depth_list: The list of gates used to determine the next ion placement.
+        """
         current_placement = deepcopy(self._initial_placement)
         n_qubits = self._circuit.n_qubits
         qubit_to_zone = _get_qubit_to_zone(n_qubits, current_placement)
@@ -128,6 +146,15 @@ class PartitionCircuitRouter:
         depth_list: DepthList,
         starting_placement: ZonePlacement,
     ) -> ZonePlacement:
+        """Generates a new ZonePlacement to implement the next gates
+
+        The returned ZonePlacement
+        represents the "optimal" next state to implement the remaining gates in
+        the depth list.
+
+        :param depth_list: The list of gates used to determine the next ion placement.
+        :param starting_placement: The starting configuration of ions in ion trap zones
+        """
         n_qubits = self._circuit.n_qubits
         n_qubits_max = self._arch.n_qubits_max
         if n_qubits > n_qubits_max:
@@ -137,15 +164,13 @@ class PartitionCircuitRouter:
             )
 
         num_zones = self._arch.n_zones
-        shuttle_graph_data, fixed_list = self.get_circuit_shuttle_graph_data(
+        shuttle_graph_data = self.get_circuit_shuttle_graph_data(
             starting_placement, depth_list
         )
         partitioner = MtKahyparPartitioner(
             self._settings.n_threads, log_level=self._settings.debug_level
         )
-        vertex_to_part = partitioner.partition_graph(
-            shuttle_graph_data, num_zones, fixed_list
-        )
+        vertex_to_part = partitioner.partition_graph(shuttle_graph_data, num_zones)
         new_placement = {i: [] for i in range(num_zones)}
         part_to_zone = [-1] * num_zones
         for vertex in range(n_qubits, n_qubits + num_zones):
@@ -156,7 +181,8 @@ class PartitionCircuitRouter:
 
     def get_circuit_shuttle_graph_data(
         self, starting_placement: ZonePlacement, depth_list: DepthList
-    ) -> tuple[GraphData, list[int]]:
+    ) -> GraphData:
+        """Calculate graph data for qubit-zone graph to be partitioned"""
         n_qubits = self._circuit.n_qubits
         num_zones = self._arch.n_zones
         num_spots = sum(
@@ -206,9 +232,10 @@ class PartitionCircuitRouter:
             + [-1] * (num_vertices - n_qubits - num_zones)
         )
 
-        return GraphData(num_vertices, vertex_weights, edges, edge_weights), fixed_list
+        return GraphData(num_vertices, vertex_weights, edges, edge_weights, fixed_list)
 
     def shuttling_penalty(self, zone1: int, other_zone1: int):
+        """Calculate penalty for shuttling from one zone to another"""
         shortest_path = self._macro_arch.shortest_path(
             ZoneId(zone1), ZoneId(other_zone1)
         )

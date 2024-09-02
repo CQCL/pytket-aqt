@@ -9,6 +9,15 @@ from ..circuit.helpers import ZonePlacement, ZoneRoutingError
 
 
 class GreedyCircuitRouter:
+    """Uses a simple greedy algorithm to add shuttles and swaps to a circuit
+
+    The routed circuit can be directly run on the given Architecture
+
+    :param circuit: The circuit to be routed
+    :param arch: The architecture to route to
+    :param initial_placement: The initial placement of ions in the ion trap zones
+    :param settings: The settings used for routing
+    """
 
     def __init__(
         self,
@@ -23,6 +32,7 @@ class GreedyCircuitRouter:
         self._settings = settings
 
     def get_routed_circuit(self) -> MultiZoneCircuit:
+        """Returns the routed MultiZoneCircuit"""
         n_qubits = self._circuit.n_qubits
         mz_circuit = MultiZoneCircuit(
             self._arch, self._initial_placement, n_qubits, self._circuit.n_bits

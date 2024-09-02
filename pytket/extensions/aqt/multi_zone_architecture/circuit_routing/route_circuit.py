@@ -24,10 +24,7 @@ def route_circuit(
      physical operations where needed
 
     The Circuit provided cannot have more qubits than allowed by
-     the architecture. If no initial placement of qubits into
-    the architecture zones is provided, the qubits will be
-     placed using an internal algorithm in a "balanced" way across
-    the available zones.
+     the architecture.
 
     :param settings: Settings used to Route Circuit
     :param circuit: A pytket Circuit to be routed
