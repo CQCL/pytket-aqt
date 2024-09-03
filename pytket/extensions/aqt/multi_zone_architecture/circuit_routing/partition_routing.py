@@ -115,7 +115,7 @@ class PartitionCircuitRouter:
 
     def placement_generator(
         self, depth_list: DepthList
-    ) -> Generator[tuple[ZonePlacement, ZonePlacement]]:
+    ) -> Generator[tuple[ZonePlacement, ZonePlacement], None, None]:
         """Generates pairs of ZonePlacements representing one shuttling step
 
         The first placement represents the current state of the trap, the second
@@ -171,6 +171,10 @@ class PartitionCircuitRouter:
         partitioner = MtKahyparPartitioner(
             self._settings.n_threads, log_level=self._settings.debug_level
         )
+        if self._settings.debug_level > 0:
+            print("Depth List:")
+            for i in range(min(4, len(depth_list))):
+                print(depth_list[i])
         vertex_to_part = partitioner.partition_graph(shuttle_graph_data, num_zones)
         new_placement: ZonePlacement = {i: [] for i in range(num_zones)}
         part_to_zone = [-1] * num_zones
@@ -216,7 +220,7 @@ class PartitionCircuitRouter:
         for zone, qubits in starting_placement.items():
             for other_zone in range(num_zones):
                 weight = math.ceil(
-                    math.exp(-0.8 * (self.shuttling_penalty(zone, other_zone) + 4))
+                    math.exp(-0.8 * self.shuttling_penalty(zone, other_zone))
                     * max_shuttle_weight
                 )
                 if weight < 1:
