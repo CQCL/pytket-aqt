@@ -206,7 +206,7 @@ graph_skipif = pytest.mark.skipif(
 )
 def test_automatically_routed_circuit_has_correct_syntax(
     backend: AQTMultiZoneBackend,
-    routing_settings,
+    routing_settings: RoutingSettings,
 ) -> None:
     initial_placement = {0: [0, 1, 2, 3], 1: [4, 5, 6, 7]}
     circuit = Circuit(8)

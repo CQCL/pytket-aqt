@@ -1,5 +1,6 @@
 import math
 from copy import deepcopy
+from typing import Generator
 
 from pytket import Circuit
 
@@ -114,7 +115,7 @@ class PartitionCircuitRouter:
 
     def placement_generator(
         self, depth_list: DepthList
-    ) -> tuple[ZonePlacement, ZonePlacement]:
+    ) -> Generator[tuple[ZonePlacement, ZonePlacement]]:
         """Generates pairs of ZonePlacements representing one shuttling step
 
         The first placement represents the current state of the trap, the second
@@ -138,7 +139,7 @@ class PartitionCircuitRouter:
             depth_list = get_updated_depth_list(n_qubits, qubit_to_zone, depth_list)
             current_placement = new_placement
             if iteration > max_iter:
-                raise Exception("placement alg is not converging")
+                raise ZoneRoutingError("placement alg is not converging")
             iteration += 1
 
     def new_placement_graph_partition_alg(
@@ -171,7 +172,7 @@ class PartitionCircuitRouter:
             self._settings.n_threads, log_level=self._settings.debug_level
         )
         vertex_to_part = partitioner.partition_graph(shuttle_graph_data, num_zones)
-        new_placement = {i: [] for i in range(num_zones)}
+        new_placement: ZonePlacement = {i: [] for i in range(num_zones)}
         part_to_zone = [-1] * num_zones
         for vertex in range(n_qubits, n_qubits + num_zones):
             part_to_zone[vertex_to_part[vertex]] = vertex - n_qubits
@@ -234,12 +235,17 @@ class PartitionCircuitRouter:
 
         return GraphData(num_vertices, vertex_weights, edges, edge_weights, fixed_list)
 
-    def shuttling_penalty(self, zone1: int, other_zone1: int):
+    def shuttling_penalty(self, zone1: int, other_zone1: int) -> int:
         """Calculate penalty for shuttling from one zone to another"""
         shortest_path = self._macro_arch.shortest_path(
             ZoneId(zone1), ZoneId(other_zone1)
         )
-        return len(shortest_path)
+        if shortest_path:
+            return len(shortest_path)
+        raise ZoneRoutingError(
+            f"Shortest path could not be calculated"
+            f" between zones {zone1} and {other_zone1}"
+        )
 
 
 def _get_qubit_to_zone(n_qubits: int, placement: ZonePlacement) -> list[int]:

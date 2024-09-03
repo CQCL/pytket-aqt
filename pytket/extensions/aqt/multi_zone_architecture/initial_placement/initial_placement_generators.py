@@ -13,7 +13,7 @@ from ..circuit.helpers import ZonePlacement
 from .settings import InitialPlacementSettings, InitialPlacementAlg
 
 from ..architecture import MultiZoneArchitecture
-from ..depth_list.depth_list import get_initial_depth_list
+from ..depth_list.depth_list import get_initial_depth_list, DepthList
 from ..graph_algs.graph import GraphData
 
 logger = getLogger("initial_placement_logger")
@@ -63,9 +63,7 @@ class ManualInitialPlacement(InitialPlacementGenerator):
                 f"Duplicate placements detected in manual"
                 f" initial placement. {duplicates}"
             )
-        unplaced_qubits = {i for i in range(circuit.n_qubits)}.difference_update(
-            placed_qubits
-        )
+        unplaced_qubits = {i for i in range(circuit.n_qubits)}.difference(placed_qubits)
         if unplaced_qubits:
             raise InitialPlacementError(
                 f"Some qubits missing in manual initial placement."
@@ -141,12 +139,14 @@ class GraphMapInitialPlacement(InitialPlacementGenerator):
         part_to_zone = partitioner.map_graph_to_target_graph(
             part_part_graph_data, arch_graph_data
         )
-        placement = {i: [] for i in range(n_parts)}
+        placement: ZonePlacement = {i: [] for i in range(n_parts)}
         for qubit, part in enumerate(qubit_to_part):
             placement[part_to_zone[part]].append(qubit)
         return placement
 
-    def get_circuit_graph_data(self, depth_list, arch) -> GraphData:
+    def get_circuit_graph_data(
+        self, depth_list: DepthList, arch: MultiZoneArchitecture
+    ) -> GraphData:
         # Vertices up to n_qubit represent qubits,
         # the rest available spaces for qubits in the arch
         free_places_per_zone = [

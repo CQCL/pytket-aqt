@@ -258,8 +258,8 @@ class AQTMultiZoneBackend(Backend):
         """
         Compile a pytket Circuit assuming all to all connectivity
 
-        Returns a Circuit that conforms to the backend
-         architectures gate set but not connectivity
+        Returns a pytket Circuit that conforms to the backend
+         architectures gate set but does not necessarily respect connectivity
 
         """
         if not circuit.is_simple:
@@ -279,7 +279,14 @@ class AQTMultiZoneBackend(Backend):
         self,
         precompiled: Circuit,
         compilation_settings: CompilationSettings = CompilationSettings.default(),
-    ):
+    ) -> MultiZoneCircuit:
+        """
+        Route a pytket Circuit to the backend architecture
+
+        Does not perform gate optimization and inserts only the necessary shuttles
+         and swaps. Returns a MultiZoneCircuit.
+
+        """
         initial_placement = get_initial_placement(
             compilation_settings.initial_placement, precompiled, self._architecture
         )

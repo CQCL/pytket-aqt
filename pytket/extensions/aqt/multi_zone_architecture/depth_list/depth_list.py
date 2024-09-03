@@ -22,7 +22,7 @@ def get_2q_gate_pairs_from_circuit(circuit: Circuit) -> list[tuple[int, int]]:
     return pair_list
 
 
-def get_depth_list(n_qubits, gate_pairs: list[tuple[int, int]]) -> DepthList:
+def get_depth_list(n_qubits: int, gate_pairs: list[tuple[int, int]]) -> DepthList:
     depth_list: list[list[tuple[int, int]]] = []
     current_depth_per_qubit: list[int] = [0] * n_qubits
     for pair in gate_pairs:

@@ -20,7 +20,7 @@ class GraphData:
     The i'th value determines the partition
     vertex i should be fixed to. A value of -1 means do not fix vertex"""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if len(self.vertex_weights) != self.n_vertices:
             raise ValueError("len(vertex_weights) must equal n_vertices")
         if len(self.edges) != len(self.edge_weights):

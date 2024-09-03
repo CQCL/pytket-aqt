@@ -1,4 +1,4 @@
-import mtkahypar
+import mtkahypar  # type: ignore
 
 from pytket.extensions.aqt.multi_zone_architecture.graph_algs.graph import GraphData
 
