@@ -24,6 +24,8 @@ class InitialPlacementError(Exception):
 
 
 class InitialPlacementGenerator(Protocol):
+    """Protocol for classes implementing an initial placement of ions in ion traps"""
+
     def initial_placement(
         self, circuit: Circuit, arch: MultiZoneArchitecture
     ) -> ZonePlacement: ...
@@ -31,6 +33,8 @@ class InitialPlacementGenerator(Protocol):
 
 @dataclass
 class ManualInitialPlacement(InitialPlacementGenerator):
+    """Used to generate an initial placement from manual input"""
+
     placement: ZonePlacement
 
     def initial_placement(
@@ -75,6 +79,12 @@ class ManualInitialPlacement(InitialPlacementGenerator):
 
 @dataclass
 class QubitOrderInitialPlacement(InitialPlacementGenerator):
+    """Used to generate an initial placement based on qubit order.
+
+    Zones are filled in increasing number order with qubits in increasing
+    number order
+    """
+
     zone_free_space: int
 
     def initial_placement(
@@ -93,6 +103,11 @@ class QubitOrderInitialPlacement(InitialPlacementGenerator):
 
 @dataclass
 class GraphMapInitialPlacement(InitialPlacementGenerator):
+    """Used to generate an initial placement based on graph algorithms.
+
+    Graph partitioning and graph mapping are used to assign qubits to zones
+    """
+
     zone_free_space: int
     n_threads: int
     max_depth: int
@@ -226,6 +241,7 @@ def _check_n_qubits(circuit: Circuit, arch: MultiZoneArchitecture) -> None:
 def get_initial_placement_generator(
     settings: InitialPlacementSettings,
 ) -> InitialPlacementGenerator:
+    """Return an initial placement generator from the initial placement settings"""
     match settings.algorithm:
         case InitialPlacementAlg.graph_partition:
             if MT_KAHYPAR_INSTALLED:
