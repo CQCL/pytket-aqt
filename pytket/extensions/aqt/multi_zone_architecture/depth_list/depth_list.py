@@ -22,7 +22,7 @@ def get_2q_gate_pairs_from_circuit(circuit: Circuit) -> list[tuple[int, int]]:
     return pair_list
 
 
-def get_depth_list(n_qubits, gate_pairs: list[tuple[int, int]]) -> DepthList:
+def get_depth_list(n_qubits: int, gate_pairs: list[tuple[int, int]]) -> DepthList:
     depth_list: list[list[tuple[int, int]]] = []
     current_depth_per_qubit: list[int] = [0] * n_qubits
     for pair in gate_pairs:
@@ -47,6 +47,10 @@ def get_depth_list(n_qubits, gate_pairs: list[tuple[int, int]]) -> DepthList:
 
 
 def get_initial_depth_list(circuit: Circuit) -> DepthList:
+    """From a given Circuit get the Depth list used to determine gate priority.
+
+    Used for the initial placement of ions based on partitioning algorithms
+    """
     n_qubits = circuit.n_qubits
     gate_pairs = get_2q_gate_pairs_from_circuit(circuit)
     return get_depth_list(n_qubits, gate_pairs)
@@ -54,7 +58,12 @@ def get_initial_depth_list(circuit: Circuit) -> DepthList:
 
 def get_updated_depth_list(
     n_qubits: int, qubit_to_zone: list[int], depth_list: DepthList
-) -> list[list[tuple[int, int]]]:
+) -> DepthList:
+    """From a given placement of qubits in zones
+     update the DepthList used to determine gate priority.
+
+    Used for graph partitioning routing.
+    """
     pruned_depth_list = [depth.copy() for depth in depth_list]
     # prune current depth list
     prune_stage = False

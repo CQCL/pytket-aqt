@@ -21,11 +21,10 @@ class CompilationSettings:
     )
     routing: RoutingSettings = field(default_factory=RoutingSettings.default)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.pytket_optimisation_level not in PYTKET_OPTIMISATION_LEVELS:
             raise CompilationSettingsError(
-                f"{self.pytket_optimisation_level.__name__} must be "
-                f"one of {PYTKET_OPTIMISATION_LEVELS}"
+                f"pytket_optimisation_level must be one of {PYTKET_OPTIMISATION_LEVELS}"
             )
 
     @classmethod

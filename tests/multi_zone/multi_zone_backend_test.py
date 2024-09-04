@@ -35,6 +35,15 @@ from pytket.extensions.aqt.multi_zone_architecture.initial_placement.settings im
     InitialPlacementAlg,
 )
 
+from pytket.extensions.aqt.multi_zone_architecture.graph_algs.mt_kahypar_check import (
+    MT_KAHYPAR_INSTALLED,
+)
+
+from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.settings import (
+    RoutingSettings,
+    RoutingAlg,
+)
+
 
 @pytest.fixture()
 def backend() -> AQTMultiZoneBackend:
@@ -184,8 +193,20 @@ def test_compiled_circuit_has_correct_syntax(backend: AQTMultiZoneBackend) -> No
     assert number_initialized_qubits == 8
 
 
+graph_routing = RoutingSettings(algorithm=RoutingAlg.graph_partition, debug_level=0)
+greedy_routing = RoutingSettings(algorithm=RoutingAlg.greedy)
+graph_skipif = pytest.mark.skipif(
+    not MT_KAHYPAR_INSTALLED, reason="mtkahypar required for testing graph partitioning"
+)
+
+
+@pytest.mark.parametrize(
+    "routing_settings",
+    [pytest.param(greedy_routing), pytest.param(graph_routing, marks=graph_skipif)],
+)
 def test_automatically_routed_circuit_has_correct_syntax(
     backend: AQTMultiZoneBackend,
+    routing_settings: RoutingSettings,
 ) -> None:
     initial_placement = {0: [0, 1, 2, 3], 1: [4, 5, 6, 7]}
     circuit = Circuit(8)
@@ -198,7 +219,9 @@ def test_automatically_routed_circuit_has_correct_syntax(
         algorithm=InitialPlacementAlg.manual,
         manual_placement=initial_placement,
     )
-    compilation_settings = CompilationSettings(initial_placement=init_pl_settings)
+    compilation_settings = CompilationSettings(
+        initial_placement=init_pl_settings, routing=routing_settings
+    )
     mz_circuit = backend.compile_circuit_with_routing(circuit, compilation_settings)
 
     n_shuttles = mz_circuit.get_n_shuttles()

@@ -1,6 +1,4 @@
-from typing import Optional
-
-import mtkahypar
+import mtkahypar  # type: ignore
 
 from pytket.extensions.aqt.multi_zone_architecture.graph_algs.graph import GraphData
 
@@ -16,22 +14,32 @@ def graph_data_to_mtkahypar_graph(graph_data: GraphData) -> mtkahypar.Graph:
 
 
 class MtKahyparPartitioner:
-    def __init__(self, n_threads):
+    """Class that performs graph partitioning using mt-kahypar
+
+    :param n_threads: The number of threads to use for partitioning algorithms
+    :param log_level: How much partitioning information to log, 0 == silent
+
+    """
+
+    def __init__(self, n_threads: int, log_level: int = 0):
         mtkahypar.initializeThreadPool(n_threads)
-        mtkahypar.setSeed(10)
+        mtkahypar.setSeed(13)
         self.context = mtkahypar.Context()
         self.context.loadPreset(mtkahypar.PresetType.DEFAULT)
         self.context.logging = False
+        self.log_level = log_level
 
     def partition_graph(
         self,
         graph_data: GraphData,
         num_parts: int,
-        fixed_list: Optional[list[int]] = None,
     ) -> list[int]:
         """Partition vertices of graph into num_parts parts
 
         Returns a list whose i'th element is the part that vertex i is assigned to
+
+        :param graph_data: Graph specification
+        :param num_parts: Number of partitions
         """
         avg_part_weight = sum(graph_data.vertex_weights) / num_parts
         self.context.setPartitioningParameters(
@@ -40,9 +48,11 @@ class MtKahyparPartitioner:
             mtkahypar.Objective.CUT,
         )
         graph = graph_data_to_mtkahypar_graph(graph_data)
-        if fixed_list:
-            graph.addFixedVertices(fixed_list, num_parts)
+        if graph_data.fixed_list:
+            graph.addFixedVertices(graph_data.fixed_list, num_parts)
         part_graph = graph.partition(self.context)
+        if self.log_level > 0:
+            print("cut_cost: ", part_graph.cut())
         vertex_part_id: list[int] = []
         for vertex in range(graph_data.n_vertices):
             vertex_part_id.append(part_graph.blockID(vertex))

@@ -1,5 +1,6 @@
 import math
 from copy import deepcopy
+from typing import Generator
 
 from pytket import Circuit
 
@@ -18,6 +19,15 @@ from ..macro_architecture_graph import empty_macro_arch_from_architecture, ZoneI
 
 
 class PartitionCircuitRouter:
+    """Uses graph partitioning to add shuttles and swaps to a circuit
+
+    The routed circuit can be directly run on the given Architecture
+
+    :param circuit: The circuit to be routed
+    :param arch: The architecture to route to
+    :param initial_placement: The initial placement of ions in the ion trap zones
+    :param settings: The settings used for routing
+    """
 
     def __init__(
         self,
@@ -33,6 +43,7 @@ class PartitionCircuitRouter:
         self._settings = settings
 
     def get_routed_circuit(self) -> MultiZoneCircuit:
+        """Returns the routed MultiZoneCircuit"""
         n_qubits = self._circuit.n_qubits
         depth_list = get_initial_depth_list(self._circuit)
         commands = self._circuit.get_commands().copy()
@@ -40,6 +51,23 @@ class PartitionCircuitRouter:
             self._arch, self._initial_placement, n_qubits, self._circuit.n_bits
         )
         for old_place, new_place in self.placement_generator(depth_list):
+            if self._settings.debug_level > 0:
+                print("-------")
+                for zone in range(self._arch.n_zones):
+                    changes_str = ", ".join(
+                        [
+                            f"+{i}"
+                            for i in set(new_place[zone]).difference(old_place[zone])
+                        ]
+                        + [
+                            f"-{i}"
+                            for i in set(old_place[zone]).difference(new_place[zone])
+                        ]
+                    )
+                    print(
+                        f"Z{zone}: {old_place[zone]} ->"
+                        f" {new_place[zone]} -- ({changes_str})"
+                    )
             leftovers = []
             # stragglers are qubits with pending 2 qubit gates that cannot
             # be performed in the old placement
@@ -87,8 +115,15 @@ class PartitionCircuitRouter:
 
     def placement_generator(
         self, depth_list: DepthList
-    ) -> tuple[ZonePlacement, ZonePlacement]:
-        # generates pairs of configs representing one shuttling step
+    ) -> Generator[tuple[ZonePlacement, ZonePlacement], None, None]:
+        """Generates pairs of ZonePlacements representing one shuttling step
+
+        The first placement represents the current state of the trap, the second
+        represents the "optimal" next state to implement the remaining gates in
+        the depth list.
+
+        :param depth_list: The list of gates used to determine the next ion placement.
+        """
         current_placement = deepcopy(self._initial_placement)
         n_qubits = self._circuit.n_qubits
         qubit_to_zone = _get_qubit_to_zone(n_qubits, current_placement)
@@ -104,7 +139,7 @@ class PartitionCircuitRouter:
             depth_list = get_updated_depth_list(n_qubits, qubit_to_zone, depth_list)
             current_placement = new_placement
             if iteration > max_iter:
-                raise Exception("placement alg is not converging")
+                raise ZoneRoutingError("placement alg is not converging")
             iteration += 1
 
     def new_placement_graph_partition_alg(
@@ -112,6 +147,15 @@ class PartitionCircuitRouter:
         depth_list: DepthList,
         starting_placement: ZonePlacement,
     ) -> ZonePlacement:
+        """Generates a new ZonePlacement to implement the next gates
+
+        The returned ZonePlacement
+        represents the "optimal" next state to implement the remaining gates in
+        the depth list.
+
+        :param depth_list: The list of gates used to determine the next ion placement.
+        :param starting_placement: The starting configuration of ions in ion trap zones
+        """
         n_qubits = self._circuit.n_qubits
         n_qubits_max = self._arch.n_qubits_max
         if n_qubits > n_qubits_max:
@@ -121,14 +165,18 @@ class PartitionCircuitRouter:
             )
 
         num_zones = self._arch.n_zones
-        shuttle_graph_data, fixed_list = self.get_circuit_shuttle_graph_data(
+        shuttle_graph_data = self.get_circuit_shuttle_graph_data(
             starting_placement, depth_list
         )
-        partitioner = MtKahyparPartitioner(self._settings.n_threads)
-        vertex_to_part = partitioner.partition_graph(
-            shuttle_graph_data, num_zones, fixed_list
+        partitioner = MtKahyparPartitioner(
+            self._settings.n_threads, log_level=self._settings.debug_level
         )
-        new_placement = {i: [] for i in range(num_zones)}
+        if self._settings.debug_level > 0:
+            print("Depth List:")
+            for i in range(min(4, len(depth_list))):
+                print(depth_list[i])
+        vertex_to_part = partitioner.partition_graph(shuttle_graph_data, num_zones)
+        new_placement: ZonePlacement = {i: [] for i in range(num_zones)}
         part_to_zone = [-1] * num_zones
         for vertex in range(n_qubits, n_qubits + num_zones):
             part_to_zone[vertex_to_part[vertex]] = vertex - n_qubits
@@ -138,7 +186,8 @@ class PartitionCircuitRouter:
 
     def get_circuit_shuttle_graph_data(
         self, starting_placement: ZonePlacement, depth_list: DepthList
-    ) -> tuple[GraphData, list[int]]:
+    ) -> GraphData:
+        """Calculate graph data for qubit-zone graph to be partitioned"""
         n_qubits = self._circuit.n_qubits
         num_zones = self._arch.n_zones
         num_spots = sum(
@@ -171,7 +220,7 @@ class PartitionCircuitRouter:
         for zone, qubits in starting_placement.items():
             for other_zone in range(num_zones):
                 weight = math.ceil(
-                    math.exp(-0.8 * (self.shuttling_penalty(zone, other_zone) + 4))
+                    math.exp(-0.8 * self.shuttling_penalty(zone, other_zone))
                     * max_shuttle_weight
                 )
                 if weight < 1:
@@ -188,13 +237,19 @@ class PartitionCircuitRouter:
             + [-1] * (num_vertices - n_qubits - num_zones)
         )
 
-        return GraphData(num_vertices, vertex_weights, edges, edge_weights), fixed_list
+        return GraphData(num_vertices, vertex_weights, edges, edge_weights, fixed_list)
 
-    def shuttling_penalty(self, zone1: int, other_zone1: int):
+    def shuttling_penalty(self, zone1: int, other_zone1: int) -> int:
+        """Calculate penalty for shuttling from one zone to another"""
         shortest_path = self._macro_arch.shortest_path(
             ZoneId(zone1), ZoneId(other_zone1)
         )
-        return len(shortest_path)
+        if shortest_path:
+            return len(shortest_path)
+        raise ZoneRoutingError(
+            f"Shortest path could not be calculated"
+            f" between zones {zone1} and {other_zone1}"
+        )
 
 
 def _get_qubit_to_zone(n_qubits: int, placement: ZonePlacement) -> list[int]:

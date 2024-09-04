@@ -4,11 +4,16 @@ from typing import Protocol
 from logging import getLogger
 
 from pytket import Circuit
+
+from ..graph_algs.mt_kahypar_check import (
+    MT_KAHYPAR_INSTALLED,
+    MissingMtKahyparInstallError,
+)
 from ..circuit.helpers import ZonePlacement
 from .settings import InitialPlacementSettings, InitialPlacementAlg
 
 from ..architecture import MultiZoneArchitecture
-from ..depth_list.depth_list import get_initial_depth_list
+from ..depth_list.depth_list import get_initial_depth_list, DepthList
 from ..graph_algs.graph import GraphData
 
 logger = getLogger("initial_placement_logger")
@@ -19,6 +24,8 @@ class InitialPlacementError(Exception):
 
 
 class InitialPlacementGenerator(Protocol):
+    """Protocol for classes implementing an initial placement of ions in ion traps"""
+
     def initial_placement(
         self, circuit: Circuit, arch: MultiZoneArchitecture
     ) -> ZonePlacement: ...
@@ -26,6 +33,8 @@ class InitialPlacementGenerator(Protocol):
 
 @dataclass
 class ManualInitialPlacement(InitialPlacementGenerator):
+    """Used to generate an initial placement from manual input"""
+
     placement: ZonePlacement
 
     def initial_placement(
@@ -54,9 +63,7 @@ class ManualInitialPlacement(InitialPlacementGenerator):
                 f"Duplicate placements detected in manual"
                 f" initial placement. {duplicates}"
             )
-        unplaced_qubits = {i for i in range(circuit.n_qubits)}.difference_update(
-            placed_qubits
-        )
+        unplaced_qubits = {i for i in range(circuit.n_qubits)}.difference(placed_qubits)
         if unplaced_qubits:
             raise InitialPlacementError(
                 f"Some qubits missing in manual initial placement."
@@ -70,6 +77,12 @@ class ManualInitialPlacement(InitialPlacementGenerator):
 
 @dataclass
 class QubitOrderInitialPlacement(InitialPlacementGenerator):
+    """Used to generate an initial placement based on qubit order.
+
+    Zones are filled in increasing number order with qubits in increasing
+    number order
+    """
+
     zone_free_space: int
 
     def initial_placement(
@@ -88,6 +101,11 @@ class QubitOrderInitialPlacement(InitialPlacementGenerator):
 
 @dataclass
 class GraphMapInitialPlacement(InitialPlacementGenerator):
+    """Used to generate an initial placement based on graph algorithms.
+
+    Graph partitioning and graph mapping are used to assign qubits to zones
+    """
+
     zone_free_space: int
     n_threads: int
     max_depth: int
@@ -121,12 +139,14 @@ class GraphMapInitialPlacement(InitialPlacementGenerator):
         part_to_zone = partitioner.map_graph_to_target_graph(
             part_part_graph_data, arch_graph_data
         )
-        placement = {i: [] for i in range(n_parts)}
+        placement: ZonePlacement = {i: [] for i in range(n_parts)}
         for qubit, part in enumerate(qubit_to_part):
             placement[part_to_zone[part]].append(qubit)
         return placement
 
-    def get_circuit_graph_data(self, depth_list, arch) -> GraphData:
+    def get_circuit_graph_data(
+        self, depth_list: DepthList, arch: MultiZoneArchitecture
+    ) -> GraphData:
         # Vertices up to n_qubit represent qubits,
         # the rest available spaces for qubits in the arch
         free_places_per_zone = [
@@ -221,13 +241,17 @@ def _check_n_qubits(circuit: Circuit, arch: MultiZoneArchitecture) -> None:
 def get_initial_placement_generator(
     settings: InitialPlacementSettings,
 ) -> InitialPlacementGenerator:
+    """Return an initial placement generator from the initial placement settings"""
     match settings.algorithm:
         case InitialPlacementAlg.graph_partition:
-            return GraphMapInitialPlacement(
-                zone_free_space=settings.zone_free_space,
-                n_threads=settings.n_threads,
-                max_depth=settings.max_depth,
-            )
+            if MT_KAHYPAR_INSTALLED:
+                return GraphMapInitialPlacement(
+                    zone_free_space=settings.zone_free_space,
+                    n_threads=settings.n_threads,
+                    max_depth=settings.max_depth,
+                )
+            else:
+                raise MissingMtKahyparInstallError()
         case InitialPlacementAlg.qubit_order:
             return QubitOrderInitialPlacement(zone_free_space=settings.zone_free_space)
         case InitialPlacementAlg.manual:

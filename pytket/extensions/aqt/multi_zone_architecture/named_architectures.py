@@ -351,7 +351,7 @@ racetrack = MultiZoneArchitecture(
     zone_types=[
         ZoneType(
             name="Middle",
-            max_ions=4,
+            max_ions=6,
             min_ions=0,
             zone_connections={
                 "LR": ZoneConnection(
@@ -759,3 +759,96 @@ large_grid = MultiZoneArchitecture(
         zones=zones,
         )
 
+
+grid_zone_max_ion = 8
+grid7 = MultiZoneArchitecture(
+    n_qubits_max=32,
+    n_zones=7,
+    zone_types=[
+        ZoneType(
+            name="EdgeType1",
+            max_ions=grid_zone_max_ion,
+            min_ions=0,
+            zone_connections={
+                "RL1": ZoneConnection(
+                    connection_type=ConnectionType.RightToLeft, max_transfer=2
+                ),
+                "RL2": ZoneConnection(
+                    connection_type=ConnectionType.RightToLeft, max_transfer=2
+                ),
+                "RL3": ZoneConnection(
+                    connection_type=ConnectionType.RightToLeft, max_transfer=2
+                ),
+            },
+            operations=standardOperations,
+        ),
+        ZoneType(
+            name="EdgeType2",
+            max_ions=grid_zone_max_ion,
+            min_ions=0,
+            zone_connections={
+                "LL1": ZoneConnection(
+                    connection_type=ConnectionType.LeftToLeft, max_transfer=2
+                ),
+                "LL2": ZoneConnection(
+                    connection_type=ConnectionType.LeftToLeft, max_transfer=2
+                ),
+                "LR": ZoneConnection(
+                    connection_type=ConnectionType.LeftToRight, max_transfer=2
+                ),
+            },
+            operations=standardOperations,
+        ),
+        ZoneType(
+            name="Middle",
+            max_ions=grid_zone_max_ion,
+            min_ions=0,
+            zone_connections={
+                "LL1": ZoneConnection(
+                    connection_type=ConnectionType.LeftToLeft, max_transfer=2
+                ),
+                "LL2": ZoneConnection(
+                    connection_type=ConnectionType.LeftToLeft, max_transfer=2
+                ),
+                "LR": ZoneConnection(
+                    connection_type=ConnectionType.LeftToRight, max_transfer=2
+                ),
+                "RL1": ZoneConnection(
+                    connection_type=ConnectionType.RightToLeft, max_transfer=2
+                ),
+                "RL2": ZoneConnection(
+                    connection_type=ConnectionType.RightToLeft, max_transfer=2
+                ),
+                "RL3": ZoneConnection(
+                    connection_type=ConnectionType.RightToLeft, max_transfer=2
+                ),
+            },
+            operations=standardOperations,
+        ),
+    ],
+    zones=[
+        Zone(
+            name="Zone0", zone_type_id=0, connected_zones={2: "RL1", 5: "RL2", 3: "RL3"}
+        ),
+        Zone(
+            name="Zone1", zone_type_id=1, connected_zones={3: "LR", 6: "LL1", 4: "LL2"}
+        ),
+        Zone(
+            name="Zone2", zone_type_id=1, connected_zones={0: "LR", 3: "LL1", 5: "LL2"}
+        ),
+        Zone(
+            name="Zone3",
+            zone_type_id=2,
+            connected_zones={5: "LL1", 2: "LL2", 0: "LR", 1: "RL1", 4: "RL2", 6: "RL3"},
+        ),
+        Zone(
+            name="Zone4", zone_type_id=1, connected_zones={3: "LR", 1: "LL1", 6: "LL2"}
+        ),
+        Zone(
+            name="Zone5", zone_type_id=1, connected_zones={0: "LR", 3: "LL1", 2: "LL2"}
+        ),
+        Zone(
+            name="Zone6", zone_type_id=1, connected_zones={3: "LR", 1: "LL1", 4: "LL2"}
+        ),
+    ],
+)
