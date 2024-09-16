@@ -128,7 +128,7 @@ class PartitionCircuitRouter:
         n_qubits = self._circuit.n_qubits
         qubit_to_zone = _get_qubit_to_zone(n_qubits, current_placement)
         depth_list = get_updated_depth_list(n_qubits, qubit_to_zone, depth_list)
-        max_iter = len(depth_list)
+        max_iter = len(depth_list) * 2
         iteration = 0
         while depth_list:
             new_placement = self.new_placement_graph_partition_alg(
@@ -216,7 +216,7 @@ class PartitionCircuitRouter:
         # should later be dependent on shuttling cost)
 
         # max_shuttle_weight = math.ceil(math.exp(-3/avg_block_weight * 5) * max_weight)
-        max_shuttle_weight = math.ceil(max_weight - 10000)
+        max_shuttle_weight = math.ceil(max_weight / 2)
         for zone, qubits in starting_placement.items():
             for other_zone in range(num_zones):
                 weight = math.ceil(
@@ -245,7 +245,7 @@ class PartitionCircuitRouter:
             ZoneId(zone1), ZoneId(other_zone1)
         )
         if shortest_path:
-            return len(shortest_path)
+            return len(shortest_path) - 1
         raise ZoneRoutingError(
             f"Shortest path could not be calculated"
             f" between zones {zone1} and {other_zone1}"
