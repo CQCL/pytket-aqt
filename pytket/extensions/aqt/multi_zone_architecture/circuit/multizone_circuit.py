@@ -59,12 +59,35 @@ dz, se, te = symbols("destination_zone source_edge target_edge")
 move_def_circ = Circuit(1)
 move_def_circ.add_barrier([0])
 move_gate = CustomGateDef("MOVE", move_def_circ, [dz])
+"""Custom `MOVE` Gate
+
+Added to the circuit during manual routing to indicate that the qubit
+it acts on needs to be moved to the zone specified by the parameter.
+The compiler should reduce these gates to SHUTTLES and PSWAPS before
+submission to aqt.
+"""
 
 shuttle_def_circ = Circuit(1)
 shuttle_gate = CustomGateDef("SHUTTLE", shuttle_def_circ, [dz, se, te])
+"""Custom `SHUTTLE` Gate
+
+Added to the circuit during routing to indicate that the qubit
+it acts on needs to be shuttled to the zone specified by the parameter.
+
+In contrast to a MOVE gate, for a SHUTTLE to be valid, the qubit it acts
+on must be at an edge that is directly connected to the destination zone.
+"""
 
 swap_def_circ = Circuit(2)
 swap_gate = CustomGateDef("PSWAP", swap_def_circ, [])
+"""Custom `PSWAP` Gate
+
+Added to the circuit during routing to indicate that a physical swap
+of the two qubits it acts on should take place.
+
+For a PSWAP to be valid, the qubits it acts
+on must be located next to each other in the same zone.
+"""
 
 
 @dataclass
@@ -226,6 +249,11 @@ class MultiZoneCircuit:
         self.move_barrier_gate = CustomGateDef(
             "MOVE_BARRIER", move_barrier_def_circ, []
         )
+        """A `MOVE_BARRIER` is used during manual routing.
+
+        It prevents compiling through custom `MOVE` operations,
+        which could invalidate the manual routing
+        """
         for zone, qubit_list in initial_zone_to_qubits.items():
             init_def_circ = Circuit(len(qubit_list))
             custom_init = CustomGateDef("INIT", init_def_circ, [dz])
