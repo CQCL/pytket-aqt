@@ -202,7 +202,6 @@ class PartitionCircuitRouter:
         for i, pairs in enumerate(depth_list):
             if i > max_considered_depth:
                 break
-            # weight = math.ceil(math.exp(-3/avg_block_weight * i) * max_weight)
             weight = math.ceil(math.exp(-2 * i) * max_weight)
             for pair in pairs:
                 if pair in edges:
@@ -214,8 +213,6 @@ class PartitionCircuitRouter:
 
         # add shuttling penalty (just distance between zones for now,
         # should later be dependent on shuttling cost)
-
-        # max_shuttle_weight = math.ceil(math.exp(-3/avg_block_weight * 5) * max_weight)
         max_shuttle_weight = math.ceil(max_weight / 2)
         for zone, qubits in starting_placement.items():
             for other_zone in range(num_zones):

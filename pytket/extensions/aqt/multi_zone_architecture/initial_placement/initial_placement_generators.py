@@ -167,7 +167,6 @@ class GraphMapInitialPlacement(InitialPlacementGenerator):
         for i, pairs in enumerate(depth_list):
             if i > self.max_depth:
                 break
-            # weight = math.ceil(math.exp(-3/avg_block_weight * i) * max_weight)
             weight = math.ceil(math.exp(-1 * i) * max_weight)
             for pair in pairs:
                 if pair in edges:
@@ -223,7 +222,6 @@ class GraphMapInitialPlacement(InitialPlacementGenerator):
                     i,
                 ) not in arch_edges:
                     arch_edges.append((i, connected_zone))
-                    # TODO: Replace with connectivity cost
                     arch_edge_weights.append(1)
         return GraphData(n_vertices, arch_vertex_weights, arch_edges, arch_edge_weights)
 
