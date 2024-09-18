@@ -257,6 +257,11 @@ class MultiZoneCircuit:
         for zone, qubit_list in initial_zone_to_qubits.items():
             init_def_circ = Circuit(len(qubit_list))
             custom_init = CustomGateDef("INIT", init_def_circ, [dz])
+            """An `INIT` gate.
+
+            A custom gate that represents the initialization of the qubits it acts on
+            within the zone whose id is provided as a gate parameter.
+            """
             self.pytket_circuit.add_custom_gate(custom_init, [zone], qubit_list)
 
         self._n_shuttles = 0

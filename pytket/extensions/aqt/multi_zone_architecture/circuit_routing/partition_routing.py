@@ -119,9 +119,7 @@ class PartitionCircuitRouter:
                 commands = leftovers
             else:
                 commands = leftovers + commands[last_cmd_index + 1 :]
-            # old_n_shuttles = mz_circuit.get_n_shuttles()
             _make_necessary_config_moves((old_place, new_place), mz_circuit)
-            # print("Added shuttles: ", mz_circuit.get_n_shuttles() - old_n_shuttles)
         for cmd in commands:
             mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
         return mz_circuit
