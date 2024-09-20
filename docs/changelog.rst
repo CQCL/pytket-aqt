@@ -1,6 +1,11 @@
 Changelog
 ~~~~~~~~~
 
+Unreleased
+----------
+
+* Add graph partition based routing for AQTMultiZoneBackend
+
 0.34.0 (August 2024)
 --------------------
 

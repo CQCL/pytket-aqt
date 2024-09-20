@@ -26,6 +26,24 @@ from pytket.extensions.aqt.multi_zone_architecture.named_architectures import (
     four_zones_in_a_line,
 )
 
+from pytket.extensions.aqt.multi_zone_architecture.compilation_settings import (
+    CompilationSettings,
+)
+
+from pytket.extensions.aqt.multi_zone_architecture.initial_placement.settings import (
+    InitialPlacementSettings,
+    InitialPlacementAlg,
+)
+
+from pytket.extensions.aqt.multi_zone_architecture.graph_algs.mt_kahypar_check import (
+    MT_KAHYPAR_INSTALLED,
+)
+
+from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.settings import (
+    RoutingSettings,
+    RoutingAlg,
+)
+
 
 @pytest.fixture()
 def backend() -> AQTMultiZoneBackend:
@@ -175,8 +193,20 @@ def test_compiled_circuit_has_correct_syntax(backend: AQTMultiZoneBackend) -> No
     assert number_initialized_qubits == 8
 
 
+graph_routing = RoutingSettings(algorithm=RoutingAlg.graph_partition, debug_level=0)
+greedy_routing = RoutingSettings(algorithm=RoutingAlg.greedy)
+graph_skipif = pytest.mark.skipif(
+    not MT_KAHYPAR_INSTALLED, reason="mtkahypar required for testing graph partitioning"
+)
+
+
+@pytest.mark.parametrize(
+    "routing_settings",
+    [pytest.param(greedy_routing), pytest.param(graph_routing, marks=graph_skipif)],
+)
 def test_automatically_routed_circuit_has_correct_syntax(
     backend: AQTMultiZoneBackend,
+    routing_settings: RoutingSettings,
 ) -> None:
     initial_placement = {0: [0, 1, 2, 3], 1: [4, 5, 6, 7]}
     circuit = Circuit(8)
@@ -185,7 +215,14 @@ def test_automatically_routed_circuit_has_correct_syntax(
     circuit.CX(0, 1).CX(2, 3).CX(4, 5).CX(6, 7)
     circuit.CX(1, 2).CX(3, 4).CX(5, 6).CX(7, 0)
     circuit.measure_all()
-    mz_circuit = backend.compile_circuit_with_routing(circuit, initial_placement)
+    init_pl_settings = InitialPlacementSettings(
+        algorithm=InitialPlacementAlg.manual,
+        manual_placement=initial_placement,
+    )
+    compilation_settings = CompilationSettings(
+        initial_placement=init_pl_settings, routing=routing_settings
+    )
+    mz_circuit = backend.compile_circuit_with_routing(circuit, compilation_settings)
 
     n_shuttles = mz_circuit.get_n_shuttles()
     n_pswaps = mz_circuit.get_n_pswaps()
@@ -197,7 +234,7 @@ def test_automatically_routed_circuit_has_correct_syntax(
     aqt_shuttles = 0
     aqt_pswaps = 0
     for i, operation in enumerate(aqt_operation_list):
-        if i < 2:
+        if i < backend._architecture.n_zones:
             assert operation[0] == "INIT"
         else:
             assert operation[0] != "INIT"

@@ -11,25 +11,32 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
+from __future__ import annotations
 from dataclasses import dataclass
-from typing import Optional, Sequence
-from qiskit_aqt_provider import api_models
-
-from pytket import Circuit
-from pytket.backends import ResultHandle
+from enum import Enum
 
 
-@dataclass
-class PytketAqtJobCircuitData:
-    circuit: Circuit
-    n_shots: int
-    postprocess_json: str = json.dumps(None)
-    aqt_circuit: Optional[api_models.Circuit] = None
-    measures: Optional[str] = None
-    handle: Optional[ResultHandle] = None
+class RoutingSettingsError(Exception):
+    pass
+
+
+class RoutingAlg(Enum):
+    greedy = 0
+    graph_partition = 1
 
 
 @dataclass
-class PytketAqtJob:
-    circuits_data: Sequence[PytketAqtJobCircuitData]
+class RoutingSettings:
+    algorithm: RoutingAlg = RoutingAlg.greedy
+    n_threads: int = 1
+    debug_level: int = 0
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.algorithm, RoutingAlg):
+            raise RoutingSettingsError(
+                f"{self.algorithm.__name__}" f" must be of type {RoutingAlg.__name__}"
+            )
+
+    @classmethod
+    def default(cls) -> RoutingSettings:
+        return RoutingSettings()

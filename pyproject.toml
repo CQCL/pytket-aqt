@@ -77,6 +77,13 @@ sphinx-copybutton = "*"
 docutils = "*"
 types-docutils = "*"
 
+[tool.poetry.group.jupyter]
+optional = true
+
+[tool.poetry.group.jupyter.dependencies]
+jupyter = "^1.0.0"
+ipykernel = "^6.29.5"
+
 [tool.mypy]
 warn_unused_configs = true
 disallow_untyped_decorators = false

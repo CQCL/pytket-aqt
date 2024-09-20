@@ -21,7 +21,8 @@ from typing import Sequence
 from typing import Tuple
 from typing import Union
 
-from pytket._tket.unit_id import UnitID
+
+from pytket.unit_id import UnitID
 from pytket.backends import Backend
 from pytket.backends import CircuitStatus
 from pytket.backends import ResultHandle
@@ -57,9 +58,12 @@ from ..multi_zone_architecture.circuit.multizone_circuit import (
     MultiZoneCircuit,
 )
 from ..extension_version import __extension_version__
-from ..multi_zone_architecture.circuit_routing.route_zones import (
+from ..multi_zone_architecture.circuit_routing.route_circuit import (
     route_circuit,
-    ZonePlacement,
+)
+from ..multi_zone_architecture.compilation_settings import CompilationSettings
+from ..multi_zone_architecture.initial_placement.initial_placement_generators import (
+    get_initial_placement,
 )
 
 AQT_URL_PREFIX = "https://gateway.aqt.eu/marmot/"
@@ -246,11 +250,59 @@ class AQTMultiZoneBackend(Backend):
         """
         raise NotImplementedError
 
+    def precompile_circuit(
+        self,
+        circuit: Circuit,
+        compilation_settings: CompilationSettings = CompilationSettings.default(),
+    ) -> Circuit:
+        """
+        Compile a pytket Circuit assuming all to all connectivity
+
+        Returns a pytket Circuit that conforms to the backend
+         architectures gate set but does not necessarily respect connectivity
+
+        """
+        if not circuit.is_simple:
+            raise ValueError(f"{type(self).__name__} only supports simple circuits")
+        compiled = super().get_compiled_circuit(
+            circuit, compilation_settings.pytket_optimisation_level
+        )
+        # compilation renames qbit register to "fcNode" so rename back to "q"
+        qubit_map = {
+            cast(UnitID, qubit): cast(UnitID, Qubit(qubit.index[0]))
+            for qubit in compiled.qubits
+        }
+        compiled.rename_units(qubit_map)
+        return compiled
+
+    def route_precompiled(
+        self,
+        precompiled: Circuit,
+        compilation_settings: CompilationSettings = CompilationSettings.default(),
+    ) -> MultiZoneCircuit:
+        """
+        Route a pytket Circuit to the backend architecture
+
+        Does not perform gate optimization and inserts only the necessary shuttles
+         and swaps. Returns a MultiZoneCircuit.
+
+        """
+        initial_placement = get_initial_placement(
+            compilation_settings.initial_placement, precompiled, self._architecture
+        )
+        routed = route_circuit(
+            compilation_settings.routing,
+            precompiled,
+            self._architecture,
+            initial_placement,
+        )
+        routed.is_compiled = True
+        return routed
+
     def compile_circuit_with_routing(
         self,
         circuit: Circuit,
-        initial_placement: Optional[ZonePlacement] = None,
-        optimisation_level: int = 2,
+        compilation_settings: CompilationSettings = CompilationSettings.default(),
     ) -> MultiZoneCircuit:
         """
         Compile a pytket Circuit and route it to the backend architecture
@@ -260,14 +312,25 @@ class AQTMultiZoneBackend(Backend):
         """
         if not circuit.is_simple:
             raise ValueError(f"{type(self).__name__} only supports simple circuits")
-        compiled = super().get_compiled_circuit(circuit, optimisation_level)
+        compiled = super().get_compiled_circuit(
+            circuit, compilation_settings.pytket_optimisation_level
+        )
         # compilation renames qbit register to "fcNode" so rename back to "q"
         qubit_map = {
             cast(UnitID, qubit): cast(UnitID, Qubit(qubit.index[0]))
             for qubit in compiled.qubits
         }
         compiled.rename_units(qubit_map)
-        routed = route_circuit(compiled, self._architecture, initial_placement)
+
+        initial_placement = get_initial_placement(
+            compilation_settings.initial_placement, compiled, self._architecture
+        )
+        routed = route_circuit(
+            compilation_settings.routing,
+            compiled,
+            self._architecture,
+            initial_placement,
+        )
         routed.is_compiled = True
         return routed
 
@@ -282,7 +345,7 @@ class AQTMultiZoneBackend(Backend):
         optimisation level. The barriers within the Circuit mark move points
         which should not be optimised through.
 
-        Afterwards, the precomputed "PSWAP" and "SHUTTLE" operations are added
+        Afterward, the precomputed "PSWAP" and "SHUTTLE" operations are added
         at the appropriate barrier points.
         """
 

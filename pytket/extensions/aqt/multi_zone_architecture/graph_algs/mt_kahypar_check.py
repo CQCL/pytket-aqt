@@ -11,25 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
-from dataclasses import dataclass
-from typing import Optional, Sequence
-from qiskit_aqt_provider import api_models
+import importlib
 
-from pytket import Circuit
-from pytket.backends import ResultHandle
+MT_KAHYPAR_INSTALLED = importlib.util.find_spec("mtkahypar") is not None
+"""Whether or not the mtkahypar package is available"""
 
 
-@dataclass
-class PytketAqtJobCircuitData:
-    circuit: Circuit
-    n_shots: int
-    postprocess_json: str = json.dumps(None)
-    aqt_circuit: Optional[api_models.Circuit] = None
-    measures: Optional[str] = None
-    handle: Optional[ResultHandle] = None
+class MissingMtKahyparInstallError(Exception):
 
-
-@dataclass
-class PytketAqtJob:
-    circuits_data: Sequence[PytketAqtJobCircuitData]
+    def __init__(self) -> None:
+        super().__init__("Graph partitioning requires mtkahypar package")

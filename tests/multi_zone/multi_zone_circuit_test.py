@@ -30,10 +30,6 @@ from pytket.extensions.aqt.multi_zone_architecture.named_architectures import (
     four_zones_in_a_line,
 )
 
-from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.route_zones import (
-    route_circuit,
-)
-
 
 @pytest.fixture()
 def initial_placement() -> dict[int, list[int]]:
@@ -41,7 +37,7 @@ def initial_placement() -> dict[int, list[int]]:
 
 
 @pytest.fixture()
-def circuit(initial_placement: dict[int, list[int]]) -> MultiZoneCircuit:
+def fix_circuit(initial_placement: dict[int, list[int]]) -> MultiZoneCircuit:
     circuit = MultiZoneCircuit(four_zones_in_a_line, initial_placement, 8)
     circuit.CX(0, 1).CX(2, 3).CX(4, 5).CX(6, 7)
     circuit.move_qubit(3, 1)
@@ -61,10 +57,10 @@ def circuit_precompile() -> Circuit:
 
 
 def test_circuit_has_correct_init_gates_at_beginning(
-    circuit: MultiZoneCircuit, initial_placement: dict[int, list[int]]
+    fix_circuit: MultiZoneCircuit, initial_placement: dict[int, list[int]]
 ) -> None:
     circuit_placement = {}
-    for gate in circuit.pytket_circuit:
+    for gate in fix_circuit.pytket_circuit:
         op = gate.op
         if "INIT" not in op.__str__():
             break
@@ -75,10 +71,10 @@ def test_circuit_has_correct_init_gates_at_beginning(
 
 
 def test_circuit_contains_correct_number_of_moves_shuttles_swaps(
-    circuit: MultiZoneCircuit,
+    fix_circuit: MultiZoneCircuit,
 ) -> None:
     move_barriers, moves, shuttles, swaps = 0, 0, 0, 0
-    for gate in circuit.pytket_circuit:
+    for gate in fix_circuit.pytket_circuit:
         op = gate.op
         if "MOVE_BARRIER" in op.__str__():
             move_barriers += 1
@@ -95,21 +91,21 @@ def test_circuit_contains_correct_number_of_moves_shuttles_swaps(
     assert (move_barriers, moves, shuttles, swaps) == (2, 2, 0, 0)
 
 
-def test_redundant_move_raises_move_error(circuit: MultiZoneCircuit) -> None:
+def test_redundant_move_raises_move_error(fix_circuit: MultiZoneCircuit) -> None:
     with pytest.raises(MoveError):
-        circuit.move_qubit(2, 0)
+        fix_circuit.move_qubit(2, 0)
 
 
 def test_move_on_missing_qubit_raises_placement_error(
-    circuit: MultiZoneCircuit,
+    fix_circuit: MultiZoneCircuit,
 ) -> None:
     with pytest.raises(QubitPlacementError):
-        circuit.move_qubit(9, 1)
+        fix_circuit.move_qubit(9, 1)
 
 
-def test_add_barrier_throws_value_error(circuit: MultiZoneCircuit) -> None:
+def test_add_barrier_throws_value_error(fix_circuit: MultiZoneCircuit) -> None:
     with pytest.raises(ValueError):
-        circuit.add_gate(OpType.Barrier, [0])
+        fix_circuit.add_gate(OpType.Barrier, [0])
 
 
 def test_validation_of_circuit_with_operation_across_zones_throws(
@@ -122,15 +118,7 @@ def test_validation_of_circuit_with_operation_across_zones_throws(
         circuit.validate()
 
 
-def test_validation_of_valid_circuit_does_not_throw(circuit: MultiZoneCircuit) -> None:
-    circuit.validate()
-
-
-def test_circuit_routing(circuit_precompile: Circuit) -> None:
-    route_circuit(circuit_precompile, four_zones_in_a_line)
-
-
-def test_circuit_routing_with_initial_placement(
-    circuit_precompile: Circuit, initial_placement: dict[int, list[int]]
+def test_validation_of_valid_circuit_does_not_throw(
+    fix_circuit: MultiZoneCircuit,
 ) -> None:
-    route_circuit(circuit_precompile, four_zones_in_a_line, initial_placement)
+    fix_circuit.validate()
