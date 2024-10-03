@@ -1,9 +1,10 @@
 Changelog
 ~~~~~~~~~
 
-Unreleased
-----------
+0.35.0 (October 2024)
+---------------------
 
+* Updated pytket version requirement to 1.33.
 * Add graph partition based routing for AQTMultiZoneBackend
 
 0.34.0 (August 2024)
