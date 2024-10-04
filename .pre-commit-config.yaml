@@ -39,4 +39,3 @@ repos:
     rev: v0.6.9
     hooks:
       - id: ruff
-      - id: ruff-format
