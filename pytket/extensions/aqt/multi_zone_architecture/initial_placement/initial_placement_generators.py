@@ -13,21 +13,20 @@
 # limitations under the License.
 import math
 from dataclasses import dataclass
-from typing import Protocol
 from logging import getLogger
+from typing import Protocol
 
 from pytket import Circuit
 
+from ..architecture import MultiZoneArchitecture
+from ..circuit.helpers import ZonePlacement
+from ..depth_list.depth_list import DepthList, get_initial_depth_list
+from ..graph_algs.graph import GraphData
 from ..graph_algs.mt_kahypar_check import (
     MT_KAHYPAR_INSTALLED,
     MissingMtKahyparInstallError,
 )
-from ..circuit.helpers import ZonePlacement
-from .settings import InitialPlacementSettings, InitialPlacementAlg
-
-from ..architecture import MultiZoneArchitecture
-from ..depth_list.depth_list import get_initial_depth_list, DepthList
-from ..graph_algs.graph import GraphData
+from .settings import InitialPlacementAlg, InitialPlacementSettings
 
 logger = getLogger("initial_placement_logger")
 

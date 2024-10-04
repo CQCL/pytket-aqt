@@ -12,32 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pytest
+
 from pytket import Circuit
-
 from pytket.extensions.aqt.backends.aqt_multi_zone import AQTMultiZoneBackend
-
-from pytket.extensions.aqt.multi_zone_architecture.named_architectures import (
-    four_zones_in_a_line,
-    grid7,
-)
-
-from pytket.extensions.aqt.multi_zone_architecture.initial_placement.settings import (
-    InitialPlacementSettings,
-    InitialPlacementAlg,
-)
-
 from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.settings import (
-    RoutingSettings,
     RoutingAlg,
+    RoutingSettings,
 )
-
 from pytket.extensions.aqt.multi_zone_architecture.compilation_settings import (
     CompilationSettings,
 )
-
 from pytket.extensions.aqt.multi_zone_architecture.graph_algs.mt_kahypar_check import (
     MT_KAHYPAR_INSTALLED,
     MissingMtKahyparInstallError,
+)
+from pytket.extensions.aqt.multi_zone_architecture.initial_placement.settings import (
+    InitialPlacementAlg,
+    InitialPlacementSettings,
+)
+from pytket.extensions.aqt.multi_zone_architecture.named_architectures import (
+    four_zones_in_a_line,
+    grid7,
 )
 
 

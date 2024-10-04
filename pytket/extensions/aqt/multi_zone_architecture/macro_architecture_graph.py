@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
-from dataclasses import field
+from dataclasses import dataclass, field
 from typing import NewType
 
-from networkx import Graph  # type: ignore
-from networkx import shortest_path
+from networkx import (
+    Graph,  # type: ignore
+    shortest_path,
+)
 
 from .architecture import MultiZoneArchitecture
 

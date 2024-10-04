@@ -12,18 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations
+
 import json
 import uuid
 from dataclasses import dataclass
-from typing import Protocol, Final, TypeVar
+from typing import Final, Protocol, TypeVar
 
 import httpx
 from qiskit_aqt_provider import AQTProvider, api_models
 from qiskit_aqt_provider.api_models_generated import (
-    JobUser,
-    RRFinished,
-    ResultItem,
     JobResponseRRFinished,
+    JobUser,
+    ResultItem,
+    RRFinished,
 )
 from qiskit_aqt_provider.aqt_job import AQTJob
 from qiskit_aqt_provider.aqt_options import AQTOptions
@@ -57,7 +58,7 @@ T = TypeVar("T")
 
 def unwrap(obj: T | None) -> T:
     if obj is None:
-        raise ValueError(f"Value cannot be None")
+        raise ValueError("Value cannot be None")
     return obj
 
 

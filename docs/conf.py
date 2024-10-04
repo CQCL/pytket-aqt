@@ -1,13 +1,9 @@
 import re
-from typing import Any
-from typing import Dict
-from typing import Optional
-from typing import Tuple
+from typing import Any, Dict, Optional, Tuple
 from urllib.parse import urljoin
 
 from docutils import nodes
-from docutils.nodes import Element
-from docutils.nodes import TextElement
+from docutils.nodes import Element, TextElement
 from sphinx.application import Sphinx
 from sphinx.environment import BuildEnvironment
 

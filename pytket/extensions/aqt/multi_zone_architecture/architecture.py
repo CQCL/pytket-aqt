@@ -13,11 +13,9 @@
 # limitations under the License.
 import os
 from enum import Enum
-from typing import Dict
-from typing import List
-from typing import Union
+from typing import Dict, List, Union
 
-from pydantic import ConfigDict, BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class EdgeType(str, Enum):
@@ -144,7 +142,7 @@ class MultiZoneArchitecture(BaseModel):
         arch_spec_lines = [
             f"Max number of qubits: {self.n_qubits_max}",
             f"Number of zones: {self.n_zones}",
-            f"",
+            "",
         ]
         for zone_id, zone in enumerate(self.zones):
             zone_type = self.zone_types[zone.zone_type_id]
@@ -153,7 +151,7 @@ class MultiZoneArchitecture(BaseModel):
                     f"Zone {zone_id}:",
                     f"    Max qubits {zone_type.max_ions}",
                     f"    Min qubits {zone_type.min_ions}",
-                    f"    Connections:",
+                    "    Connections:",
                 ]
             )
             for connected_zone, connection_name in zone.connected_zones.items():

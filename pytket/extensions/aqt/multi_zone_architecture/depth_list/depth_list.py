@@ -84,9 +84,7 @@ def get_updated_depth_list(
     for i, depth in enumerate(depth_list):
         for qubit_pair in depth:
             if qubit_to_zone[qubit_pair[0]] == qubit_to_zone[qubit_pair[1]]:
-                if not prune_stage:
-                    pruned_depth_list[i].remove(qubit_pair)
-                elif (
+                if not prune_stage or (
                     qubit_pair[0] not in prune_touched
                     and qubit_pair[1] not in prune_touched
                 ):

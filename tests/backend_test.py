@@ -17,14 +17,13 @@ from collections import Counter
 import numpy as np
 import pytest
 from _pytest.logging import LogCaptureFixture
-from hypothesis import given
-from hypothesis import strategies
+from hypothesis import given, strategies
 from pydantic_core import ValidationError
+
 from pytket import Qubit
 from pytket.backends import StatusEnum
 from pytket.circuit import Circuit
 from pytket.extensions.aqt import AQTBackend
-
 from pytket.extensions.aqt.backends.aqt import AqtAccessError
 
 skip_remote_tests: bool = os.getenv("PYTKET_RUN_REMOTE_TESTS") is None

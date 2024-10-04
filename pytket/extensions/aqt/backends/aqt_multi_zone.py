@@ -12,52 +12,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+from collections.abc import Sequence
 from copy import deepcopy
-from typing import Any, cast
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Sequence
-from typing import Tuple
-from typing import Union
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
-
-from pytket.unit_id import UnitID
-from pytket.backends import Backend
-from pytket.backends import CircuitStatus
-from pytket.backends import ResultHandle
-from pytket.backends import StatusEnum
+from pytket.backends import Backend, CircuitStatus, ResultHandle, StatusEnum
 from pytket.backends.backend import KwargTypes
-from pytket.backends.backendinfo import BackendInfo
-from pytket.backends.backendinfo import fully_connected_backendinfo
+from pytket.backends.backendinfo import BackendInfo, fully_connected_backendinfo
 from pytket.backends.backendresult import BackendResult
 from pytket.backends.resulthandle import _ResultIdTuple
-from pytket.circuit import Circuit
-from pytket.circuit import OpType
-from pytket.circuit import Qubit
-from pytket.passes import auto_rebase_pass
-from pytket.passes import BasePass
-from pytket.passes import DecomposeBoxes
-from pytket.passes import EulerAngleReduction
-from pytket.passes import FlattenRegisters
-from pytket.passes import FullPeepholeOptimise
-from pytket.passes import RenameQubitsPass
-from pytket.passes import SequencePass
-from pytket.passes import SynthesiseTket
-from pytket.predicates import GateSetPredicate
-from pytket.predicates import MaxNQubitsPredicate
-from pytket.predicates import NoClassicalControlPredicate
-from pytket.predicates import NoFastFeedforwardPredicate
-from pytket.predicates import NoMidMeasurePredicate
-from pytket.predicates import NoSymbolsPredicate
-from pytket.predicates import Predicate
+from pytket.circuit import Circuit, OpType, Qubit
+from pytket.passes import (
+    BasePass,
+    DecomposeBoxes,
+    EulerAngleReduction,
+    FlattenRegisters,
+    FullPeepholeOptimise,
+    RenameQubitsPass,
+    SequencePass,
+    SynthesiseTket,
+    auto_rebase_pass,
+)
+from pytket.predicates import (
+    GateSetPredicate,
+    MaxNQubitsPredicate,
+    NoClassicalControlPredicate,
+    NoFastFeedforwardPredicate,
+    NoMidMeasurePredicate,
+    NoSymbolsPredicate,
+    Predicate,
+)
+from pytket.unit_id import UnitID
 
 from ..backends.config import AQTConfig
+from ..extension_version import __extension_version__
 from ..multi_zone_architecture.architecture import MultiZoneArchitecture
 from ..multi_zone_architecture.circuit.multizone_circuit import (
     MultiZoneCircuit,
 )
-from ..extension_version import __extension_version__
 from ..multi_zone_architecture.circuit_routing.route_circuit import (
     route_circuit,
 )

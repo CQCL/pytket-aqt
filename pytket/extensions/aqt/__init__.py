@@ -14,8 +14,8 @@
 """Backends for processing pytket circuits with AQT devices."""
 from .backends import AQTBackend
 from .backends.config import (
-    AQTConfig,
-    set_aqt_config,
     AQTAccessToken,
+    AQTConfig,
     print_available_devices,
+    set_aqt_config,
 )

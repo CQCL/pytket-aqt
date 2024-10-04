@@ -13,17 +13,12 @@
 # limitations under the License.
 
 import pytest
+
 from pytket.circuit import Circuit, OpType
 from pytket.extensions.aqt.multi_zone_architecture.circuit.multizone_circuit import (
     AcrossZoneOperationError,
-)
-from pytket.extensions.aqt.multi_zone_architecture.circuit.multizone_circuit import (
     MoveError,
-)
-from pytket.extensions.aqt.multi_zone_architecture.circuit.multizone_circuit import (
     MultiZoneCircuit,
-)
-from pytket.extensions.aqt.multi_zone_architecture.circuit.multizone_circuit import (
     QubitPlacementError,
 )
 from pytket.extensions.aqt.multi_zone_architecture.named_architectures import (

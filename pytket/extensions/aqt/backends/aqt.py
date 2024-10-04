@@ -14,65 +14,55 @@
 import json
 import logging
 import time
-from typing import Any
-from typing import cast
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Sequence
-from typing import Tuple
-from typing import Union
-from typing_extensions import assert_never
+from collections.abc import Sequence
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 import numpy
 from qiskit_aqt_provider import api_models, api_models_generated
 from qiskit_aqt_provider.aqt_provider import OFFLINE_SIMULATORS
+from typing_extensions import assert_never
 
-from pytket.backends import Backend
-from pytket.backends import CircuitStatus
-from pytket.backends import ResultHandle
-from pytket.backends import StatusEnum
+from pytket.backends import Backend, CircuitStatus, ResultHandle, StatusEnum
 from pytket.backends.backend import KwargTypes
 from pytket.backends.backend_exceptions import CircuitNotRunError, CircuitNotValidError
-from pytket.backends.backendinfo import BackendInfo
-from pytket.backends.backendinfo import fully_connected_backendinfo
+from pytket.backends.backendinfo import BackendInfo, fully_connected_backendinfo
 from pytket.backends.backendresult import BackendResult
 from pytket.backends.resulthandle import _ResultIdTuple
-from pytket.circuit import Circuit
-from pytket.circuit import OpType
-from pytket.circuit import Qubit
-from pytket.passes import auto_rebase_pass
-from pytket.passes import BasePass
-from pytket.passes import DecomposeBoxes
-from pytket.passes import EulerAngleReduction
-from pytket.passes import FlattenRegisters
-from pytket.passes import FullPeepholeOptimise
-from pytket.passes import RenameQubitsPass
-from pytket.passes import SequencePass
-from pytket.passes import SimplifyInitial
-from pytket.passes import SynthesiseTket
-from pytket.predicates import GateSetPredicate
-from pytket.predicates import MaxNQubitsPredicate
-from pytket.predicates import NoClassicalControlPredicate
-from pytket.predicates import NoFastFeedforwardPredicate
-from pytket.predicates import NoMidMeasurePredicate
-from pytket.predicates import NoSymbolsPredicate
-from pytket.predicates import Predicate
+from pytket.circuit import Circuit, OpType, Qubit
+from pytket.passes import (
+    BasePass,
+    DecomposeBoxes,
+    EulerAngleReduction,
+    FlattenRegisters,
+    FullPeepholeOptimise,
+    RenameQubitsPass,
+    SequencePass,
+    SimplifyInitial,
+    SynthesiseTket,
+    auto_rebase_pass,
+)
+from pytket.predicates import (
+    GateSetPredicate,
+    MaxNQubitsPredicate,
+    NoClassicalControlPredicate,
+    NoFastFeedforwardPredicate,
+    NoMidMeasurePredicate,
+    NoSymbolsPredicate,
+    Predicate,
+)
 from pytket.utils import prepare_circuit
 from pytket.utils.outcomearray import OutcomeArray
 
+from ..extension_version import __extension_version__
 from .aqt_api import (
-    AqtOfflineApi,
-    AqtRemoteApi,
-    AqtMockApi,
     AQT_MOCK_DEVICES,
     AqtApi,
+    AqtMockApi,
+    AqtOfflineApi,
+    AqtRemoteApi,
     unwrap,
 )
 from .aqt_job_data import PytketAqtJob, PytketAqtJobCircuitData
-
-from ..extension_version import __extension_version__
-
 
 logger = logging.getLogger(__name__)
 

@@ -13,26 +13,28 @@
 # limitations under the License.
 
 import itertools
+from collections.abc import Iterator
 from copy import deepcopy
-from dataclasses import dataclass
-from dataclasses import field
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional, Iterator, TypeAlias
+from typing import Any, Optional, TypeAlias
 
-from sympy import symbols, Expr  # type: ignore
+from sympy import Expr, symbols  # type: ignore
 
-from pytket.circuit import UnitID
-from pytket.circuit import Circuit
-from pytket.circuit import CustomGateDef
-from pytket.circuit import OpType
+from pytket.circuit import Circuit, CustomGateDef, OpType, UnitID
 
-from ..architecture import EdgeType, ConnectionType
-from ..architecture import MultiZoneArchitecture
-from ..architecture import source_edge_type
-from ..architecture import target_edge_type
-from ..macro_architecture_graph import empty_macro_arch_from_architecture
-from ..macro_architecture_graph import MultiZoneMacroArch
-from ..macro_architecture_graph import ZoneId
+from ..architecture import (
+    ConnectionType,
+    EdgeType,
+    MultiZoneArchitecture,
+    source_edge_type,
+    target_edge_type,
+)
+from ..macro_architecture_graph import (
+    MultiZoneMacroArch,
+    ZoneId,
+    empty_macro_arch_from_architecture,
+)
 
 ParamType: TypeAlias = Expr | float
 

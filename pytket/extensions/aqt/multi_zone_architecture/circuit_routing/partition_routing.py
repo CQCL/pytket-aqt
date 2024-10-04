@@ -12,23 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
+from collections.abc import Generator
 from copy import deepcopy
-from typing import Generator
 
 from pytket import Circuit
 
-from ..circuit.helpers import ZonePlacement, ZoneRoutingError
-from .settings import RoutingSettings
 from ..architecture import MultiZoneArchitecture
+from ..circuit.helpers import ZonePlacement, ZoneRoutingError
 from ..circuit.multizone_circuit import MultiZoneCircuit
 from ..depth_list.depth_list import (
+    DepthList,
     get_initial_depth_list,
     get_updated_depth_list,
-    DepthList,
 )
 from ..graph_algs.graph import GraphData
 from ..graph_algs.mt_kahypar import MtKahyparPartitioner
-from ..macro_architecture_graph import empty_macro_arch_from_architecture, ZoneId
+from ..macro_architecture_graph import ZoneId, empty_macro_arch_from_architecture
+from .settings import RoutingSettings
 
 
 class PartitionCircuitRouter:
