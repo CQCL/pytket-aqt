@@ -15,8 +15,8 @@
 from dataclasses import dataclass, field
 from typing import NewType
 
-from networkx import (
-    Graph,  # type: ignore
+from networkx import (  # type: ignore
+    Graph,
     shortest_path,
 )
 
