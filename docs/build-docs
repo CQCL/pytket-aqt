@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 import argparse
-from datetime import date
 import shutil
 import subprocess
 import sys
+from datetime import date
 from importlib import import_module
 from pathlib import Path
 from typing import Any
@@ -90,7 +90,6 @@ if __name__ == "__main__":
     parser.add_argument("-d", "--dest", help="copy artifacts into destination folder")
     args = parser.parse_args()
 
-    print("Building docs for modules:", MODULE)
     build_module_docs()
 
     if args.dest is not None:

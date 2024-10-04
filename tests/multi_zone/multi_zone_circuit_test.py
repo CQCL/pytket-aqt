@@ -104,7 +104,7 @@ def test_add_barrier_throws_value_error(fix_circuit: MultiZoneCircuit) -> None:
 
 
 def test_validation_of_circuit_with_operation_across_zones_throws(
-    initial_placement: dict[int, list[int]]
+    initial_placement: dict[int, list[int]],
 ) -> None:
     circuit = MultiZoneCircuit(four_zones_in_a_line, initial_placement, 8)
     circuit.CX(0, 4)

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """AQT config."""
+
 import logging
 from dataclasses import dataclass
 from getpass import getpass
