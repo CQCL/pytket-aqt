@@ -13,7 +13,7 @@
 # limitations under the License.
 import os
 from enum import Enum
-from typing import Dict, List, Union
+from typing import Union
 
 from pydantic import BaseModel, ConfigDict
 
@@ -105,8 +105,8 @@ class ZoneType(BaseModel):
     name: str
     max_ions: int
     min_ions: int
-    zone_connections: Dict[str, ZoneConnection]
-    operations: List[Operation]
+    zone_connections: dict[str, ZoneConnection]
+    operations: list[Operation]
 
 
 class Zone(BaseModel):
@@ -114,7 +114,7 @@ class Zone(BaseModel):
 
     name: str
     zone_type_id: int
-    connected_zones: Dict[int, str]
+    connected_zones: dict[int, str]
 
 
 class MultiZoneArchitecture(BaseModel):
@@ -122,8 +122,8 @@ class MultiZoneArchitecture(BaseModel):
 
     n_qubits_max: int
     n_zones: int
-    zone_types: List[ZoneType]
-    zones: List[Zone]
+    zone_types: list[ZoneType]
+    zones: list[Zone]
 
     def get_connection_type(
         self, zone_index_source: int, zone_index_target: int

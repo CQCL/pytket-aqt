@@ -1,5 +1,5 @@
 import re
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional
 from urllib.parse import urljoin
 
 from docutils import nodes
@@ -114,10 +114,10 @@ def correct_signature(
     what: str,
     name: str,
     obj: Any,
-    options: Dict,
+    options: dict,
     signature: str,
     return_annotation: str,
-) -> Tuple[str, str]:
+) -> tuple[str, str]:
     new_signature = signature
     new_return_annotation = return_annotation
     for k, v in app.config.custom_internal_mapping.items():

@@ -15,7 +15,7 @@ import json
 import logging
 import time
 from collections.abc import Sequence
-from typing import Any, Dict, List, Optional, Tuple, Union, cast
+from typing import Any, Optional, Union, cast
 
 import numpy
 from qiskit_aqt_provider import api_models, api_models_generated
@@ -82,7 +82,7 @@ _GATE_SET = {
     OpType.Barrier,
 }
 
-AQTResult = Tuple[int, List[int]]  # (n_qubits, list of readouts)
+AQTResult = tuple[int, list[int]]  # (n_qubits, list of readouts)
 
 AQT_OFFLINE_SIMULATORS = {sim.id: sim for sim in OFFLINE_SIMULATORS}
 
@@ -208,7 +208,7 @@ class AQTBackend(Backend):
     @classmethod
     def available_devices(
         cls, access_token: Optional[str] = None, **kwargs: Any
-    ) -> List[BackendInfo]:
+    ) -> list[BackendInfo]:
         """
         See :py:meth:`pytket.backends.Backend.available_devices`.
         Supported kwargs: none.
@@ -236,7 +236,7 @@ class AQTBackend(Backend):
         ]
 
     @property
-    def required_predicates(self) -> List[Predicate]:
+    def required_predicates(self) -> list[Predicate]:
         preds = [
             NoClassicalControlPredicate(),
             NoFastFeedforwardPredicate(),
@@ -348,7 +348,7 @@ class AQTBackend(Backend):
         n_shots: Union[None, int, Sequence[Optional[int]]] = None,
         valid_check: bool = True,
         **kwargs: KwargTypes,
-    ) -> List[ResultHandle]:
+    ) -> list[ResultHandle]:
         """
         See :py:meth:`pytket.backends.Backend.process_circuits`.
 
@@ -408,7 +408,7 @@ class AQTBackend(Backend):
         return handles
 
     def _update_cache_result(
-        self, handle: ResultHandle, result_dict: Dict[str, BackendResult]
+        self, handle: ResultHandle, result_dict: dict[str, BackendResult]
     ) -> None:
         if handle in self._cache:
             self._cache[handle].update(result_dict)

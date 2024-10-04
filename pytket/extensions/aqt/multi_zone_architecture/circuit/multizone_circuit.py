@@ -456,7 +456,7 @@ class MultiZoneCircuit:
             return
 
         current_multiop_index_per_qubit: dict[int, int] = {
-            k: 0 for k in self.multi_zone_operations.keys()
+            k: 0 for k in self.multi_zone_operations
         }
         for i, cmd in enumerate(self.pytket_circuit):
             op = cmd.op

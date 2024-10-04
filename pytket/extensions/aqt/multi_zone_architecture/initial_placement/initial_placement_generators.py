@@ -82,7 +82,7 @@ class ManualInitialPlacement(InitialPlacementGenerator):
                 f" Missing qubits: {unplaced_qubits}"
             )
         for zone in range(arch.n_zones):
-            if zone not in self.placement.keys():
+            if zone not in self.placement:
                 self.placement[zone] = []
         return self.placement
 
@@ -228,7 +228,7 @@ class GraphMapInitialPlacement(InitialPlacementGenerator):
         arch_edges = []
         arch_edge_weights = []
         for i, zone in enumerate(arch.zones):
-            for connected_zone in zone.connected_zones.keys():
+            for connected_zone in zone.connected_zones:
                 if (i, connected_zone) not in arch_edges and (
                     connected_zone,
                     i,

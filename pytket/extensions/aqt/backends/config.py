@@ -15,7 +15,7 @@
 import logging
 from dataclasses import dataclass
 from getpass import getpass
-from typing import Any, ClassVar, Dict, Optional, Type
+from typing import Any, ClassVar, Optional
 
 from qiskit_aqt_provider.aqt_provider import AQTProvider
 
@@ -32,7 +32,7 @@ class AQTConfig(PytketExtConfig):
 
     @classmethod
     def from_extension_dict(
-        cls: Type["AQTConfig"], ext_dict: Dict[str, Any]
+        cls: type["AQTConfig"], ext_dict: dict[str, Any]
     ) -> "AQTConfig":
         return cls(ext_dict.get("access_token"))
 
@@ -116,4 +116,3 @@ def print_available_devices(access_token: Optional[str] = None) -> None:
     backends = aqt_provider.backends()
     backends.headers[1] = "Device ID"
     backends.headers[3] = "Device type"
-    print(backends)

@@ -98,8 +98,7 @@ def test_compilation_settings_linearch(
         initial_placement=initial_pl_settings,
         routing=routing_settings,
     )
-    compiled = backend.compile_circuit_with_routing(ghz_circuit, compilation_settings)
-    print("Shuttles: ", compiled.get_n_shuttles())
+    backend.compile_circuit_with_routing(ghz_circuit, compilation_settings)
 
 
 mtkahypar_skipif = pytest.mark.skipif(
@@ -168,5 +167,4 @@ def test_compilation_settings_gridarch(
         initial_placement=initial_pl_settings,
         routing=routing_settings,
     )
-    compiled = backend.compile_circuit_with_routing(ghz_circuit, compilation_settings)
-    print("Shuttles: ", compiled.get_n_shuttles())
+    backend.compile_circuit_with_routing(ghz_circuit, compilation_settings)

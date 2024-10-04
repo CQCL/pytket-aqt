@@ -14,7 +14,7 @@
 import json
 from collections.abc import Sequence
 from copy import deepcopy
-from typing import Any, Dict, List, Optional, Tuple, Union, cast
+from typing import Any, Optional, Union, cast
 
 from pytket.backends import Backend, CircuitStatus, ResultHandle, StatusEnum
 from pytket.backends.backend import KwargTypes
@@ -71,7 +71,7 @@ _GATE_SET = {
     OpType.Barrier,
 }
 
-AQTResult = Tuple[int, List[int]]  # (n_qubits, list of readouts)
+AQTResult = tuple[int, list[int]]  # (n_qubits, list of readouts)
 
 # TODO add more
 _STATUS_MAP = {
@@ -133,7 +133,7 @@ class AQTMultiZoneBackend(Backend):
 
         self._header = {"Ocp-Apim-Subscription-Key": access_token, "SDK": "pytket"}
         self._backend_info: Optional[BackendInfo] = None
-        self._qm: Dict[Qubit, Qubit] = {}
+        self._qm: dict[Qubit, Qubit] = {}
         self._architecture = architecture
         self._backend_info = fully_connected_backendinfo(
             type(self).__name__,
@@ -156,7 +156,7 @@ class AQTMultiZoneBackend(Backend):
         return self._backend_info
 
     @classmethod
-    def available_devices(cls, **kwargs: Any) -> List[BackendInfo]:
+    def available_devices(cls, **kwargs: Any) -> list[BackendInfo]:
         """
         See :py:meth:`pytket.backends.Backend.available_devices`.
         Supported kwargs: none.
@@ -164,7 +164,7 @@ class AQTMultiZoneBackend(Backend):
         return []
 
     @property
-    def required_predicates(self) -> List[Predicate]:
+    def required_predicates(self) -> list[Predicate]:
         preds = [
             NoClassicalControlPredicate(),
             NoFastFeedforwardPredicate(),
@@ -220,7 +220,7 @@ class AQTMultiZoneBackend(Backend):
         n_shots: Union[None, int, Sequence[Optional[int]]] = None,
         valid_check: bool = True,
         **kwargs: KwargTypes,
-    ) -> List[ResultHandle]:
+    ) -> list[ResultHandle]:
         """
         See :py:meth:`pytket.backends.Backend.process_circuits`.
         Supported kwargs: none.
@@ -228,7 +228,7 @@ class AQTMultiZoneBackend(Backend):
         raise NotImplementedError
 
     def _update_cache_result(
-        self, handle: ResultHandle, result_dict: Dict[str, BackendResult]
+        self, handle: ResultHandle, result_dict: dict[str, BackendResult]
     ) -> None:
         raise NotImplementedError
 
@@ -357,7 +357,7 @@ class AQTMultiZoneBackend(Backend):
         new_circuit.multi_zone_operations = deepcopy(circuit.multi_zone_operations)
 
         current_multiop_index_per_qubit: dict[int, int] = {
-            k: 0 for k in new_circuit.multi_zone_operations.keys()
+            k: 0 for k in new_circuit.multi_zone_operations
         }
         for cmd in compiled_circuit:
             op = cmd.op
@@ -382,7 +382,7 @@ class AQTMultiZoneBackend(Backend):
 
 def get_aqt_json_syntax_for_compiled_circuit(
     circuit: MultiZoneCircuit | Circuit,
-) -> List[List]:
+) -> list[list]:
     """Get python List object containing circuit instructions in AQT JSON Syntax"""
     aqt_syntax_operation_list: list[list[Any]] = []
     if isinstance(circuit, MultiZoneCircuit):
@@ -407,7 +407,7 @@ def get_aqt_json_syntax_for_compiled_circuit(
 
 def _get_initial_zone_to_qubit_data(
     circ: Circuit,
-) -> Tuple[dict[int, tuple[int, int]], dict[int, tuple[int, int]]]:
+) -> tuple[dict[int, tuple[int, int]], dict[int, tuple[int, int]]]:
     """
     From the initialization operations at the beginning of a circuit
     routed to a MultiZoneArchitecture, determine the initial mapping of
@@ -435,11 +435,11 @@ def _get_initial_zone_to_qubit_data(
     return qubit_to_zone_position, zone_to_occupancy_offset
 
 
-def _translate_aqt(circ: Circuit) -> Tuple[List[List], str]:
+def _translate_aqt(circ: Circuit) -> tuple[list[list], str]:
     """Convert a circuit in the AQT gate set to AQT list representation,
     along with a JSON string describing the measure result permutations."""
-    gates: List = list()
-    measures: List = list()
+    gates: list = list()
+    measures: list = list()
     qubit_to_zone_position, zone_to_occupancy_offset = _get_initial_zone_to_qubit_data(
         circ
     )
