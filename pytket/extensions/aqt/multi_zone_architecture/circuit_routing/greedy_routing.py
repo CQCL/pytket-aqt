@@ -15,10 +15,10 @@ from copy import deepcopy
 
 from pytket import Circuit, Qubit
 
-from .settings import RoutingSettings
 from ..architecture import MultiZoneArchitecture
-from ..circuit.multizone_circuit import MultiZoneCircuit
 from ..circuit.helpers import ZonePlacement, ZoneRoutingError
+from ..circuit.multizone_circuit import MultiZoneCircuit
+from .settings import RoutingSettings
 
 
 class GreedyCircuitRouter:

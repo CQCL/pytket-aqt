@@ -3,9 +3,9 @@
 import os
 import shlex
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 from textwrap import dedent
-from typing import Iterable
 
 import nox
 

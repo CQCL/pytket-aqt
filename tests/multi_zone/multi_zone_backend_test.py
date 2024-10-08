@@ -13,35 +13,32 @@
 # limitations under the License.
 
 import pytest
+
 from pytket import Circuit
 from pytket.backends import ResultHandle
-from pytket.extensions.aqt.backends.aqt_multi_zone import AQTMultiZoneBackend
 from pytket.extensions.aqt.backends.aqt_multi_zone import (
+    AQTMultiZoneBackend,
     get_aqt_json_syntax_for_compiled_circuit,
 )
 from pytket.extensions.aqt.multi_zone_architecture.circuit.multizone_circuit import (
     MultiZoneCircuit,
 )
-from pytket.extensions.aqt.multi_zone_architecture.named_architectures import (
-    four_zones_in_a_line,
+from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.settings import (
+    RoutingAlg,
+    RoutingSettings,
 )
-
 from pytket.extensions.aqt.multi_zone_architecture.compilation_settings import (
     CompilationSettings,
 )
-
-from pytket.extensions.aqt.multi_zone_architecture.initial_placement.settings import (
-    InitialPlacementSettings,
-    InitialPlacementAlg,
-)
-
 from pytket.extensions.aqt.multi_zone_architecture.graph_algs.mt_kahypar_check import (
     MT_KAHYPAR_INSTALLED,
 )
-
-from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.settings import (
-    RoutingSettings,
-    RoutingAlg,
+from pytket.extensions.aqt.multi_zone_architecture.initial_placement.settings import (
+    InitialPlacementAlg,
+    InitialPlacementSettings,
+)
+from pytket.extensions.aqt.multi_zone_architecture.named_architectures import (
+    four_zones_in_a_line,
 )
 
 

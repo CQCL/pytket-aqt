@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Optional, Sequence
+from typing import Optional
+
 from qiskit_aqt_provider import api_models
 
 from pytket import Circuit
