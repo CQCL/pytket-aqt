@@ -99,7 +99,8 @@ class AqtRemoteApi(AqtApi):
 
     def print_device_table(self) -> None:
         aqt_provider = AQTProvider(access_token=self._access_token)
-        aqt_provider.backends()
+        backend_table = aqt_provider.backends()
+        print(backend_table)  # noqa: T201
 
     def post_aqt_job(self, job: PytketAqtJob, aqt_device: AqtDevice) -> str:
         aqt_job = _aqt_job_from_pytket_aqt_job(job)
@@ -144,7 +145,8 @@ class AqtOfflineApi(AqtApi):
         ]
 
     def print_device_table(self) -> None:
-        self._aqt_provider.backends()
+        backend_table = self._aqt_provider.backends()
+        print(backend_table)  # noqa: T201
 
     def post_aqt_job(self, aqt_job: PytketAqtJob, aqt_device: AqtDevice) -> str:
         circuits = [
@@ -186,7 +188,7 @@ class AqtMockApi(AqtApi):
         return AQT_MOCK_DEVICES
 
     def print_device_table(self) -> None:
-        pass
+        print("Mock device table")  # noqa: T201
 
     def post_aqt_job(self, aqt_job: PytketAqtJob, aqt_device: AqtDevice) -> str:
         job_id = str(uuid.uuid4())

@@ -90,6 +90,7 @@ if __name__ == "__main__":
     parser.add_argument("-d", "--dest", help="copy artifacts into destination folder")
     args = parser.parse_args()
 
+    print("Building docs for modules:", MODULE)  # noqa: T201
     build_module_docs()
 
     if args.dest is not None:

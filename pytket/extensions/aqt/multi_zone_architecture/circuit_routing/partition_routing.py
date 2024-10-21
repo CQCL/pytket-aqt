@@ -65,8 +65,9 @@ class PartitionCircuitRouter:
         )
         for old_place, new_place in self.placement_generator(depth_list):
             if self._settings.debug_level > 0:
+                print("-------")  # noqa: T201
                 for zone in range(self._arch.n_zones):
-                    ", ".join(
+                    changes_str = ", ".join(
                         [
                             f"+{i}"
                             for i in set(new_place[zone]).difference(old_place[zone])
@@ -75,6 +76,10 @@ class PartitionCircuitRouter:
                             f"-{i}"
                             for i in set(old_place[zone]).difference(new_place[zone])
                         ]
+                    )
+                    print(  # noqa: T201
+                        f"Z{zone}: {old_place[zone]} ->"
+                        f" {new_place[zone]} -- ({changes_str})"
                     )
             leftovers = []
             # stragglers are qubits with pending 2 qubit gates that cannot
@@ -178,8 +183,9 @@ class PartitionCircuitRouter:
             self._settings.n_threads, log_level=self._settings.debug_level
         )
         if self._settings.debug_level > 0:
+            print("Depth List:")  # noqa: T201
             for i in range(min(4, len(depth_list))):
-                pass
+                print(depth_list[i])  # noqa: T201
         vertex_to_part = partitioner.partition_graph(shuttle_graph_data, num_zones)
         new_placement: ZonePlacement = {i: [] for i in range(num_zones)}
         part_to_zone = [-1] * num_zones

@@ -117,3 +117,4 @@ def print_available_devices(access_token: Optional[str] = None) -> None:
     backends = aqt_provider.backends()
     backends.headers[1] = "Device ID"
     backends.headers[3] = "Device type"
+    print(backends)  # noqa: T201
