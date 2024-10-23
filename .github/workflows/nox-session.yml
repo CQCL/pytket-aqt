@@ -34,12 +34,12 @@ on:
       os:
         description: "Runner OS"
         type: choice
-        default: "ubuntu-22.04"
+        default: "ubuntu-latest"
         required: true
         options:
-          - "ubuntu-22.04"
-          - "macos-12"
-          - "windows-2022"
+          - "ubuntu-latest"
+          - "macos-latest"
+          - "windows-latest"
       nox-session:
         description: "Nox session to run"
         type: choice
