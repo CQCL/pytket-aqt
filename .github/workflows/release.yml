@@ -23,7 +23,7 @@ env:
 jobs:
   build:
     name: AQT - Build and Upload Package and Docs
-    runs-on: "ubuntu-22.04"
+    runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -82,7 +82,7 @@ jobs:
     name: Publish Package
     if: github.event_name == 'release'
     needs: build
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - name: Download all wheels
         uses: actions/download-artifact@v4
@@ -103,7 +103,7 @@ jobs:
     name: Publish Docs
     if: github.event_name == 'release'
     needs: publish-package
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     permissions:
       pages: write
       id-token: write
