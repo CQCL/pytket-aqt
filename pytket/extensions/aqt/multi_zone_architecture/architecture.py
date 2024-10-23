@@ -13,11 +13,9 @@
 # limitations under the License.
 import os
 from enum import Enum
-from typing import Dict
-from typing import List
 from typing import Union
 
-from pydantic import ConfigDict, BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class EdgeType(str, Enum):
@@ -107,8 +105,8 @@ class ZoneType(BaseModel):
     name: str
     max_ions: int
     min_ions: int
-    zone_connections: Dict[str, ZoneConnection]
-    operations: List[Operation]
+    zone_connections: dict[str, ZoneConnection]
+    operations: list[Operation]
 
 
 class Zone(BaseModel):
@@ -116,7 +114,7 @@ class Zone(BaseModel):
 
     name: str
     zone_type_id: int
-    connected_zones: Dict[int, str]
+    connected_zones: dict[int, str]
 
 
 class MultiZoneArchitecture(BaseModel):
@@ -124,8 +122,8 @@ class MultiZoneArchitecture(BaseModel):
 
     n_qubits_max: int
     n_zones: int
-    zone_types: List[ZoneType]
-    zones: List[Zone]
+    zone_types: list[ZoneType]
+    zones: list[Zone]
 
     def get_connection_type(
         self, zone_index_source: int, zone_index_target: int
@@ -144,7 +142,7 @@ class MultiZoneArchitecture(BaseModel):
         arch_spec_lines = [
             f"Max number of qubits: {self.n_qubits_max}",
             f"Number of zones: {self.n_zones}",
-            f"",
+            "",
         ]
         for zone_id, zone in enumerate(self.zones):
             zone_type = self.zone_types[zone.zone_type_id]
@@ -153,7 +151,7 @@ class MultiZoneArchitecture(BaseModel):
                     f"Zone {zone_id}:",
                     f"    Max qubits {zone_type.max_ions}",
                     f"    Min qubits {zone_type.min_ions}",
-                    f"    Connections:",
+                    "    Connections:",
                 ]
             )
             for connected_zone, connection_name in zone.connected_zones.items():

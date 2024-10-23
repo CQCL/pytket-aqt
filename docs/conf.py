@@ -1,13 +1,9 @@
 import re
-from typing import Any
-from typing import Dict
-from typing import Optional
-from typing import Tuple
+from typing import Any, Optional
 from urllib.parse import urljoin
 
 from docutils import nodes
-from docutils.nodes import Element
-from docutils.nodes import TextElement
+from docutils.nodes import Element, TextElement
 from sphinx.application import Sphinx
 from sphinx.environment import BuildEnvironment
 
@@ -118,10 +114,10 @@ def correct_signature(
     what: str,
     name: str,
     obj: Any,
-    options: Dict,
+    options: dict,
     signature: str,
     return_annotation: str,
-) -> Tuple[str, str]:
+) -> tuple[str, str]:
     new_signature = signature
     new_return_annotation = return_annotation
     for k, v in app.config.custom_internal_mapping.items():

@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import Enum
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
-from ..circuit_routing.route_circuit import ZonePlacement
+if TYPE_CHECKING:
+    from ..circuit_routing.route_circuit import ZonePlacement
 
 
 class InitialPlacementSettingsError(Exception):

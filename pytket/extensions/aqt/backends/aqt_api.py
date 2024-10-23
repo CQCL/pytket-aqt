@@ -12,27 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations
+
 import json
 import uuid
 from dataclasses import dataclass
-from typing import Protocol, Final, TypeVar
+from typing import TYPE_CHECKING, Final, Protocol, TypeVar
 
-import httpx
 from qiskit_aqt_provider import AQTProvider, api_models
 from qiskit_aqt_provider.api_models_generated import (
-    JobUser,
-    RRFinished,
-    ResultItem,
     JobResponseRRFinished,
+    JobUser,
+    ResultItem,
+    RRFinished,
 )
 from qiskit_aqt_provider.aqt_job import AQTJob
 from qiskit_aqt_provider.aqt_options import AQTOptions
-from qiskit_aqt_provider.aqt_provider import OfflineSimulator
 from qiskit_aqt_provider.aqt_resource import AQTResource, OfflineSimulatorResource
 from qiskit_aqt_provider.circuit_to_aqt import aqt_to_qiskit_circuit
 
-from .aqt_job_data import PytketAqtJob
 from .config import AQTAccessToken
+
+if TYPE_CHECKING:
+    import httpx
+    from qiskit_aqt_provider.aqt_provider import OfflineSimulator
+
+    from .aqt_job_data import PytketAqtJob
 
 
 @dataclass
@@ -57,7 +61,7 @@ T = TypeVar("T")
 
 def unwrap(obj: T | None) -> T:
     if obj is None:
-        raise ValueError(f"Value cannot be None")
+        raise ValueError("Value cannot be None")
     return obj
 
 
@@ -96,7 +100,7 @@ class AqtRemoteApi(AqtApi):
     def print_device_table(self) -> None:
         aqt_provider = AQTProvider(access_token=self._access_token)
         backend_table = aqt_provider.backends()
-        print(backend_table)
+        print(backend_table)  # noqa: T201
 
     def post_aqt_job(self, job: PytketAqtJob, aqt_device: AqtDevice) -> str:
         aqt_job = _aqt_job_from_pytket_aqt_job(job)
@@ -142,7 +146,7 @@ class AqtOfflineApi(AqtApi):
 
     def print_device_table(self) -> None:
         backend_table = self._aqt_provider.backends()
-        print(backend_table)
+        print(backend_table)  # noqa: T201
 
     def post_aqt_job(self, aqt_job: PytketAqtJob, aqt_device: AqtDevice) -> str:
         circuits = [
@@ -184,7 +188,7 @@ class AqtMockApi(AqtApi):
         return AQT_MOCK_DEVICES
 
     def print_device_table(self) -> None:
-        print("Mock device table")
+        print("Mock device table")  # noqa: T201
 
     def post_aqt_job(self, aqt_job: PytketAqtJob, aqt_device: AqtDevice) -> str:
         job_id = str(uuid.uuid4())

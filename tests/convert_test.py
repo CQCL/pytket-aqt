@@ -15,11 +15,13 @@ import json
 
 import numpy as np
 from qiskit_aqt_provider import api_models
-from pytket.circuit import Circuit
-from pytket.circuit import OpType
-from pytket.extensions.aqt.backends.aqt import _aqt_rebase
-from pytket.extensions.aqt.backends.aqt import _pytket_to_aqt_circuit
-from pytket.extensions.aqt.backends.aqt import AQTBackend
+
+from pytket.circuit import Circuit, OpType
+from pytket.extensions.aqt.backends.aqt import (
+    AQTBackend,
+    _aqt_rebase,
+    _pytket_to_aqt_circuit,
+)
 
 
 def tk_to_aqt(circ: Circuit) -> tuple[api_models.Circuit, str]:

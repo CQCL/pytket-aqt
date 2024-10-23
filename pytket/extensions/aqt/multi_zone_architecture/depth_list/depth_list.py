@@ -43,13 +43,16 @@ def get_depth_list(n_qubits: int, gate_pairs: list[tuple[int, int]]) -> DepthLis
         qubit1 = pair[1]
         depth = max(current_depth_per_qubit[qubit0], current_depth_per_qubit[qubit1])
         assert len(depth_list) >= depth
-        if depth > 0:
-            if (qubit0, qubit1) in depth_list[depth - 1] or (
+        if depth > 0 and (
+            (qubit0, qubit1) in depth_list[depth - 1]
+            or (
                 qubit1,
                 qubit0,
-            ) in depth_list[depth - 1]:
-                depth_list[depth - 1].append((qubit0, qubit1))
-                continue
+            )
+            in depth_list[depth - 1]
+        ):
+            depth_list[depth - 1].append((qubit0, qubit1))
+            continue
         if len(depth_list) > depth:
             depth_list[depth].append((qubit0, qubit1))
         else:
@@ -84,9 +87,7 @@ def get_updated_depth_list(
     for i, depth in enumerate(depth_list):
         for qubit_pair in depth:
             if qubit_to_zone[qubit_pair[0]] == qubit_to_zone[qubit_pair[1]]:
-                if not prune_stage:
-                    pruned_depth_list[i].remove(qubit_pair)
-                elif (
+                if not prune_stage or (
                     qubit_pair[0] not in prune_touched
                     and qubit_pair[1] not in prune_touched
                 ):

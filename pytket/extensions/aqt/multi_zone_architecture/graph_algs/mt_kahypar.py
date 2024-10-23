@@ -65,7 +65,7 @@ class MtKahyparPartitioner:
             graph.addFixedVertices(graph_data.fixed_list, num_parts)
         part_graph = graph.partition(self.context)
         if self.log_level > 0:
-            print("cut_cost: ", part_graph.cut())
+            print("cut_cost: ", part_graph.cut())  # noqa: T201
         vertex_part_id: list[int] = []
         for vertex in range(graph_data.n_vertices):
             vertex_part_id.append(part_graph.blockID(vertex))

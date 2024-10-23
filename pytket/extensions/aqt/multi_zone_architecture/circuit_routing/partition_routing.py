@@ -12,23 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
+from collections.abc import Generator
 from copy import deepcopy
-from typing import Generator
 
 from pytket import Circuit
 
-from ..circuit.helpers import ZonePlacement, ZoneRoutingError
-from .settings import RoutingSettings
 from ..architecture import MultiZoneArchitecture
+from ..circuit.helpers import ZonePlacement, ZoneRoutingError
 from ..circuit.multizone_circuit import MultiZoneCircuit
 from ..depth_list.depth_list import (
+    DepthList,
     get_initial_depth_list,
     get_updated_depth_list,
-    DepthList,
 )
 from ..graph_algs.graph import GraphData
 from ..graph_algs.mt_kahypar import MtKahyparPartitioner
-from ..macro_architecture_graph import empty_macro_arch_from_architecture, ZoneId
+from ..macro_architecture_graph import ZoneId, empty_macro_arch_from_architecture
+from .settings import RoutingSettings
 
 
 class PartitionCircuitRouter:
@@ -65,7 +65,7 @@ class PartitionCircuitRouter:
         )
         for old_place, new_place in self.placement_generator(depth_list):
             if self._settings.debug_level > 0:
-                print("-------")
+                print("-------")  # noqa: T201
                 for zone in range(self._arch.n_zones):
                     changes_str = ", ".join(
                         [
@@ -77,7 +77,7 @@ class PartitionCircuitRouter:
                             for i in set(old_place[zone]).difference(new_place[zone])
                         ]
                     )
-                    print(
+                    print(  # noqa: T201
                         f"Z{zone}: {old_place[zone]} ->"
                         f" {new_place[zone]} -- ({changes_str})"
                     )
@@ -183,9 +183,9 @@ class PartitionCircuitRouter:
             self._settings.n_threads, log_level=self._settings.debug_level
         )
         if self._settings.debug_level > 0:
-            print("Depth List:")
+            print("Depth List:")  # noqa: T201
             for i in range(min(4, len(depth_list))):
-                print(depth_list[i])
+                print(depth_list[i])  # noqa: T201
         vertex_to_part = partitioner.partition_graph(shuttle_graph_data, num_zones)
         new_placement: ZonePlacement = {i: [] for i in range(num_zones)}
         part_to_zone = [-1] * num_zones
