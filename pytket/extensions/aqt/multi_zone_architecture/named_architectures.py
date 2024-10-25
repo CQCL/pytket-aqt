@@ -50,7 +50,7 @@ four_zones_in_a_line = MultiZoneArchitecture(
         ),
         ZoneType(
             name="Middle",
-            max_ions=6,
+            max_ions=8,
             min_ions=0,
             zone_connections={
                 "LR": ZoneConnection(

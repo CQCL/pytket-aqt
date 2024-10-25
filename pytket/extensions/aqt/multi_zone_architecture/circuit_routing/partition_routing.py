@@ -201,9 +201,10 @@ class PartitionCircuitRouter:
         """Calculate graph data for qubit-zone graph to be partitioned"""
         n_qubits = self._circuit.n_qubits
         num_zones = self._arch.n_zones
-        num_spots = sum(
-            [self._arch.get_zone_max_ions(i) for i, _ in enumerate(self._arch.zones)]
-        )
+        places_per_zone = [
+            self._arch.get_zone_max_ions(i) for i, _ in enumerate(self._arch.zones)
+        ]
+        num_spots = sum(places_per_zone)
         edges: list[tuple[int, int]] = []
         edge_weights: list[int] = []
 
@@ -245,7 +246,14 @@ class PartitionCircuitRouter:
             + [-1] * (num_vertices - n_qubits - num_zones)
         )
 
-        return GraphData(num_vertices, vertex_weights, edges, edge_weights, fixed_list)
+        return GraphData(
+            num_vertices,
+            vertex_weights,
+            edges,
+            edge_weights,
+            fixed_list,
+            places_per_zone,
+        )
 
     def shuttling_penalty(self, zone1: int, other_zone1: int) -> int:
         """Calculate penalty for shuttling from one zone to another"""

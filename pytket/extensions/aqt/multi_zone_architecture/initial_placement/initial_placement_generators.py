@@ -141,19 +141,15 @@ class GraphMapInitialPlacement(InitialPlacementGenerator):
         n_qubits = circuit.n_qubits
         initial_depth_list = get_initial_depth_list(circuit)
         circuit_graph_data = self.get_circuit_graph_data(initial_depth_list, arch)
-        partitioner = MtKahyparPartitioner(self.n_threads)
-        vertex_to_part = partitioner.partition_graph(circuit_graph_data, n_parts)
-        qubit_to_part = vertex_to_part[:n_qubits]
-        part_part_graph_data = self.get_part_to_part_graph_data(
-            n_parts, qubit_to_part, circuit_graph_data
-        )
         arch_graph_data = self.get_arch_graph_data(arch)
-        part_to_zone = partitioner.map_graph_to_target_graph(
-            part_part_graph_data, arch_graph_data
+        partitioner = MtKahyparPartitioner(self.n_threads)
+        vertex_to_part = partitioner.map_graph_to_target_graph(
+            circuit_graph_data, arch_graph_data
         )
+        qubit_to_part = vertex_to_part[:n_qubits]
         placement: ZonePlacement = {i: [] for i in range(n_parts)}
         for qubit, part in enumerate(qubit_to_part):
-            placement[part_to_zone[part]].append(qubit)
+            placement[part].append(qubit)
         return placement
 
     def get_circuit_graph_data(
@@ -161,12 +157,13 @@ class GraphMapInitialPlacement(InitialPlacementGenerator):
     ) -> GraphData:
         # Vertices up to n_qubit represent qubits,
         # the rest available spaces for qubits in the arch
+        places_per_zone = [arch.get_zone_max_ions(i) for i, _ in enumerate(arch.zones)]
         free_places_per_zone = [
-            self.zone_free_space if arch.get_zone_max_ions(i) > 3 else 1
-            for i, _ in enumerate(arch.zones)
+            self.zone_free_space if places_avail > 3 else 1
+            for places_avail in places_per_zone
         ]
         block_weights = [
-            max(0, arch.get_zone_max_ions(i) - free_places_per_zone[i])
+            max(0, places_per_zone[i] - free_places_per_zone[i])
             for i, _ in enumerate(arch.zones)
         ]
         num_vertices = sum(block_weights)
@@ -188,36 +185,12 @@ class GraphMapInitialPlacement(InitialPlacementGenerator):
                     edges.append(pair)
                     edge_weights.append(weight)
 
-        return GraphData(num_vertices, vertex_weights, edges, edge_weights)
-
-    @staticmethod
-    def get_part_to_part_graph_data(
-        num_parts: int, qubit_to_part: list[int], qubit_graph_data: GraphData
-    ) -> GraphData:
-        # condense qubit to qubit graph to part to part graph
-        # based on which qubits are in which part
-        part_part_graph_edges: list[tuple[int, int]] = []
-        part_part_graph_edge_weights: list[int] = []
-        for i, edge in enumerate(qubit_graph_data.edges):
-            part_0 = qubit_to_part[edge[0]]
-            part_1 = qubit_to_part[edge[1]]
-            if part_0 != part_1:
-                parts = sorted([part_0, part_1])
-                if (parts[0], parts[1]) in part_part_graph_edges:
-                    part_part_index = part_part_graph_edges.index((parts[0], parts[1]))
-                    part_part_graph_edge_weights[
-                        part_part_index
-                    ] += qubit_graph_data.edge_weights[i]
-                else:
-                    part_part_graph_edges.append((parts[0], parts[1]))
-                    part_part_graph_edge_weights.append(
-                        qubit_graph_data.edge_weights[i]
-                    )
         return GraphData(
-            num_parts,
-            [1] * num_parts,
-            part_part_graph_edges,
-            part_part_graph_edge_weights,
+            num_vertices,
+            vertex_weights,
+            edges,
+            edge_weights,
+            part_max_sizes=block_weights,
         )
 
     @staticmethod
