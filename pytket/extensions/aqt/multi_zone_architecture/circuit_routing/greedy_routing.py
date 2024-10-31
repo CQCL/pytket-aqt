@@ -15,7 +15,7 @@ from copy import deepcopy
 
 from pytket import Circuit, Qubit
 
-from ..architecture import MultiZoneArchitecture
+from ..architecture import MultiZoneArchitectureSpec
 from ..circuit.helpers import ZonePlacement, ZoneRoutingError
 from ..circuit.multizone_circuit import MultiZoneCircuit
 from .settings import RoutingSettings
@@ -35,7 +35,7 @@ class GreedyCircuitRouter:
     def __init__(
         self,
         circuit: Circuit,
-        arch: MultiZoneArchitecture,
+        arch: MultiZoneArchitectureSpec,
         initial_placement: ZonePlacement,
         settings: RoutingSettings,
     ):

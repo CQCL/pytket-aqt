@@ -18,7 +18,7 @@ from typing import Protocol
 
 from pytket import Circuit
 
-from ..architecture import MultiZoneArchitecture
+from ..architecture import MultiZoneArchitectureSpec
 from ..circuit.helpers import ZonePlacement
 from ..depth_list.depth_list import DepthList, get_initial_depth_list
 from ..graph_algs.graph import GraphData
@@ -39,7 +39,7 @@ class InitialPlacementGenerator(Protocol):
     """Protocol for classes implementing an initial placement of ions in ion traps"""
 
     def initial_placement(
-        self, circuit: Circuit, arch: MultiZoneArchitecture
+        self, circuit: Circuit, arch: MultiZoneArchitectureSpec
     ) -> ZonePlacement: ...
 
 
@@ -50,7 +50,7 @@ class ManualInitialPlacement(InitialPlacementGenerator):
     placement: ZonePlacement
 
     def initial_placement(
-        self, circuit: Circuit, arch: MultiZoneArchitecture
+        self, circuit: Circuit, arch: MultiZoneArchitectureSpec
     ) -> ZonePlacement:
         _check_n_qubits(circuit, arch)
         placed_qubits = []
@@ -98,7 +98,7 @@ class QubitOrderInitialPlacement(InitialPlacementGenerator):
     zone_free_space: int
 
     def initial_placement(
-        self, circuit: Circuit, arch: MultiZoneArchitecture
+        self, circuit: Circuit, arch: MultiZoneArchitectureSpec
     ) -> ZonePlacement:
         _check_n_qubits(circuit, arch)
         placement: ZonePlacement = {}
@@ -125,7 +125,7 @@ class GraphMapInitialPlacement(InitialPlacementGenerator):
     def initial_placement(
         self,
         circuit: Circuit,
-        arch: MultiZoneArchitecture,
+        arch: MultiZoneArchitectureSpec,
     ) -> ZonePlacement:
         try:
             from ..graph_algs.mt_kahypar import MtKahyparPartitioner
@@ -153,7 +153,7 @@ class GraphMapInitialPlacement(InitialPlacementGenerator):
         return placement
 
     def get_circuit_graph_data(
-        self, depth_list: DepthList, arch: MultiZoneArchitecture
+        self, depth_list: DepthList, arch: MultiZoneArchitectureSpec
     ) -> GraphData:
         # Vertices up to n_qubit represent qubits,
         # the rest available spaces for qubits in the arch
@@ -194,24 +194,21 @@ class GraphMapInitialPlacement(InitialPlacementGenerator):
         )
 
     @staticmethod
-    def get_arch_graph_data(arch: MultiZoneArchitecture) -> GraphData:
+    def get_arch_graph_data(arch: MultiZoneArchitectureSpec) -> GraphData:
         # Turn MultiZoneArchitecture into GraphData
         n_vertices = arch.n_zones
         arch_vertex_weights = [1] * n_vertices
         arch_edges = []
         arch_edge_weights = []
-        for i, zone in enumerate(arch.zones):
-            for connected_zone in zone.connected_zones:
-                if (i, connected_zone) not in arch_edges and (
-                    connected_zone,
-                    i,
-                ) not in arch_edges:
-                    arch_edges.append((i, connected_zone))
-                    arch_edge_weights.append(1)
+        for connection in arch.connections:
+            arch_edges.append(
+                (connection.zone_port_spec0.zone_id, connection.zone_port_spec1.zone_id)
+            )
+            arch_edge_weights.append(1)
         return GraphData(n_vertices, arch_vertex_weights, arch_edges, arch_edge_weights)
 
 
-def _check_n_qubits(circuit: Circuit, arch: MultiZoneArchitecture) -> None:
+def _check_n_qubits(circuit: Circuit, arch: MultiZoneArchitectureSpec) -> None:
     n_qubits = circuit.n_qubits
     n_qubits_max = arch.n_qubits_max
     if n_qubits > n_qubits_max:
@@ -243,7 +240,9 @@ def get_initial_placement_generator(
 
 
 def get_initial_placement(
-    settings: InitialPlacementSettings, circuit: Circuit, arch: MultiZoneArchitecture
+    settings: InitialPlacementSettings,
+    circuit: Circuit,
+    arch: MultiZoneArchitectureSpec,
 ) -> ZonePlacement:
     initial_placement_generator = get_initial_placement_generator(settings)
     return initial_placement_generator.initial_placement(circuit, arch)

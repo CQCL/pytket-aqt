@@ -46,7 +46,7 @@ from pytket.unit_id import UnitID
 
 from ..backends.config import AQTConfig
 from ..extension_version import __extension_version__
-from ..multi_zone_architecture.architecture import MultiZoneArchitecture
+from ..multi_zone_architecture.architecture import MultiZoneArchitectureSpec
 from ..multi_zone_architecture.circuit.multizone_circuit import (
     MultiZoneCircuit,
 )
@@ -100,7 +100,7 @@ class AQTMultiZoneBackend(Backend):
 
     def __init__(
         self,
-        architecture: MultiZoneArchitecture,
+        architecture: MultiZoneArchitectureSpec,
         device_name: str = "multi_zone",
         access_token: Optional[str] = None,
         label: str = "",

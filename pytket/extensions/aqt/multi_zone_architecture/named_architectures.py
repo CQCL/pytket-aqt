@@ -13,13 +13,14 @@
 # limitations under the License.
 
 """Pre-defined named multi-zone architectures for use in multi-zone circuits"""
+from itertools import combinations
+
 from .architecture import (
-    ConnectionType,
-    MultiZoneArchitecture,
+    MultiZoneArchitectureSpec,
     Operation,
+    PortSpec,
     Zone,
     ZoneConnection,
-    ZoneType,
 )
 
 standardOperations = [
@@ -27,319 +28,73 @@ standardOperations = [
     Operation(operation_spec="[MS, t, [[self, o, p], [self, o, p]]]", fidelity="0.983"),
 ]
 
-four_zones_in_a_line = MultiZoneArchitecture(
+
+four_zones_in_a_line = MultiZoneArchitectureSpec(
     n_qubits_max=16,
     n_zones=4,
-    zone_types=[
-        ZoneType(
-            name="LeftEdge",
-            max_ions=6,
-            min_ions=0,
-            zone_connections={
-                "RL": ZoneConnection(
-                    connection_type=ConnectionType.RightToLeft, max_transfer=2
-                )
-            },
-            operations=standardOperations
-            + [
-                Operation(
-                    operation_spec="[SHUTTLE, n, [[self, o, p], [RL, o, p]]]",
-                    fidelity="0.999",
-                )
-            ],
-        ),
-        ZoneType(
-            name="Middle",
-            max_ions=8,
-            min_ions=0,
-            zone_connections={
-                "LR": ZoneConnection(
-                    connection_type=ConnectionType.LeftToRight, max_transfer=2
-                ),
-                "RL": ZoneConnection(
-                    connection_type=ConnectionType.RightToLeft, max_transfer=2
-                ),
-            },
-            operations=standardOperations
-            + [
-                Operation(
-                    operation_spec="[SHUTTLE, n, [[self, o, p], [LR, o, p]]]",
-                    fidelity="0.999",
-                ),
-                Operation(
-                    operation_spec="[SHUTTLE, n, [[self, o, p], [RL, o, p]]]",
-                    fidelity="0.999",
-                ),
-            ],
-        ),
-        ZoneType(
-            name="RightEdge",
-            max_ions=6,
-            min_ions=0,
-            zone_connections={
-                "LR": ZoneConnection(
-                    connection_type=ConnectionType.LeftToRight, max_transfer=2
-                ),
-            },
-            operations=standardOperations
-            + [
-                Operation(
-                    operation_spec="[SHUTTLE, n, [[self, o, p], [LR, o, p]]]",
-                    fidelity="0.999",
-                ),
-            ],
-        ),
-    ],
-    zones=[
-        Zone(name="LeftEdge", zone_type_id=0, connected_zones={1: "RL"}),
-        Zone(name="Interior1", zone_type_id=1, connected_zones={0: "LR", 2: "RL"}),
-        Zone(name="Interior2", zone_type_id=1, connected_zones={1: "LR", 3: "RL"}),
-        Zone(
-            name="RightEdge",
-            zone_type_id=2,
-            connected_zones={
-                2: "LR",
-            },
-        ),
+    zones=[Zone(max_ions=mi) for mi in [6, 8, 8, 6]],
+    connections=[
+        ZoneConnection(
+            zone_port_spec0=PortSpec(zone_id=i, port_id=1),
+            zone_port_spec1=PortSpec(zone_id=i + 1, port_id=0),
+        )
+        for i in range(3)
     ],
 )
 
 
-four_zones_diamond_pattern = MultiZoneArchitecture(
-    n_qubits_max=16,
-    n_zones=4,
-    zone_types=[
-        ZoneType(
-            name="LeftEdge",
-            max_ions=6,
-            min_ions=0,
-            zone_connections={
-                "RL": ZoneConnection(
-                    connection_type=ConnectionType.RightToLeft, max_transfer=2
-                ),
-                "RL2": ZoneConnection(
-                    connection_type=ConnectionType.RightToLeft, max_transfer=2
-                ),
-            },
-            operations=standardOperations
-            + [
-                Operation(
-                    operation_spec="[SHUTTLE, n, [[self, o, p], [RL, o, p]]]",
-                    fidelity="0.999",
-                )
-            ],
-        ),
-        ZoneType(
-            name="Middle",
-            max_ions=6,
-            min_ions=0,
-            zone_connections={
-                "LR": ZoneConnection(
-                    connection_type=ConnectionType.LeftToRight, max_transfer=2
-                ),
-                "RL": ZoneConnection(
-                    connection_type=ConnectionType.RightToLeft, max_transfer=2
-                ),
-            },
-            operations=standardOperations
-            + [
-                Operation(
-                    operation_spec="[SHUTTLE, n, [[self, o, p], [LR, o, p]]]",
-                    fidelity="0.999",
-                ),
-                Operation(
-                    operation_spec="[SHUTTLE, n, [[self, o, p], [RL, o, p]]]",
-                    fidelity="0.999",
-                ),
-            ],
-        ),
-        ZoneType(
-            name="RightEdge",
-            max_ions=6,
-            min_ions=0,
-            zone_connections={
-                "LR": ZoneConnection(
-                    connection_type=ConnectionType.LeftToRight, max_transfer=2
-                ),
-                "LR2": ZoneConnection(
-                    connection_type=ConnectionType.LeftToRight, max_transfer=2
-                ),
-            },
-            operations=standardOperations
-            + [
-                Operation(
-                    operation_spec="[SHUTTLE, n, [[self, o, p], [LR, o, p]]]",
-                    fidelity="0.999",
-                ),
-            ],
-        ),
-    ],
-    zones=[
-        Zone(name="LeftEdge", zone_type_id=0, connected_zones={1: "RL", 3: "RL2"}),
-        Zone(name="Interior1", zone_type_id=1, connected_zones={0: "LR", 2: "RL"}),
-        Zone(
-            name="RightEdge",
-            zone_type_id=2,
-            connected_zones={
-                1: "LR",
-                3: "LR2",
-            },
-        ),
-        Zone(name="Interior2", zone_type_id=1, connected_zones={0: "LR", 2: "RL"}),
-    ],
-)
-
-racetrack = MultiZoneArchitecture(
+racetrack = MultiZoneArchitectureSpec(
     n_qubits_max=84,
     n_zones=28,
-    zone_types=[
-        ZoneType(
-            name="Middle",
-            max_ions=6,
-            min_ions=0,
-            zone_connections={
-                "LR": ZoneConnection(
-                    connection_type=ConnectionType.LeftToRight, max_transfer=2
-                ),
-                "RL": ZoneConnection(
-                    connection_type=ConnectionType.RightToLeft, max_transfer=2
-                ),
-            },
-            operations=standardOperations
-            + [
-                Operation(
-                    operation_spec="[SHUTTLE, n, [[self, o, p], [LR, o, p]]]",
-                    fidelity="0.999",
-                ),
-                Operation(
-                    operation_spec="[SHUTTLE, n, [[self, o, p], [RL, o, p]]]",
-                    fidelity="0.999",
-                ),
-            ],
-        ),
-    ],
-    zones=[
-        Zone(name="Zone00", zone_type_id=0, connected_zones={27: "LR", 1: "RL"}),
-        Zone(name="Zone01", zone_type_id=0, connected_zones={0: "LR", 2: "RL"}),
-        Zone(name="Zone02", zone_type_id=0, connected_zones={1: "LR", 3: "RL"}),
-        Zone(name="Zone03", zone_type_id=0, connected_zones={2: "LR", 4: "RL"}),
-        Zone(name="Zone04", zone_type_id=0, connected_zones={3: "LR", 5: "RL"}),
-        Zone(name="Zone05", zone_type_id=0, connected_zones={4: "LR", 6: "RL"}),
-        Zone(name="Zone06", zone_type_id=0, connected_zones={5: "LR", 7: "RL"}),
-        Zone(name="Zone07", zone_type_id=0, connected_zones={6: "LR", 8: "RL"}),
-        Zone(name="Zone08", zone_type_id=0, connected_zones={7: "LR", 9: "RL"}),
-        Zone(name="Zone09", zone_type_id=0, connected_zones={8: "LR", 10: "RL"}),
-        Zone(name="Zone10", zone_type_id=0, connected_zones={9: "LR", 11: "RL"}),
-        Zone(name="Zone11", zone_type_id=0, connected_zones={10: "LR", 12: "RL"}),
-        Zone(name="Zone12", zone_type_id=0, connected_zones={11: "LR", 13: "RL"}),
-        Zone(name="Zone13", zone_type_id=0, connected_zones={12: "LR", 14: "RL"}),
-        Zone(name="Zone14", zone_type_id=0, connected_zones={13: "LR", 15: "RL"}),
-        Zone(name="Zone15", zone_type_id=0, connected_zones={14: "LR", 16: "RL"}),
-        Zone(name="Zone16", zone_type_id=0, connected_zones={15: "LR", 17: "RL"}),
-        Zone(name="Zone17", zone_type_id=0, connected_zones={16: "LR", 18: "RL"}),
-        Zone(name="Zone18", zone_type_id=0, connected_zones={17: "LR", 19: "RL"}),
-        Zone(name="Zone19", zone_type_id=0, connected_zones={18: "LR", 20: "RL"}),
-        Zone(name="Zone20", zone_type_id=0, connected_zones={19: "LR", 21: "RL"}),
-        Zone(name="Zone21", zone_type_id=0, connected_zones={20: "LR", 22: "RL"}),
-        Zone(name="Zone22", zone_type_id=0, connected_zones={21: "LR", 23: "RL"}),
-        Zone(name="Zone23", zone_type_id=0, connected_zones={22: "LR", 24: "RL"}),
-        Zone(name="Zone24", zone_type_id=0, connected_zones={23: "LR", 25: "RL"}),
-        Zone(name="Zone25", zone_type_id=0, connected_zones={24: "LR", 26: "RL"}),
-        Zone(name="Zone26", zone_type_id=0, connected_zones={25: "LR", 27: "RL"}),
-        Zone(name="Zone27", zone_type_id=0, connected_zones={26: "LR", 0: "RL"}),
+    zones=[Zone(max_ions=6) for _ in range(28)],
+    connections=[
+        ZoneConnection(
+            zone_port_spec0=PortSpec(zone_id=i % 28, port_id=1),
+            zone_port_spec1=PortSpec(zone_id=(i + 1) % 28, port_id=0),
+        )
+        for i in range(28)
     ],
 )
 
 
+def get_all_to_all_port_connections(
+    zone_ports: list[tuple[int, int]]
+) -> list[ZoneConnection]:
+    """Return a list of ZoneConnections connecting
+    all the zone ports in the given list"""
+    return [
+        ZoneConnection(
+            zone_port_spec0=PortSpec(zone_id=zone_port0[0], port_id=zone_port0[1]),
+            zone_port_spec1=PortSpec(zone_id=zone_port1[0], port_id=zone_port1[1]),
+        )
+        for zone_port0, zone_port1 in combinations(zone_ports, 2)
+    ]
+
+
+"""
+grid12:
+
+|- 0 -|- 1 -|
+2     3     4
+|- 5 -|- 6 -|
+7     8     9
+|- 10-|- 11-|
+
+for horizontal zones port 0 is left, port 1 is right
+for vertical zones port 0 is up, port 1 is down
+"""
 grid_zone_max_ion = 8
-grid7 = MultiZoneArchitecture(
+grid12 = MultiZoneArchitectureSpec(
     n_qubits_max=32,
-    n_zones=7,
-    zone_types=[
-        ZoneType(
-            name="EdgeType1",
-            max_ions=grid_zone_max_ion,
-            min_ions=0,
-            zone_connections={
-                "RL1": ZoneConnection(
-                    connection_type=ConnectionType.RightToLeft, max_transfer=2
-                ),
-                "RL2": ZoneConnection(
-                    connection_type=ConnectionType.RightToLeft, max_transfer=2
-                ),
-                "RL3": ZoneConnection(
-                    connection_type=ConnectionType.RightToLeft, max_transfer=2
-                ),
-            },
-            operations=standardOperations,
-        ),
-        ZoneType(
-            name="EdgeType2",
-            max_ions=grid_zone_max_ion,
-            min_ions=0,
-            zone_connections={
-                "LL1": ZoneConnection(
-                    connection_type=ConnectionType.LeftToLeft, max_transfer=2
-                ),
-                "LL2": ZoneConnection(
-                    connection_type=ConnectionType.LeftToLeft, max_transfer=2
-                ),
-                "LR": ZoneConnection(
-                    connection_type=ConnectionType.LeftToRight, max_transfer=2
-                ),
-            },
-            operations=standardOperations,
-        ),
-        ZoneType(
-            name="Middle",
-            max_ions=grid_zone_max_ion,
-            min_ions=0,
-            zone_connections={
-                "LL1": ZoneConnection(
-                    connection_type=ConnectionType.LeftToLeft, max_transfer=2
-                ),
-                "LL2": ZoneConnection(
-                    connection_type=ConnectionType.LeftToLeft, max_transfer=2
-                ),
-                "LR": ZoneConnection(
-                    connection_type=ConnectionType.LeftToRight, max_transfer=2
-                ),
-                "RL1": ZoneConnection(
-                    connection_type=ConnectionType.RightToLeft, max_transfer=2
-                ),
-                "RL2": ZoneConnection(
-                    connection_type=ConnectionType.RightToLeft, max_transfer=2
-                ),
-                "RL3": ZoneConnection(
-                    connection_type=ConnectionType.RightToLeft, max_transfer=2
-                ),
-            },
-            operations=standardOperations,
-        ),
-    ],
-    zones=[
-        Zone(
-            name="Zone0", zone_type_id=0, connected_zones={2: "RL1", 5: "RL2", 3: "RL3"}
-        ),
-        Zone(
-            name="Zone1", zone_type_id=1, connected_zones={3: "LR", 6: "LL1", 4: "LL2"}
-        ),
-        Zone(
-            name="Zone2", zone_type_id=1, connected_zones={0: "LR", 3: "LL1", 5: "LL2"}
-        ),
-        Zone(
-            name="Zone3",
-            zone_type_id=2,
-            connected_zones={5: "LL1", 2: "LL2", 0: "LR", 1: "RL1", 4: "RL2", 6: "RL3"},
-        ),
-        Zone(
-            name="Zone4", zone_type_id=1, connected_zones={3: "LR", 1: "LL1", 6: "LL2"}
-        ),
-        Zone(
-            name="Zone5", zone_type_id=1, connected_zones={0: "LR", 3: "LL1", 2: "LL2"}
-        ),
-        Zone(
-            name="Zone6", zone_type_id=1, connected_zones={3: "LR", 1: "LL1", 4: "LL2"}
-        ),
-    ],
+    n_zones=12,
+    zones=[Zone(max_ions=grid_zone_max_ion) for _ in range(12)],
+    connections=get_all_to_all_port_connections([(0, 0), (2, 0)])
+    + get_all_to_all_port_connections([(0, 1), (1, 0), (3, 0)])
+    + get_all_to_all_port_connections([(1, 1), (4, 0)])
+    + get_all_to_all_port_connections([(2, 1), (5, 0), (7, 0)])
+    + get_all_to_all_port_connections([(3, 1), (6, 0), (5, 1), (8, 0)])
+    + get_all_to_all_port_connections([(6, 1), (4, 1), (9, 0)])
+    + get_all_to_all_port_connections([(7, 1), (10, 0)])
+    + get_all_to_all_port_connections([(8, 1), (10, 1), (11, 0)])
+    + get_all_to_all_port_connections([(9, 1), (11, 1)]),
 )

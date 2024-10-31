@@ -17,7 +17,7 @@ from copy import deepcopy
 
 from pytket import Circuit
 
-from ..architecture import MultiZoneArchitecture
+from ..architecture import MultiZoneArchitectureSpec
 from ..circuit.helpers import ZonePlacement, ZoneRoutingError
 from ..circuit.multizone_circuit import MultiZoneCircuit
 from ..depth_list.depth_list import (
@@ -45,7 +45,7 @@ class PartitionCircuitRouter:
     def __init__(
         self,
         circuit: Circuit,
-        arch: MultiZoneArchitecture,
+        arch: MultiZoneArchitectureSpec,
         initial_placement: ZonePlacement,
         settings: RoutingSettings,
     ):
