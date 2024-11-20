@@ -23,6 +23,7 @@ from pytket.backends.backendresult import BackendResult
 from pytket.backends.resulthandle import _ResultIdTuple
 from pytket.circuit import Circuit, OpType, Qubit
 from pytket.passes import (
+    AutoRebase,
     BasePass,
     DecomposeBoxes,
     EulerAngleReduction,
@@ -31,7 +32,6 @@ from pytket.passes import (
     RenameQubitsPass,
     SequencePass,
     SynthesiseTket,
-    auto_rebase_pass,
 )
 from pytket.predicates import (
     GateSetPredicate,
@@ -542,4 +542,4 @@ def _translate_aqt(circ: Circuit) -> tuple[list[list], str]:
 
 
 def _aqt_rebase() -> BasePass:
-    return auto_rebase_pass({OpType.XXPhase, OpType.Rx, OpType.Ry})
+    return AutoRebase({OpType.XXPhase, OpType.Rx, OpType.Ry})
