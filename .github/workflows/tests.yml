@@ -34,6 +34,9 @@ jobs:
           - { python: "3.12", os: "ubuntu-latest", session: "tests" }
           - { python: "3.12", os: "macos-latest", session: "tests" }
           - { python: "3.11", os: "ubuntu-latest", session: "docs-build" }
+          - { python: "3.13", os: "windows-latest", session: "tests" }
+          - { python: "3.13", os: "ubuntu-latest", session: "tests" }
+          - { python: "3.13", os: "macos-latest", session: "tests" }
     uses: ./.github/workflows/nox-session.yml
     with:
       python-version: ${{ matrix.python }}
@@ -98,6 +101,9 @@ jobs:
           - { python: "3.12", os: "windows-latest", session: "tests" }
           - { python: "3.12", os: "ubuntu-latest", session: "tests" }
           - { python: "3.12", os: "macos-latest", session: "tests" }
+          - { python: "3.13", os: "windows-latest", session: "tests" }
+          - { python: "3.13", os: "ubuntu-latest", session: "tests" }
+          - { python: "3.13", os: "macos-latest", session: "tests" }
     uses: ./.github/workflows/nox-session.yml
     with:
       python-version: ${{ matrix.python }}
