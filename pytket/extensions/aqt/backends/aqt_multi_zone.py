@@ -491,25 +491,27 @@ def _translate_aqt(circ: Circuit) -> tuple[list[list], str]:
                 (target_occupancy, target_offset) = zone_to_occupancy_offset[
                     target_zone
                 ]
-                source_edge_encoding = op.params[1]
-                target_edge_encoding = op.params[2]
-                if source_edge_encoding < 0:
+                source_edge_encoding = int(round(op.params[1]))
+                target_edge_encoding = int(round(op.params[2]))
+                if source_edge_encoding == 0:
                     zone_to_occupancy_offset[source_zone] = (
                         source_occupancy - 1,
                         source_offset + 1,
                     )
-                else:
+                elif source_edge_encoding == 1:
                     zone_to_occupancy_offset[source_zone] = (
                         source_occupancy - 1,
                         source_offset,
                     )
-                if target_edge_encoding < 0:
+                else:
+                    raise Exception("Error in Shuttle command source port")
+                if target_edge_encoding == 0:
                     zone_to_occupancy_offset[target_zone] = (
                         target_occupancy + 1,
                         target_offset - 1,
                     )
                     qubit_to_zone_position[qubit] = (target_zone, target_offset - 1)
-                else:
+                elif target_edge_encoding == 1:
                     zone_to_occupancy_offset[target_zone] = (
                         target_occupancy + 1,
                         target_offset,
@@ -518,6 +520,8 @@ def _translate_aqt(circ: Circuit) -> tuple[list[list], str]:
                         target_zone,
                         target_occupancy + target_offset,
                     )
+                else:
+                    raise Exception("Error in Shuttle command target port")
 
                 zop_source = [
                     source_zone,
