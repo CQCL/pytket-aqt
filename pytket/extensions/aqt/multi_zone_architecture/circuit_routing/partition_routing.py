@@ -91,14 +91,14 @@ class PartitionCircuitRouter:
             for i, cmd in enumerate(commands):
                 last_cmd_index = i
                 n_args = len(cmd.args)
+                qubit0 = cmd.args[0].index[0]
+                zone0 = qubit_to_zone_old[qubit0]
                 if n_args == 1:
-                    qubit0 = cmd.args[0].index[0]
-                    if qubit0 in stragglers:
+                    if qubit0 in stragglers or zone0 not in self._macro_arch.gate_zones:
                         leftovers.append(cmd)
                     else:
                         mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
                 elif n_args == 2:
-                    qubit0 = cmd.args[0].index[0]
                     qubit1 = cmd.args[1].index[0]
                     if qubit0 in stragglers:
                         stragglers.add(qubit1)
@@ -108,7 +108,10 @@ class PartitionCircuitRouter:
                         stragglers.add(qubit0)
                         leftovers.append(cmd)
                         continue
-                    if qubit_to_zone_old[qubit0] == qubit_to_zone_old[qubit1]:
+                    if (
+                        zone0 == qubit_to_zone_old[qubit1]
+                        and zone0 in self._macro_arch.gate_zones
+                    ):
                         mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
                     else:
                         leftovers.append(cmd)
@@ -138,7 +141,9 @@ class PartitionCircuitRouter:
         current_placement = deepcopy(self._initial_placement)
         n_qubits = self._circuit.n_qubits
         qubit_to_zone = _get_qubit_to_zone(n_qubits, current_placement)
-        depth_list = get_updated_depth_list(n_qubits, qubit_to_zone, depth_list)
+        depth_list = get_updated_depth_list(
+            n_qubits, qubit_to_zone, self._macro_arch.gate_zones, depth_list
+        )
         max_iter = len(depth_list) * 2
         iteration = 0
         while depth_list:
@@ -147,7 +152,9 @@ class PartitionCircuitRouter:
             )
             yield current_placement, new_placement
             qubit_to_zone = _get_qubit_to_zone(n_qubits, new_placement)
-            depth_list = get_updated_depth_list(n_qubits, qubit_to_zone, depth_list)
+            depth_list = get_updated_depth_list(
+                n_qubits, qubit_to_zone, self._macro_arch.gate_zones, depth_list
+            )
             current_placement = new_placement
             if iteration > max_iter:
                 raise ZoneRoutingError("placement alg is not converging")
@@ -209,19 +216,28 @@ class PartitionCircuitRouter:
         edge_weights: list[int] = []
 
         # add gate edges
-        max_considered_depth = min(200, len(depth_list))
+        max_considered_depth = min(self._settings.max_depth, len(depth_list))
         max_weight = math.ceil(math.pow(2, 18))
-        for i, pairs in enumerate(depth_list):
-            if i > max_considered_depth:
+        for depth, pairs in enumerate(depth_list):
+            if depth > max_considered_depth:
                 break
-            weight = math.ceil(math.exp(-2 * i) * max_weight)
-            for pair in pairs:
-                if pair in edges:
-                    index = edges.index(pair)
-                    edge_weights[index] = edge_weights[index] + weight
-                else:
-                    edges.append(pair)
-                    edge_weights.append(weight)
+            weight = math.ceil(math.exp(-2 * depth) * max_weight)
+            edges.extend(pairs)
+            edge_weights.extend([weight] * len(pairs))
+
+        # "assign" depth 0 qubits to gate zones
+        if self._macro_arch.has_memory_zones:
+            edge_pair_pairs = [
+                (pair[i], zone + n_qubits)
+                for i in [0, 1]
+                for pair in depth_list[0]
+                for zone in self._macro_arch.gate_zones
+            ]
+            edge_pair_weights = (
+                [max_weight] * len(depth_list[0]) * 2 * len(self._macro_arch.gate_zones)
+            )
+            edges.extend(edge_pair_pairs)
+            edge_weights.extend(edge_pair_weights)
 
         # add shuttling penalty (just distance between zones for now,
         # should later be dependent on shuttling cost)

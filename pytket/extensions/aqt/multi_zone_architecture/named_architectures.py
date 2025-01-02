@@ -32,7 +32,10 @@ standardOperations = [
 four_zones_in_a_line = MultiZoneArchitectureSpec(
     n_qubits_max=16,
     n_zones=4,
-    zones=[Zone(max_ions=mi) for mi in [6, 8, 8, 6]],
+    zones=[
+        Zone(max_ions=mi, memory_only=mem)
+        for mi, mem in [(6, False), (8, True), (8, False), (6, True)]
+    ],
     connections=[
         ZoneConnection(
             zone_port_spec0=PortSpec(zone_id=i, port_id=1),

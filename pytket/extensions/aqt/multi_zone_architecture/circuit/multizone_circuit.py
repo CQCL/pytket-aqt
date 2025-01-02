@@ -504,9 +504,7 @@ class MultiZoneCircuit:
                 target_zone = int(op.params[0])
                 origin_zone = current_qubit_to_zone[qubit]
                 # check zones connected
-                assert (
-                    target_zone in self.architecture.zones[origin_zone].connected_zones
-                )
+                assert target_zone in self.macro_arch.zone_connections[origin_zone]
                 connected_ports = self.macro_arch.get_connected_ports(
                     origin_zone, target_zone
                 )
@@ -538,7 +536,10 @@ class MultiZoneCircuit:
             elif len(cmd.args) == 2:
                 qubit_1 = cmd.args[0].index[0]
                 qubit_2 = cmd.args[1].index[0]
-                assert current_qubit_to_zone[qubit_1] == current_qubit_to_zone[qubit_2]
+                current_zone = current_qubit_to_zone[qubit_1]
+                assert current_zone == current_qubit_to_zone[qubit_2]
+                memory_only = self.architecture.zones[current_zone].memory_only
+                assert not memory_only
             else:
                 assert optype in [
                     OpType.Rx,
@@ -547,6 +548,11 @@ class MultiZoneCircuit:
                     OpType.Measure,
                     OpType.Barrier,
                 ]
+                if optype != OpType.Barrier:
+                    qubit_1 = cmd.args[0].index[0]
+                    current_zone = current_qubit_to_zone[qubit_1]
+                    memory_only = self.architecture.zones[current_zone].memory_only
+                    assert not memory_only
 
 
 def _get_qubit_to_zone(n_qubits: int, placement: dict[int, list[int]]) -> list[int]:

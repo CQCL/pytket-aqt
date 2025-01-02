@@ -35,7 +35,7 @@ class MtKahyparPartitioner:
     """
 
     def __init__(self, n_threads: int, log_level: int = 0):
-        mtkahypar.initializeThreadPool(n_threads)
+        mtkahypar.initialize(n_threads)
         mtkahypar.setSeed(13)
         self.context = mtkahypar.Context()
         self.context.loadPreset(mtkahypar.PresetType.DEFAULT)

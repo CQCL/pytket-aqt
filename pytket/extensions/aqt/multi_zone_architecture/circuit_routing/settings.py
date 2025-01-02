@@ -30,6 +30,7 @@ class RoutingAlg(Enum):
 class RoutingSettings:
     algorithm: RoutingAlg = RoutingAlg.greedy
     n_threads: int = 1
+    max_depth: int = 50
     debug_level: int = 0
 
     def __post_init__(self) -> None:

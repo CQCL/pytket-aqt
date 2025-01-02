@@ -314,15 +314,8 @@ class AQTMultiZoneBackend(Backend):
         }
         compiled.rename_units(qubit_map)
 
-        initial_placement = get_initial_placement(
-            compilation_settings.initial_placement, compiled, self._architecture
-        )
-        routed = route_circuit(
-            compilation_settings.routing,
-            compiled,
-            self._architecture,
-            initial_placement,
-        )
+        routed = self.route_precompiled(compiled, compilation_settings)
+        routed.validate()
         routed.is_compiled = True
         return routed
 

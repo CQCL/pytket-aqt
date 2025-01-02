@@ -44,6 +44,8 @@ class MultiZoneArch:
         self.shortest_paths: dict[tuple[ZoneId, ZoneId], list[ZoneId] | None] = {}
         self.zone_connections: list[list[int]] = [[]] * spec.n_zones
         self.connection_ports: dict[tuple[int, int], tuple[int, int]] = {}
+        self.memory_zones: list[int] = []
+        self.gate_zones: list[int] = []
 
         for zone_id, zone in enumerate(spec.zones):
             zone_data = MacroZoneData(
@@ -51,6 +53,11 @@ class MultiZoneArch:
                 zone_config=MacroZoneConfig(max_occupancy=zone.max_ions),
             )
             self.zones.add_node(ZoneId(zone_id), zone_data=zone_data)
+            if zone.memory_only:
+                self.memory_zones.append(zone_id)
+            else:
+                self.gate_zones.append(zone_id)
+            self.has_memory_zones = len(self.memory_zones) > 0
 
         for connection in spec.connections:
             zone0 = connection.zone_port_spec0.zone_id
