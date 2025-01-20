@@ -14,6 +14,7 @@
 from typing import TypeAlias
 
 from pytket import Circuit, Qubit
+from pytket._tket.circuit import OpType
 
 DepthList: TypeAlias = list[list[tuple[int, int]]]
 
@@ -22,7 +23,7 @@ def get_2q_gate_pairs_from_circuit(circuit: Circuit) -> list[tuple[int, int]]:
     pair_list: list[tuple[int, int]] = []
     for cmd in circuit.get_commands():
         n_args = len(cmd.args)
-        if n_args == 1:
+        if n_args == 1 or cmd.op.type == OpType.Measure:
             continue
         elif (
             n_args == 2

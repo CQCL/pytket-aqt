@@ -28,7 +28,6 @@ from ..architecture import (
 )
 from ..macro_architecture_graph import (
     MultiZoneArch,
-    ZoneId,
     empty_macro_arch_from_architecture,
 )
 
@@ -323,9 +322,7 @@ class MultiZoneCircuit:
                 f" qubit {qubit} is already in zone {new_zone}"
             )
         move_operations = []
-        shortest_path = self.macro_arch.shortest_path(
-            ZoneId(old_zone), ZoneId(new_zone)
-        )
+        shortest_path = self.macro_arch.shortest_path(int(old_zone), int(new_zone))
         if not shortest_path:
             raise MoveError(
                 f"Cannot move ion to zone {new_zone},"
@@ -381,6 +378,7 @@ class MultiZoneCircuit:
         self.qubit_to_zones[qubit].append(new_zone)
         self.multi_zone_operations[qubit].append(move_operations)
         if precompiled:
+            self.add_move_barrier()
             for multi_op in move_operations:
                 if isinstance(multi_op, Shuttle):
                     self._n_shuttles += 1

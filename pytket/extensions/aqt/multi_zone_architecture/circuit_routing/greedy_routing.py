@@ -13,12 +13,35 @@
 # limitations under the License.
 from copy import deepcopy
 
+from networkx import bfs_layers
+
 from pytket import Circuit, Qubit
+from pytket.circuit import Command, OpType
 
 from ..architecture import MultiZoneArchitectureSpec
 from ..circuit.helpers import ZonePlacement, ZoneRoutingError
 from ..circuit.multizone_circuit import MultiZoneCircuit
 from .settings import RoutingSettings
+
+
+class QubitTracker:
+    def __init__(self, initial_placement: ZonePlacement):
+        self._current_placement = deepcopy(initial_placement)
+        self._current_qubit_to_zone = {}
+        for zone, qubit_list in initial_placement.items():
+            for qubit in qubit_list:
+                self._current_qubit_to_zone[qubit] = zone
+
+    def current_zone(self, qubit: int):
+        return self._current_qubit_to_zone[qubit]
+
+    def zone_occupants(self, zone: int):
+        return self._current_placement[zone]
+
+    def move_qubit(self, qubit: int, starting_zone: int, target_zone: int):
+        self._current_placement[starting_zone].remove(qubit)
+        self._current_placement[target_zone].append(qubit)
+        self._current_qubit_to_zone[qubit] = target_zone
 
 
 class GreedyCircuitRouter:
@@ -50,82 +73,308 @@ class GreedyCircuitRouter:
         mz_circuit = MultiZoneCircuit(
             self._arch, self._initial_placement, n_qubits, self._circuit.n_bits
         )
-        current_qubit_to_zone = {}
-        for zone, qubit_list in self._initial_placement.items():
-            for qubit in qubit_list:
-                current_qubit_to_zone[qubit] = zone
-        current_zone_to_qubits = deepcopy(self._initial_placement)
+        # current_qubit_to_zone = {}
+        # for zone, qubit_list in self._initial_placement.items():
+        #    for qubit in qubit_list:
+        #        current_qubit_to_zone[qubit] = zone
+        # current_zone_to_qubits = deepcopy(self._initial_placement)
+
+        qubit_tracker = QubitTracker(self._initial_placement)
+
+        waiting_one_qubit_gates: dict[int, list[Command]] = {}
 
         for cmd in self._circuit.get_commands():
             n_args = len(cmd.args)
-            if n_args == 1:
-                mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
+            if n_args == 1 or cmd.op.type == OpType.Measure:
+                qubit0 = cmd.args[0].index[0]
+                if (
+                    qubit_tracker.current_zone(qubit0)
+                    in mz_circuit.macro_arch.gate_zones
+                ):
+                    mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
+                elif qubit0 in waiting_one_qubit_gates:
+                    waiting_one_qubit_gates[qubit0].append(cmd)
+                else:
+                    waiting_one_qubit_gates[qubit0] = [cmd]
             elif n_args == 2:
+                qubit0 = cmd.args[0].index[0]
+                qubit1 = cmd.args[1].index[0]
                 if isinstance(cmd.args[0], Qubit) and isinstance(cmd.args[1], Qubit):
-                    _make_necessary_moves(
-                        (cmd.args[0].index[0], cmd.args[1].index[0]),
+                    _make_necessary_moves_2q(
+                        qubit0,
+                        qubit1,
                         mz_circuit,
-                        current_qubit_to_zone,
-                        current_zone_to_qubits,
+                        qubit_tracker,
                     )
+                #  apply waiting one-qubit gates first
+                for qubit in (qubit0, qubit1):
+                    while waiting_one_qubit_gates.get(qubit):
+                        waiting_cmd = waiting_one_qubit_gates[qubit].pop(0)
+                        mz_circuit.add_gate(
+                            waiting_cmd.op.type, waiting_cmd.args, waiting_cmd.op.params
+                        )
+                    if qubit in waiting_one_qubit_gates:
+                        waiting_one_qubit_gates.pop(qubit)
                 mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
             else:
                 raise ZoneRoutingError("Circuit must be rebased to the AQT gate set")
+        for i, waiting_gates in waiting_one_qubit_gates.items():
+            if waiting_gates:
+                _make_necessary_moves_1q(i, mz_circuit, qubit_tracker)
+                if (
+                    qubit_tracker.current_zone(i)
+                    not in mz_circuit.macro_arch.gate_zones
+                ):
+                    raise Exception("This is a problem")
+                for cmd in waiting_gates:
+                    mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
         return mz_circuit
 
 
-def _make_necessary_moves(
-    qubits: tuple[int, int],
+def _move_qubit(
+    qubit_to_move: int,
+    starting_zone: int,
+    target_zone: int,
     mz_circ: MultiZoneCircuit,
-    current_qubit_to_zone: dict[int, int],
-    current_placement: ZonePlacement,
+    qubit_tracker: QubitTracker,
+) -> None:
+    mz_circ.move_qubit(qubit_to_move, target_zone, precompiled=True)
+    qubit_tracker.move_qubit(qubit_to_move, starting_zone, target_zone)
+
+
+def _find_target_zone(
+    starting_zone: int,
+    potential_swap_zones: list[int],
+    mz_circ: MultiZoneCircuit,
+    qubit_tracker: QubitTracker,
+) -> int:
+    # find the closest zone to starting_zone with at least 2 free spots
+    # using breadth-first-search
+    # potential_swap_zone does not require the free spot check
+    targ_zone = -1
+    for layer in bfs_layers(mz_circ.macro_arch.zones, starting_zone):
+        for zone in layer:
+            if zone == starting_zone:
+                continue
+            zone_occupancy = len(qubit_tracker.zone_occupants(zone))
+            max_zone_occupancy = mz_circ.architecture.get_zone_max_ions(zone)
+            zone_free_space = max_zone_occupancy - zone_occupancy
+            if zone_free_space > 1 or zone in potential_swap_zones:
+                targ_zone = zone
+                break
+        if targ_zone != -1:
+            break
+    if targ_zone == -1:
+        raise Exception("No viable zone found")
+    return targ_zone
+
+
+def _make_necessary_moves_1q(
+    qubit0: int,
+    mz_circ: MultiZoneCircuit,
+    qubit_tracker: QubitTracker,
 ) -> None:
     """
     This routine performs the necessary operations within a multi-zone circuit
-     to move two qubits into the same zone
+     to move one qubit into a gate zone
 
-    :param qubits: tuple of two qubits
+    :param qubit0: qubit in gate
     :param mz_circ: the MultiZoneCircuit
-    :param current_qubit_to_zone: dictionary containing the current
-     mapping of qubits to zones (may be altered)
-    :param current_placement: dictionary the current mapping of zones
-     to lists of qubits contained within them (may be altered)
+    :param qubit_tracker: QubitTracker object for tracking/updating current
+     placement of qubits
     """
 
-    def _move_qubit(qubit_to_move: int, starting_zone: int, target_zone: int) -> None:
-        mz_circ.move_qubit(qubit_to_move, target_zone, precompiled=True)
-        current_placement[starting_zone].remove(qubit_to_move)
-        current_placement[target_zone].append(qubit_to_move)
-        current_qubit_to_zone[qubit_to_move] = target_zone
+    zone0 = qubit_tracker.current_zone(qubit0)
+    is_gate_zone0 = not mz_circ.architecture.zones[zone0].memory_only
+    if is_gate_zone0:
+        return
+    best_gate_zone, best_gate_zone_free_space = _find_best_gate_zone_to_move_to(
+        [zone0], mz_circ, qubit_tracker
+    )
+    match best_gate_zone_free_space:
+        case 1:
+            # find first qubit in gate_zone that isn't involved (we know that
+            # any qubit currently in a gate zone no longer requires the application
+            # of gates, otherwise it would
+            # have been done already, so no need to check for that)
+            qubit_to_remove = qubit_tracker.zone_occupants(best_gate_zone)[0]
+            potential_swap_zones = [zone0]
+            target_zone = _find_target_zone(
+                best_gate_zone, potential_swap_zones, mz_circ, qubit_tracker
+            )
+            _move_qubit(
+                qubit_to_remove, best_gate_zone, target_zone, mz_circ, qubit_tracker
+            )
+            _move_qubit(qubit0, zone0, best_gate_zone, mz_circ, qubit_tracker)
+        case a if a > 1:
+            _move_qubit(qubit0, zone0, best_gate_zone, mz_circ, qubit_tracker)
+        case 0:
+            raise ValueError("Should not allow full registers")
 
-    qubit0 = qubits[0]
-    qubit1 = qubits[1]
 
-    zone0 = current_qubit_to_zone[qubit0]
-    zone1 = current_qubit_to_zone[qubit1]
-    if zone0 == zone1:
+def _gate_zone_metric(
+    gate_zone: int,
+    zones: list[int],
+    gate_zone_free_space,
+    mz_circ: MultiZoneCircuit,
+) -> int:
+    """Calculate metric estimating cost of moving one qubit from each of a
+     list of zones to a specific gate zone
+
+    Prefers gate zones with low total distance and high free space
+    """
+    distances = [
+        len(mz_circ.macro_arch.shortest_path(gate_zone, zone)) for zone in zones
+    ]
+    return sum(distances) - gate_zone_free_space * len(distances)
+
+
+def _find_best_gate_zone_to_move_to(
+    zones: list[int], mz_circ: MultiZoneCircuit, qubit_tracker: QubitTracker
+):
+    """Determines which gate zone to move to
+
+    Assumes one qubit needs to move from each zone in the zones list to the gate zone
+    """
+    min_metric = (
+        2 * mz_circ.architecture.n_zones
+    )  # this is strictly larger than the largest possible
+    best_gate_zone, best_gate_zone_free_space = (-1, -1)
+    for gate_zone in mz_circ.macro_arch.gate_zones:
+        free_space = mz_circ.architecture.get_zone_max_ions(gate_zone) - len(
+            qubit_tracker.zone_occupants(gate_zone)
+        )
+        metric = _gate_zone_metric(gate_zone, zones, free_space, mz_circ)
+        if metric < min_metric:
+            min_metric = metric
+            best_gate_zone, best_gate_zone_free_space = (gate_zone, free_space)
+            continue
+    return best_gate_zone, best_gate_zone_free_space
+
+
+def _make_necessary_moves_2q(
+    qubit0: int,
+    qubit1: int,
+    mz_circ: MultiZoneCircuit,
+    qubit_tracker: QubitTracker,
+) -> None:
+    """
+    This routine performs the necessary operations within a multi-zone circuit
+     to move two qubits into the same (gate) zone
+
+    :param qubit0: first qubit in gate
+    :param qubit1: second qubit in gate
+    :param mz_circ: the MultiZoneCircuit
+    :param qubit_tracker: QubitTracker object for tracking/updating
+     current placement of qubits
+    """
+
+    zone0 = qubit_tracker.current_zone(qubit0)
+    zone1 = qubit_tracker.current_zone(qubit1)
+    is_gate_zone0 = not mz_circ.architecture.zones[zone0].memory_only
+    is_gate_zone1 = not mz_circ.architecture.zones[zone1].memory_only
+    if zone0 == zone1 and is_gate_zone0:
         return
     free_space_zone_0 = mz_circ.architecture.get_zone_max_ions(zone0) - len(
-        current_placement[zone0]
+        qubit_tracker.zone_occupants(zone0)
     )
     free_space_zone_1 = mz_circ.architecture.get_zone_max_ions(zone1) - len(
-        current_placement[zone1]
+        qubit_tracker.zone_occupants(zone1)
     )
-    match (free_space_zone_0, free_space_zone_1):
-        case (0, 0):
-            raise ValueError("Should not allow two full registers")
-        case (1, 1):
-            # find first qubit in zone1 that isn't qubit1
-            uninvolved_qubit = [
-                qubit for qubit in current_placement[zone1] if qubit != qubits[1]
-            ][0]
-            # send it to zone0
-            _move_qubit(uninvolved_qubit, zone1, zone0)
-            # send qubit0 to zone1
-            _move_qubit(qubits[0], zone0, zone1)
-        case (a, b) if a < 0 or b < 0:
-            raise ValueError("Should never be negative")
-        case (free0, free1) if free0 >= free1:
-            _move_qubit(qubits[1], zone1, zone0)
-        case (_, _):
-            _move_qubit(qubits[0], zone0, zone1)
+    if is_gate_zone1 and is_gate_zone0:
+        match (free_space_zone_0, free_space_zone_1):
+            case (0, 0):
+                raise ValueError("Should not allow full registers")
+            case (1, 1):
+                # find first qubit in zone1 that isn't qubit1
+                uninvolved_qubit = next(
+                    qubit
+                    for qubit in qubit_tracker.zone_occupants(zone1)
+                    if qubit != qubit1
+                )
+                # find the closest zone to zone1 with at least 2 free spots
+                target_zone = _find_target_zone(zone1, [zone0], mz_circ, qubit_tracker)
+                _move_qubit(
+                    uninvolved_qubit, zone1, target_zone, mz_circ, qubit_tracker
+                )
+                # send qubit0 to zone1
+                _move_qubit(qubit0, zone0, zone1, mz_circ, qubit_tracker)
+            case (free0, free1) if free0 >= free1:
+                _move_qubit(qubit1, zone1, zone0, mz_circ, qubit_tracker)
+            case (_, _):
+                _move_qubit(qubit0, zone0, zone1, mz_circ, qubit_tracker)
+    elif is_gate_zone0 or is_gate_zone1:
+        gate_zone_qubit, gate_zone, free_space_gate_zone, mem_zone_qubit, mem_zone = (
+            (qubit0, zone0, free_space_zone_0, qubit1, zone1)
+            if is_gate_zone0
+            else (qubit1, zone1, free_space_zone_1, qubit0, zone0)
+        )
+        match free_space_gate_zone:
+            case 1:
+                # find first qubit in gate_zone that isn't involved
+                uninvolved_qubit = next(
+                    qubit
+                    for qubit in qubit_tracker.zone_occupants(gate_zone)
+                    if qubit != gate_zone_qubit
+                )
+                target_zone = _find_target_zone(
+                    gate_zone, [mem_zone], mz_circ, qubit_tracker
+                )
+                _move_qubit(
+                    uninvolved_qubit, gate_zone, target_zone, mz_circ, qubit_tracker
+                )
+                _move_qubit(mem_zone_qubit, mem_zone, gate_zone, mz_circ, qubit_tracker)
+            case a if a > 1:
+                _move_qubit(mem_zone_qubit, mem_zone, gate_zone, mz_circ, qubit_tracker)
+            case 0:
+                raise ValueError("Should not allow full registers")
+    else:
+        best_gate_zone, best_gate_zone_free_space = _find_best_gate_zone_to_move_to(
+            [zone0, zone1], mz_circ, qubit_tracker
+        )
+
+        match best_gate_zone_free_space:
+            case 1:
+                # find first qubit in gate_zone that isn't involved
+                qubits_to_remove = qubit_tracker.zone_occupants(best_gate_zone)[0:2]
+                potential_swap_zones = [zone0, zone1]
+                target_zone = _find_target_zone(
+                    best_gate_zone, potential_swap_zones, mz_circ, qubit_tracker
+                )
+                _move_qubit(
+                    qubits_to_remove[0],
+                    best_gate_zone,
+                    target_zone,
+                    mz_circ,
+                    qubit_tracker,
+                )
+                if target_zone in potential_swap_zones:
+                    potential_swap_zones.remove(target_zone)
+                target_zone = _find_target_zone(
+                    best_gate_zone, potential_swap_zones, mz_circ, qubit_tracker
+                )
+                _move_qubit(
+                    qubits_to_remove[1],
+                    best_gate_zone,
+                    target_zone,
+                    mz_circ,
+                    qubit_tracker,
+                )
+                _move_qubit(qubit0, zone0, best_gate_zone, mz_circ, qubit_tracker)
+                _move_qubit(qubit1, zone1, best_gate_zone, mz_circ, qubit_tracker)
+            case 2:
+                qubit_to_remove = qubit_tracker.zone_occupants(best_gate_zone)[0]
+                potential_swap_zones = [zone0, zone1]
+                target_zone = _find_target_zone(
+                    best_gate_zone, potential_swap_zones, mz_circ, qubit_tracker
+                )
+                _move_qubit(
+                    qubit_to_remove, best_gate_zone, target_zone, mz_circ, qubit_tracker
+                )
+                _move_qubit(qubit0, zone0, best_gate_zone, mz_circ, qubit_tracker)
+                _move_qubit(qubit1, zone1, best_gate_zone, mz_circ, qubit_tracker)
+            case a if a > 2:
+                _move_qubit(qubit0, zone0, best_gate_zone, mz_circ, qubit_tracker)
+                _move_qubit(qubit1, zone1, best_gate_zone, mz_circ, qubit_tracker)
+            case 0:
+                raise ValueError("Should not allow full registers")

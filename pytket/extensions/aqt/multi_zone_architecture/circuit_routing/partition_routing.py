@@ -27,7 +27,7 @@ from ..depth_list.depth_list import (
 )
 from ..graph_algs.graph import GraphData
 from ..graph_algs.mt_kahypar import MtKahyparPartitioner
-from ..macro_architecture_graph import ZoneId, empty_macro_arch_from_architecture
+from ..macro_architecture_graph import empty_macro_arch_from_architecture
 from .settings import RoutingSettings
 
 
@@ -273,9 +273,7 @@ class PartitionCircuitRouter:
 
     def shuttling_penalty(self, zone1: int, other_zone1: int) -> int:
         """Calculate penalty for shuttling from one zone to another"""
-        shortest_path = self._macro_arch.shortest_path(
-            ZoneId(zone1), ZoneId(other_zone1)
-        )
+        shortest_path = self._macro_arch.shortest_path(int(zone1), int(other_zone1))
         if shortest_path:
             return len(shortest_path) - 1
         raise ZoneRoutingError(

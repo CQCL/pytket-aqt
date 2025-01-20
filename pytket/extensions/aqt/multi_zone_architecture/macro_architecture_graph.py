@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import NewType
 
 from networkx import (  # type: ignore
     Graph,
@@ -21,9 +20,6 @@ from networkx import (  # type: ignore
 )
 
 from .architecture import MultiZoneArchitectureSpec
-
-QubitId = NewType("QubitId", int)
-ZoneId = NewType("ZoneId", int)
 
 
 @dataclass(frozen=True)
@@ -33,7 +29,7 @@ class MacroZoneConfig:
 
 @dataclass
 class MacroZoneData:
-    qubits: set[QubitId]
+    qubits: set[int]
     zone_config: MacroZoneConfig
 
 
@@ -41,7 +37,7 @@ class MultiZoneArch:
 
     def __init__(self, spec: MultiZoneArchitectureSpec):
         self.zones = Graph()
-        self.shortest_paths: dict[tuple[ZoneId, ZoneId], list[ZoneId] | None] = {}
+        self.shortest_paths: dict[tuple[int, int], list[int] | None] = {}
         self.zone_connections: list[list[int]] = [[]] * spec.n_zones
         self.connection_ports: dict[tuple[int, int], tuple[int, int]] = {}
         self.memory_zones: list[int] = []
@@ -52,7 +48,7 @@ class MultiZoneArch:
                 qubits=set(),
                 zone_config=MacroZoneConfig(max_occupancy=zone.max_ions),
             )
-            self.zones.add_node(ZoneId(zone_id), zone_data=zone_data)
+            self.zones.add_node(int(zone_id), zone_data=zone_data)
             if zone.memory_only:
                 self.memory_zones.append(zone_id)
             else:
@@ -75,9 +71,9 @@ class MultiZoneArch:
                     f"Two connections between zones {zone0} and {zone1}"
                     f" specified, but only 1 connection between two zones is allowed"
                 )
-            self.zones.add_edge(ZoneId(zone0), ZoneId(zone1))
+            self.zones.add_edge(int(zone0), int(zone1))
 
-    def shortest_path(self, zone_1: ZoneId, zone_2: ZoneId) -> list[ZoneId] | None:
+    def shortest_path(self, zone_1: int, zone_2: int) -> list[int] | None:
         path = self.shortest_paths.get((zone_1, zone_2))
         if path:
             return path
