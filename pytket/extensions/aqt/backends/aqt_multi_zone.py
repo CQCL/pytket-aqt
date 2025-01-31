@@ -289,6 +289,7 @@ class AQTMultiZoneBackend(Backend):
             initial_placement,
         )
         routed.is_compiled = True
+        routed.validate()
         return routed
 
     def compile_circuit_with_routing(
@@ -314,10 +315,7 @@ class AQTMultiZoneBackend(Backend):
         }
         compiled.rename_units(qubit_map)
 
-        routed = self.route_precompiled(compiled, compilation_settings)
-        routed.validate()
-        routed.is_compiled = True
-        return routed
+        return self.route_precompiled(compiled, compilation_settings)
 
     def compile_manually_routed_multi_zone_circuit(
         self,

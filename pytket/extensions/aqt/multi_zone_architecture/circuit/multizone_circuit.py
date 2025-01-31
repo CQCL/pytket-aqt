@@ -378,14 +378,18 @@ class MultiZoneCircuit:
         self.qubit_to_zones[qubit].append(new_zone)
         self.multi_zone_operations[qubit].append(move_operations)
         if precompiled:
-            self.add_move_barrier()
+            barrier_qubits = [
+                qubit for zone in shortest_path for qubit in self.zone_to_qubits[zone]
+            ]
+            self.pytket_circuit.add_barrier(barrier_qubits)
             for multi_op in move_operations:
                 if isinstance(multi_op, Shuttle):
                     self._n_shuttles += 1
+                    multi_op.append_to_circuit(self)
                 if isinstance(multi_op, SwapWithinZone):
                     self._n_pswaps += 1
-                multi_op.append_to_circuit(self)
-            self.add_move_barrier()
+                    multi_op.append_to_circuit(self)
+            self.pytket_circuit.add_barrier(barrier_qubits)
 
     def add_gate(
         self,
@@ -531,7 +535,7 @@ class MultiZoneCircuit:
                         current_placement[origin_zone].pop()
                         current_placement[target_zone].append(qubit)
                 current_qubit_to_zone[qubit] = target_zone
-            elif len(cmd.args) == 2:
+            elif len(cmd.args) == 2 and optype != OpType.Measure:
                 qubit_1 = cmd.args[0].index[0]
                 qubit_2 = cmd.args[1].index[0]
                 current_zone = current_qubit_to_zone[qubit_1]
