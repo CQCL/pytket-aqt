@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
+from typing import cast
 
 from networkx import (  # type: ignore
     Graph,
@@ -73,16 +74,18 @@ class MultiZoneArch:
                 )
             self.zones.add_edge(int(zone0), int(zone1))
 
-    def shortest_path(self, zone_1: int, zone_2: int) -> list[int] | None:
-        path = self.shortest_paths.get((zone_1, zone_2))
-        if path:
-            return path
-        path = shortest_path(self.zones, zone_1, zone_2)
+    def shortest_path(self, zone_1: int, zone_2: int) -> list[int]:
+        cached_path = self.shortest_paths.get((zone_1, zone_2))
+        if cached_path:
+            return cached_path
+        path = cast(list[int], shortest_path(self.zones, zone_1, zone_2))
         self.shortest_paths[(zone_1, zone_2)] = path
         self.shortest_paths[(zone_2, zone_1)] = path[::-1]
         return path
 
-    def get_connected_ports(self, source_zone, target_zone) -> tuple[int, int]:
+    def get_connected_ports(
+        self, source_zone: int, target_zone: int
+    ) -> tuple[int, int]:
         try:
             return self.connection_ports[(source_zone, target_zone)]
         except KeyError:

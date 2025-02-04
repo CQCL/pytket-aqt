@@ -61,7 +61,7 @@ racetrack = MultiZoneArchitectureSpec(
 
 
 def get_all_to_all_port_connections(
-    zone_ports: list[tuple[int, int]]
+    zone_ports: list[tuple[int, int]],
 ) -> list[ZoneConnection]:
     """Return a list of ZoneConnections connecting
     all the zone ports in the given list"""

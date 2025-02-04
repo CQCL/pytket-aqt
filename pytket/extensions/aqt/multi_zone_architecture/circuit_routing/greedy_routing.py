@@ -13,7 +13,7 @@
 # limitations under the License.
 from copy import deepcopy
 
-from networkx import bfs_layers
+from networkx import bfs_layers  # type: ignore[import-untyped]
 
 from pytket import Circuit, Qubit
 from pytket.circuit import Command, OpType
@@ -25,20 +25,22 @@ from .settings import RoutingSettings
 
 
 class QubitTracker:
-    def __init__(self, initial_placement: ZonePlacement):
+    """Tracks which qubits are in which zones for the entire architecture"""
+
+    def __init__(self, initial_placement: ZonePlacement) -> None:
         self._current_placement = deepcopy(initial_placement)
         self._current_qubit_to_zone = {}
         for zone, qubit_list in initial_placement.items():
             for qubit in qubit_list:
                 self._current_qubit_to_zone[qubit] = zone
 
-    def current_zone(self, qubit: int):
+    def current_zone(self, qubit: int) -> int:
         return self._current_qubit_to_zone[qubit]
 
-    def zone_occupants(self, zone: int):
+    def zone_occupants(self, zone: int) -> list[int]:
         return self._current_placement[zone]
 
-    def move_qubit(self, qubit: int, starting_zone: int, target_zone: int):
+    def move_qubit(self, qubit: int, starting_zone: int, target_zone: int) -> None:
         self._current_placement[starting_zone].remove(qubit)
         self._current_placement[target_zone].append(qubit)
         self._current_qubit_to_zone[qubit] = target_zone
@@ -73,14 +75,8 @@ class GreedyCircuitRouter:
         mz_circuit = MultiZoneCircuit(
             self._arch, self._initial_placement, n_qubits, self._circuit.n_bits
         )
-        # current_qubit_to_zone = {}
-        # for zone, qubit_list in self._initial_placement.items():
-        #    for qubit in qubit_list:
-        #        current_qubit_to_zone[qubit] = zone
-        # current_zone_to_qubits = deepcopy(self._initial_placement)
 
         qubit_tracker = QubitTracker(self._initial_placement)
-
         waiting_one_qubit_gates: dict[int, list[Command]] = {}
 
         for cmd in self._circuit.get_commands():
@@ -215,7 +211,7 @@ def _make_necessary_moves_1q(
 def _gate_zone_metric(
     gate_zone: int,
     zones: list[int],
-    gate_zone_free_space,
+    gate_zone_free_space: int,
     mz_circ: MultiZoneCircuit,
 ) -> int:
     """Calculate metric estimating cost of moving one qubit from each of a
@@ -231,7 +227,7 @@ def _gate_zone_metric(
 
 def _find_best_gate_zone_to_move_to(
     zones: list[int], mz_circ: MultiZoneCircuit, qubit_tracker: QubitTracker
-):
+) -> tuple[int, int]:
     """Determines which gate zone to move to
 
     Assumes one qubit needs to move from each zone in the zones list to the gate zone

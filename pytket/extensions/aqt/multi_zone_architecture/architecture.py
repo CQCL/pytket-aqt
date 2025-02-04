@@ -77,7 +77,9 @@ class MultiZoneArchitectureSpec(BaseModel):
             f"Number of zones: {self.n_zones}",
             "",
         ]
-        connections_per_zone_port = [[[], []]] * self.n_zones
+        connections_per_zone_port: list[list[list[tuple[int, int]]]] = [
+            [[], []] for _ in range(self.n_zones)
+        ]
         for connection in self.connections:
             zone_0 = connection.zone_port_spec0.zone_id
             zone_1 = connection.zone_port_spec1.zone_id
