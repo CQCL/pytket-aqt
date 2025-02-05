@@ -18,6 +18,7 @@ from itertools import combinations
 from .architecture import (
     MultiZoneArchitectureSpec,
     Operation,
+    PortId,
     PortSpec,
     Zone,
     ZoneConnection,
@@ -38,8 +39,8 @@ four_zones_in_a_line = MultiZoneArchitectureSpec(
     ],
     connections=[
         ZoneConnection(
-            zone_port_spec0=PortSpec(zone_id=i, port_id=1),
-            zone_port_spec1=PortSpec(zone_id=i + 1, port_id=0),
+            zone_port_spec0=PortSpec(zone_id=i, port_id=PortId.p1),
+            zone_port_spec1=PortSpec(zone_id=i + 1, port_id=PortId.p0),
         )
         for i in range(3)
     ],
@@ -52,8 +53,8 @@ racetrack = MultiZoneArchitectureSpec(
     zones=[Zone(max_ions=6) for _ in range(28)],
     connections=[
         ZoneConnection(
-            zone_port_spec0=PortSpec(zone_id=i % 28, port_id=1),
-            zone_port_spec1=PortSpec(zone_id=(i + 1) % 28, port_id=0),
+            zone_port_spec0=PortSpec(zone_id=i % 28, port_id=PortId.p1),
+            zone_port_spec1=PortSpec(zone_id=(i + 1) % 28, port_id=PortId.p0),
         )
         for i in range(28)
     ],
@@ -61,7 +62,7 @@ racetrack = MultiZoneArchitectureSpec(
 
 
 def get_all_to_all_port_connections(
-    zone_ports: list[tuple[int, int]],
+    zone_ports: list[tuple[int, PortId]],
 ) -> list[ZoneConnection]:
     """Return a list of ZoneConnections connecting
     all the zone ports in the given list"""
@@ -91,13 +92,17 @@ grid12 = MultiZoneArchitectureSpec(
     n_qubits_max=32,
     n_zones=12,
     zones=[Zone(max_ions=grid_zone_max_ion) for _ in range(12)],
-    connections=get_all_to_all_port_connections([(0, 0), (2, 0)])
-    + get_all_to_all_port_connections([(0, 1), (1, 0), (3, 0)])
-    + get_all_to_all_port_connections([(1, 1), (4, 0)])
-    + get_all_to_all_port_connections([(2, 1), (5, 0), (7, 0)])
-    + get_all_to_all_port_connections([(3, 1), (6, 0), (5, 1), (8, 0)])
-    + get_all_to_all_port_connections([(6, 1), (4, 1), (9, 0)])
-    + get_all_to_all_port_connections([(7, 1), (10, 0)])
-    + get_all_to_all_port_connections([(8, 1), (10, 1), (11, 0)])
-    + get_all_to_all_port_connections([(9, 1), (11, 1)]),
+    connections=get_all_to_all_port_connections([(0, PortId.p0), (2, PortId.p0)])
+    + get_all_to_all_port_connections([(0, PortId.p1), (1, PortId.p0), (3, PortId.p0)])
+    + get_all_to_all_port_connections([(1, PortId.p1), (4, PortId.p0)])
+    + get_all_to_all_port_connections([(2, PortId.p1), (5, PortId.p0), (7, PortId.p0)])
+    + get_all_to_all_port_connections(
+        [(3, PortId.p1), (6, PortId.p0), (5, PortId.p1), (8, PortId.p0)]
+    )
+    + get_all_to_all_port_connections([(6, PortId.p1), (4, PortId.p1), (9, PortId.p0)])
+    + get_all_to_all_port_connections([(7, PortId.p1), (10, PortId.p0)])
+    + get_all_to_all_port_connections(
+        [(8, PortId.p1), (10, PortId.p1), (11, PortId.p0)]
+    )
+    + get_all_to_all_port_connections([(9, PortId.p1), (11, PortId.p1)]),
 )

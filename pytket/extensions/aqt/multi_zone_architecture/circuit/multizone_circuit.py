@@ -25,6 +25,7 @@ from pytket.circuit import Circuit, CustomGateDef, OpType, UnitID
 
 from ..architecture import (
     MultiZoneArchitectureSpec,
+    PortId,
 )
 from ..macro_architecture_graph import (
     MultiZoneArch,
@@ -153,36 +154,38 @@ def _move_from_zone_position_to_connected_zone_edge(
     qubit: int,
     zone_qubit_list: list[int],
     position_in_zone: int | VirtualZonePosition,
-    move_source_edge_port: int,
-    move_target_edge_port: int,
+    move_source_edge_port: PortId,
+    move_target_edge_port: PortId,
     target_zone: int,
 ) -> list[MZAOperation]:
     """Generate a list of swap and shuttle operations moving an ion from a
     given position within a zone to the edge of a target zone"""
     move_operations = []
     match (move_source_edge_port, position_in_zone):
-        case (1, VirtualZonePosition.VirtualLeft):
+        case (PortId.p1, VirtualZonePosition.VirtualLeft):
             move_operations.extend(
                 _swap_left_to_right_through_list(qubit, zone_qubit_list)
             )
-        case (0, VirtualZonePosition.VirtualRight):
+        case (PortId.p0, VirtualZonePosition.VirtualRight):
             move_operations.extend(
                 _swap_right_to_left_through_list(qubit, zone_qubit_list)
             )
-        case (1, VirtualZonePosition.VirtualRight):
+        case (PortId.p1, VirtualZonePosition.VirtualRight):
             pass
-        case (0, VirtualZonePosition.VirtualLeft):
+        case (PortId.p0, VirtualZonePosition.VirtualLeft):
             pass
-        case (1, position) if isinstance(position, int):
+        case (PortId.p1, position) if isinstance(position, int):
             move_operations.extend(
                 _swap_left_to_right_through_list(qubit, zone_qubit_list[position + 1 :])
             )
-        case (0, position) if isinstance(position, int):
+        case (PortId.p0, position) if isinstance(position, int):
             move_operations.extend(
                 _swap_right_to_left_through_list(qubit, zone_qubit_list[:position])
             )
     move_operations.append(
-        Shuttle(qubit, target_zone, move_source_edge_port, move_target_edge_port)
+        Shuttle(
+            qubit, target_zone, move_source_edge_port.value, move_target_edge_port.value
+        )
     )
     return move_operations
 
@@ -362,7 +365,7 @@ class MultiZoneCircuit:
                     target_zone,
                 )
             )
-            if connected_ports[1] == 1:
+            if connected_ports[1] == PortId.p1:
                 position_in_zone = VirtualZonePosition.VirtualRight
             else:
                 position_in_zone = VirtualZonePosition.VirtualLeft
@@ -512,22 +515,22 @@ class MultiZoneCircuit:
                 )
                 # check connection exists and perform shuttle
                 match connected_ports:
-                    case (0, 0):
+                    case (PortId.p0, PortId.p0):
                         assert current_placement[origin_zone].index(qubit) == 0
                         current_placement[origin_zone].pop(0)
                         current_placement[target_zone].insert(0, qubit)
-                    case (0, 1):
+                    case (PortId.p0, PortId.p1):
                         assert current_placement[origin_zone].index(qubit) == 0
                         current_placement[origin_zone].pop(0)
                         current_placement[target_zone].append(qubit)
-                    case (1, 0):
+                    case (PortId.p1, PortId.p0):
                         assert (
                             current_placement[origin_zone].index(qubit)
                             == len(current_placement[origin_zone]) - 1
                         )
                         current_placement[origin_zone].pop()
                         current_placement[target_zone].insert(0, qubit)
-                    case (1, 1):
+                    case (PortId.p1, PortId.p1):
                         assert (
                             current_placement[origin_zone].index(qubit)
                             == len(current_placement[origin_zone]) - 1

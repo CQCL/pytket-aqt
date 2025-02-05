@@ -11,31 +11,39 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import os
+from enum import Enum
 from typing import Union
 
 from pydantic import BaseModel
 
 
+class PortId(Enum):
+    """Each Zone has two ports, p0 and p1, that allow for connections to
+    other zones"""
+
+    p0 = 0
+    p1 = 1
+
+
 class PortSpec(BaseModel):
-    """Describes Zones port (a.k.a. shuttling edge)
+    """Uniquely identifies a port within the architecture
 
     The zone_id identifies the zone and the port_id identifies
-    the port. port_id can be either 0 (the shuttling port of position 0)
-    or 1 (the shuttling port of the current last position)
+    the port. port_id can be either p0 (the shuttling port of position 0)
+    or p1 (the shuttling port of the current last position in the zone)
 
     """
 
     zone_id: int
-    port_id: int
+    port_id: PortId
 
 
 class ZoneConnection(BaseModel):
-    """A connection between two zones
+    """A connection between two zone ports
 
     The connection allows shuttling between the zones
-    according to the connection type and transfer limit (max
-    number of ions per shuttle)
     """
 
     zone_port_spec0: PortSpec
@@ -77,7 +85,7 @@ class MultiZoneArchitectureSpec(BaseModel):
             f"Number of zones: {self.n_zones}",
             "",
         ]
-        connections_per_zone_port: list[list[list[tuple[int, int]]]] = [
+        connections_per_zone_port: list[list[list[tuple[int, PortId]]]] = [
             [[], []] for _ in range(self.n_zones)
         ]
         for connection in self.connections:
@@ -85,8 +93,8 @@ class MultiZoneArchitectureSpec(BaseModel):
             zone_1 = connection.zone_port_spec1.zone_id
             port_0 = connection.zone_port_spec0.port_id
             port_1 = connection.zone_port_spec1.port_id
-            connections_per_zone_port[zone_0][port_0].append((zone_1, port_1))
-            connections_per_zone_port[zone_1][port_1].append((zone_0, port_0))
+            connections_per_zone_port[zone_0][port_0.value].append((zone_1, port_1))
+            connections_per_zone_port[zone_1][port_1.value].append((zone_0, port_0))
 
         for zone_id, zone in enumerate(self.zones):
             connections_port_0 = connections_per_zone_port[zone_id][0]

@@ -20,7 +20,7 @@ from networkx import (  # type: ignore
     shortest_path,
 )
 
-from .architecture import MultiZoneArchitectureSpec
+from .architecture import MultiZoneArchitectureSpec, PortId
 
 
 @dataclass(frozen=True)
@@ -40,7 +40,7 @@ class MultiZoneArch:
         self.zones = Graph()
         self.shortest_paths: dict[tuple[int, int], list[int] | None] = {}
         self.zone_connections: list[list[int]] = [[]] * spec.n_zones
-        self.connection_ports: dict[tuple[int, int], tuple[int, int]] = {}
+        self.connection_ports: dict[tuple[int, int], tuple[PortId, PortId]] = {}
         self.memory_zones: list[int] = []
         self.gate_zones: list[int] = []
 
@@ -85,7 +85,7 @@ class MultiZoneArch:
 
     def get_connected_ports(
         self, source_zone: int, target_zone: int
-    ) -> tuple[int, int]:
+    ) -> tuple[PortId, PortId]:
         try:
             return self.connection_ports[(source_zone, target_zone)]
         except KeyError:
