@@ -32,7 +32,7 @@ from pytket.extensions.aqt.multi_zone_architecture.initial_placement.settings im
 )
 from pytket.extensions.aqt.multi_zone_architecture.named_architectures import (
     four_zones_in_a_line,
-    grid7,
+    grid12,
 )
 
 
@@ -162,7 +162,7 @@ def test_compilation_settings_gridarch(
     routing_settings: RoutingSettings,
     ghz_circuit: Circuit,
 ) -> None:
-    backend = AQTMultiZoneBackend(architecture=grid7, access_token="invalid")
+    backend = AQTMultiZoneBackend(architecture=grid12, access_token="invalid")
     compilation_settings = CompilationSettings(
         pytket_optimisation_level=opt_level,
         initial_placement=initial_pl_settings,

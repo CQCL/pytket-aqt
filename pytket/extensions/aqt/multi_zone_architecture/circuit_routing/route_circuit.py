@@ -13,7 +13,7 @@
 # limitations under the License.
 from pytket.circuit import Circuit
 
-from ..architecture import MultiZoneArchitecture
+from ..architecture import MultiZoneArchitectureSpec
 from ..circuit.helpers import ZonePlacement
 from ..circuit.multizone_circuit import MultiZoneCircuit
 from ..graph_algs.mt_kahypar_check import (
@@ -30,7 +30,7 @@ if MT_KAHYPAR_INSTALLED:
 def route_circuit(
     settings: RoutingSettings,
     circuit: Circuit,
-    arch: MultiZoneArchitecture,
+    arch: MultiZoneArchitectureSpec,
     initial_placement: ZonePlacement,
 ) -> MultiZoneCircuit:
     """

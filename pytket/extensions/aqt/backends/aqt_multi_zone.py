@@ -46,7 +46,7 @@ from pytket.unit_id import UnitID
 
 from ..backends.config import AQTConfig
 from ..extension_version import __extension_version__
-from ..multi_zone_architecture.architecture import MultiZoneArchitecture
+from ..multi_zone_architecture.architecture import MultiZoneArchitectureSpec
 from ..multi_zone_architecture.circuit.multizone_circuit import (
     MultiZoneCircuit,
 )
@@ -100,7 +100,7 @@ class AQTMultiZoneBackend(Backend):
 
     def __init__(
         self,
-        architecture: MultiZoneArchitecture,
+        architecture: MultiZoneArchitectureSpec,
         device_name: str = "multi_zone",
         access_token: Optional[str] = None,
         label: str = "",
@@ -289,6 +289,7 @@ class AQTMultiZoneBackend(Backend):
             initial_placement,
         )
         routed.is_compiled = True
+        routed.validate()
         return routed
 
     def compile_circuit_with_routing(
@@ -314,17 +315,7 @@ class AQTMultiZoneBackend(Backend):
         }
         compiled.rename_units(qubit_map)
 
-        initial_placement = get_initial_placement(
-            compilation_settings.initial_placement, compiled, self._architecture
-        )
-        routed = route_circuit(
-            compilation_settings.routing,
-            compiled,
-            self._architecture,
-            initial_placement,
-        )
-        routed.is_compiled = True
-        return routed
+        return self.route_precompiled(compiled, compilation_settings)
 
     def compile_manually_routed_multi_zone_circuit(
         self,
@@ -491,25 +482,27 @@ def _translate_aqt(circ: Circuit) -> tuple[list[list], str]:
                 (target_occupancy, target_offset) = zone_to_occupancy_offset[
                     target_zone
                 ]
-                source_edge_encoding = op.params[1]
-                target_edge_encoding = op.params[2]
-                if source_edge_encoding < 0:
+                source_edge_encoding = int(round(op.params[1]))
+                target_edge_encoding = int(round(op.params[2]))
+                if source_edge_encoding == 0:
                     zone_to_occupancy_offset[source_zone] = (
                         source_occupancy - 1,
                         source_offset + 1,
                     )
-                else:
+                elif source_edge_encoding == 1:
                     zone_to_occupancy_offset[source_zone] = (
                         source_occupancy - 1,
                         source_offset,
                     )
-                if target_edge_encoding < 0:
+                else:
+                    raise Exception("Error in Shuttle command source port")
+                if target_edge_encoding == 0:
                     zone_to_occupancy_offset[target_zone] = (
                         target_occupancy + 1,
                         target_offset - 1,
                     )
                     qubit_to_zone_position[qubit] = (target_zone, target_offset - 1)
-                else:
+                elif target_edge_encoding == 1:
                     zone_to_occupancy_offset[target_zone] = (
                         target_occupancy + 1,
                         target_offset,
@@ -518,6 +511,8 @@ def _translate_aqt(circ: Circuit) -> tuple[list[list], str]:
                         target_zone,
                         target_occupancy + target_offset,
                     )
+                else:
+                    raise Exception("Error in Shuttle command target port")
 
                 zop_source = [
                     source_zone,

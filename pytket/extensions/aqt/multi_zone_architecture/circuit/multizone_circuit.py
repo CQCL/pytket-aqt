@@ -15,7 +15,7 @@
 import itertools
 from collections.abc import Iterator
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Optional, TypeAlias
 
@@ -24,15 +24,11 @@ from sympy import Expr, symbols  # type: ignore
 from pytket.circuit import Circuit, CustomGateDef, OpType, UnitID
 
 from ..architecture import (
-    ConnectionType,
-    EdgeType,
-    MultiZoneArchitecture,
-    source_edge_type,
-    target_edge_type,
+    MultiZoneArchitectureSpec,
+    PortId,
 )
 from ..macro_architecture_graph import (
-    MultiZoneMacroArch,
-    ZoneId,
+    MultiZoneArch,
     empty_macro_arch_from_architecture,
 )
 
@@ -115,20 +111,8 @@ class Shuttle:
     qubit: int
     zone: int
 
-    source_edge: EdgeType
-    target_edge: EdgeType
-
-    source_edge_int_encoding: int = field(init=False)
-    target_edge_int_encoding: int = field(init=False)
-
-    def __post_init__(self) -> None:
-        """
-        Encode left and right edges as negative or non-negative
-         number for use as tket custom op parameters
-        Yes, this is a hack
-        """
-        self.source_edge_int_encoding = -1 if self.source_edge == EdgeType.Left else 1
-        self.target_edge_int_encoding = -1 if self.target_edge == EdgeType.Left else 1
+    source_port: int
+    target_port: int
 
     def __str__(self) -> str:
         return f"{self.qubit}: {self.zone}"
@@ -136,7 +120,7 @@ class Shuttle:
     def append_to_circuit(self, circuit: "MultiZoneCircuit") -> None:
         circuit.pytket_circuit.add_custom_gate(
             shuttle_gate,
-            [self.zone, self.source_edge_int_encoding, self.target_edge_int_encoding],
+            [self.zone, self.source_port, self.target_port],
             [self.qubit],
         )
 
@@ -170,36 +154,38 @@ def _move_from_zone_position_to_connected_zone_edge(
     qubit: int,
     zone_qubit_list: list[int],
     position_in_zone: int | VirtualZonePosition,
-    move_source_edge_type: EdgeType,
-    move_target_edge_type: EdgeType,
+    move_source_edge_port: PortId,
+    move_target_edge_port: PortId,
     target_zone: int,
 ) -> list[MZAOperation]:
     """Generate a list of swap and shuttle operations moving an ion from a
     given position within a zone to the edge of a target zone"""
     move_operations = []
-    match (move_source_edge_type, position_in_zone):
-        case (EdgeType.Right, VirtualZonePosition.VirtualLeft):
+    match (move_source_edge_port, position_in_zone):
+        case (PortId.p1, VirtualZonePosition.VirtualLeft):
             move_operations.extend(
                 _swap_left_to_right_through_list(qubit, zone_qubit_list)
             )
-        case (EdgeType.Left, VirtualZonePosition.VirtualRight):
+        case (PortId.p0, VirtualZonePosition.VirtualRight):
             move_operations.extend(
                 _swap_right_to_left_through_list(qubit, zone_qubit_list)
             )
-        case (EdgeType.Right, VirtualZonePosition.VirtualRight):
+        case (PortId.p1, VirtualZonePosition.VirtualRight):
             pass
-        case (EdgeType.Left, VirtualZonePosition.VirtualLeft):
+        case (PortId.p0, VirtualZonePosition.VirtualLeft):
             pass
-        case (EdgeType.Right, position) if isinstance(position, int):
+        case (PortId.p1, position) if isinstance(position, int):
             move_operations.extend(
                 _swap_left_to_right_through_list(qubit, zone_qubit_list[position + 1 :])
             )
-        case (EdgeType.Left, position) if isinstance(position, int):
+        case (PortId.p0, position) if isinstance(position, int):
             move_operations.extend(
                 _swap_right_to_left_through_list(qubit, zone_qubit_list[:position])
             )
     move_operations.append(
-        Shuttle(qubit, target_zone, move_source_edge_type, move_target_edge_type)
+        Shuttle(
+            qubit, target_zone, move_source_edge_port.value, move_target_edge_port.value
+        )
     )
     return move_operations
 
@@ -215,8 +201,8 @@ class MultiZoneCircuit:
 
     """
 
-    architecture: MultiZoneArchitecture
-    macro_arch: MultiZoneMacroArch
+    architecture: MultiZoneArchitectureSpec
+    macro_arch: MultiZoneArch
     qubit_to_zones: dict[int, list[int]]
     zone_to_qubits: dict[int, list[int]]
     initial_zone_to_qubits: dict[int, list[int]]
@@ -226,7 +212,7 @@ class MultiZoneCircuit:
 
     def __init__(
         self,
-        multi_zone_arch: MultiZoneArchitecture,
+        multi_zone_arch: MultiZoneArchitectureSpec,
         initial_zone_to_qubits: dict[int, list[int]],
         *args: int,
         **kwargs: str,
@@ -339,9 +325,7 @@ class MultiZoneCircuit:
                 f" qubit {qubit} is already in zone {new_zone}"
             )
         move_operations = []
-        shortest_path = self.macro_arch.shortest_path(
-            ZoneId(old_zone), ZoneId(new_zone)
-        )
+        shortest_path = self.macro_arch.shortest_path(int(old_zone), int(new_zone))
         if not shortest_path:
             raise MoveError(
                 f"Cannot move ion to zone {new_zone},"
@@ -367,7 +351,7 @@ class MultiZoneCircuit:
                     f" but this zone is at maximum capacity"
                 )
 
-            connection_type = self.architecture.get_connection_type(
+            connected_ports = self.macro_arch.get_connected_ports(
                 source_zone, target_zone
             )
             source_zone_qubits = self.zone_to_qubits[source_zone]
@@ -376,12 +360,12 @@ class MultiZoneCircuit:
                     qubit,
                     source_zone_qubits,
                     position_in_zone,
-                    source_edge_type(connection_type),
-                    target_edge_type(connection_type),
+                    connected_ports[0],
+                    connected_ports[1],
                     target_zone,
                 )
             )
-            if target_edge_type(connection_type) == EdgeType.Right:
+            if connected_ports[1] == PortId.p1:
                 position_in_zone = VirtualZonePosition.VirtualRight
             else:
                 position_in_zone = VirtualZonePosition.VirtualLeft
@@ -397,13 +381,18 @@ class MultiZoneCircuit:
         self.qubit_to_zones[qubit].append(new_zone)
         self.multi_zone_operations[qubit].append(move_operations)
         if precompiled:
+            barrier_qubits = [
+                qubit for zone in shortest_path for qubit in self.zone_to_qubits[zone]
+            ]
+            self.pytket_circuit.add_barrier(barrier_qubits)
             for multi_op in move_operations:
                 if isinstance(multi_op, Shuttle):
                     self._n_shuttles += 1
+                    multi_op.append_to_circuit(self)
                 if isinstance(multi_op, SwapWithinZone):
                     self._n_pswaps += 1
-                multi_op.append_to_circuit(self)
-            self.add_move_barrier()
+                    multi_op.append_to_circuit(self)
+            self.pytket_circuit.add_barrier(barrier_qubits)
 
     def add_gate(
         self,
@@ -520,30 +509,28 @@ class MultiZoneCircuit:
                 target_zone = int(op.params[0])
                 origin_zone = current_qubit_to_zone[qubit]
                 # check zones connected
-                assert (
-                    target_zone in self.architecture.zones[origin_zone].connected_zones
-                )
-                connection_type = self.architecture.get_connection_type(
+                assert target_zone in self.macro_arch.zone_connections[origin_zone]
+                connected_ports = self.macro_arch.get_connected_ports(
                     origin_zone, target_zone
                 )
                 # check connection exists and perform shuttle
-                match connection_type:
-                    case ConnectionType.LeftToLeft:
+                match connected_ports:
+                    case (PortId.p0, PortId.p0):
                         assert current_placement[origin_zone].index(qubit) == 0
                         current_placement[origin_zone].pop(0)
                         current_placement[target_zone].insert(0, qubit)
-                    case ConnectionType.LeftToRight:
+                    case (PortId.p0, PortId.p1):
                         assert current_placement[origin_zone].index(qubit) == 0
                         current_placement[origin_zone].pop(0)
                         current_placement[target_zone].append(qubit)
-                    case ConnectionType.RightToLeft:
+                    case (PortId.p1, PortId.p0):
                         assert (
                             current_placement[origin_zone].index(qubit)
                             == len(current_placement[origin_zone]) - 1
                         )
                         current_placement[origin_zone].pop()
                         current_placement[target_zone].insert(0, qubit)
-                    case ConnectionType.RightToRight:
+                    case (PortId.p1, PortId.p1):
                         assert (
                             current_placement[origin_zone].index(qubit)
                             == len(current_placement[origin_zone]) - 1
@@ -551,10 +538,13 @@ class MultiZoneCircuit:
                         current_placement[origin_zone].pop()
                         current_placement[target_zone].append(qubit)
                 current_qubit_to_zone[qubit] = target_zone
-            elif len(cmd.args) == 2:
+            elif len(cmd.args) == 2 and optype != OpType.Measure:
                 qubit_1 = cmd.args[0].index[0]
                 qubit_2 = cmd.args[1].index[0]
-                assert current_qubit_to_zone[qubit_1] == current_qubit_to_zone[qubit_2]
+                current_zone = current_qubit_to_zone[qubit_1]
+                assert current_zone == current_qubit_to_zone[qubit_2]
+                memory_only = self.architecture.zones[current_zone].memory_only
+                assert not memory_only
             else:
                 assert optype in [
                     OpType.Rx,
@@ -563,6 +553,11 @@ class MultiZoneCircuit:
                     OpType.Measure,
                     OpType.Barrier,
                 ]
+                if optype != OpType.Barrier:
+                    qubit_1 = cmd.args[0].index[0]
+                    current_zone = current_qubit_to_zone[qubit_1]
+                    memory_only = self.architecture.zones[current_zone].memory_only
+                    assert not memory_only
 
 
 def _get_qubit_to_zone(n_qubits: int, placement: dict[int, list[int]]) -> list[int]:

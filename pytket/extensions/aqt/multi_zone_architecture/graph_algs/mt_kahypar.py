@@ -35,7 +35,7 @@ class MtKahyparPartitioner:
     """
 
     def __init__(self, n_threads: int, log_level: int = 0):
-        mtkahypar.initializeThreadPool(n_threads)
+        mtkahypar.initialize(n_threads)
         mtkahypar.setSeed(13)
         self.context = mtkahypar.Context()
         self.context.loadPreset(mtkahypar.PresetType.DEFAULT)
@@ -63,6 +63,8 @@ class MtKahyparPartitioner:
         graph = graph_data_to_mtkahypar_graph(graph_data)
         if graph_data.fixed_list:
             graph.addFixedVertices(graph_data.fixed_list, num_parts)
+        if graph_data.part_max_sizes:
+            self.context.max_block_weights = graph_data.part_max_sizes
         part_graph = graph.partition(self.context)
         if self.log_level > 0:
             print("cut_cost: ", part_graph.cut())  # noqa: T201
@@ -87,6 +89,8 @@ class MtKahyparPartitioner:
             mtkahypar.Objective.CUT,  # This doesn't matter, Steiner tree metric is used
         )
         graph = graph_data_to_mtkahypar_graph(graph_data)
+        if graph_data.part_max_sizes:
+            self.context.max_block_weights = graph_data.part_max_sizes
         target_graph = graph_data_to_mtkahypar_graph(target_graph_data)
         part_graph = graph.mapOntoGraph(target_graph, self.context)
         vertex_part_id: list[int] = []

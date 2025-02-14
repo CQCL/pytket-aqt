@@ -14,6 +14,7 @@
 from typing import TypeAlias
 
 from pytket import Circuit, Qubit
+from pytket._tket.circuit import OpType
 
 DepthList: TypeAlias = list[list[tuple[int, int]]]
 
@@ -22,7 +23,7 @@ def get_2q_gate_pairs_from_circuit(circuit: Circuit) -> list[tuple[int, int]]:
     pair_list: list[tuple[int, int]] = []
     for cmd in circuit.get_commands():
         n_args = len(cmd.args)
-        if n_args == 1:
+        if n_args == 1 or cmd.op.type == OpType.Measure:
             continue
         elif (
             n_args == 2
@@ -31,7 +32,11 @@ def get_2q_gate_pairs_from_circuit(circuit: Circuit) -> list[tuple[int, int]]:
         ):
             qubit0 = cmd.args[0].index[0]
             qubit1 = cmd.args[1].index[0]
-            pair_list.append((qubit0, qubit1))
+            # always smaller index first
+            if qubit0 < qubit1:
+                pair_list.append((qubit0, qubit1))
+            else:
+                pair_list.append((qubit1, qubit0))
     return pair_list
 
 
@@ -73,7 +78,10 @@ def get_initial_depth_list(circuit: Circuit) -> DepthList:
 
 
 def get_updated_depth_list(
-    n_qubits: int, qubit_to_zone: list[int], depth_list: DepthList
+    n_qubits: int,
+    qubit_to_zone: list[int],
+    gate_zones: list[int],
+    depth_list: DepthList,
 ) -> DepthList:
     """From a given placement of qubits in zones
      update the DepthList used to determine gate priority.
@@ -86,7 +94,9 @@ def get_updated_depth_list(
     prune_touched = set()
     for i, depth in enumerate(depth_list):
         for qubit_pair in depth:
-            if qubit_to_zone[qubit_pair[0]] == qubit_to_zone[qubit_pair[1]]:
+            zone_0 = qubit_to_zone[qubit_pair[0]]
+            zone_1 = qubit_to_zone[qubit_pair[1]]
+            if zone_0 == zone_1 and zone_0 in gate_zones:
                 if not prune_stage or (
                     qubit_pair[0] not in prune_touched
                     and qubit_pair[1] not in prune_touched

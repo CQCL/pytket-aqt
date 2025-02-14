@@ -32,6 +32,10 @@ class GraphData:
     should be fixed to. If given, one value per vertex is required.
     The i'th value determines the partition
     vertex i should be fixed to. A value of -1 means do not fix vertex"""
+    part_max_sizes: Optional[list[int]] = None
+    """Optional list designating the max size of each partition.
+    If given, one value per partition is required.
+    The i'th value determines the max size of partition i"""
 
     def __post_init__(self) -> None:
         if len(self.vertex_weights) != self.n_vertices:

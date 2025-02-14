@@ -11,76 +11,43 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import os
 from enum import Enum
 from typing import Union
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
 
-class EdgeType(str, Enum):
-    """Type of given zone edge
+class PortId(Enum):
+    """Each Zone has two ports, p0 and p1, that allow for connections to
+    other zones"""
 
-    Each zone has two edges that support connections,
-    with a linear arrangement of ions between these edges
+    p0 = 0
+    p1 = 1
 
-    This enum class identifies an edge as being a "right" or "left" type.
-    The use of the terms "right" and "left" is not significant, only that
-    the two edges are distinct. The terms come from the picture of the zone
-    being a linear arrangement of ions on a horizontal line, with shuttling
-    capabilities from the left or right side.
+
+class PortSpec(BaseModel):
+    """Uniquely identifies a port within the architecture
+
+    The zone_id identifies the zone and the port_id identifies
+    the port. port_id can be either p0 (the shuttling port of position 0)
+    or p1 (the shuttling port of the current last position in the zone)
 
     """
 
-    Right = "Right"
-    Left = "Left"
-
-
-class ConnectionType(str, Enum):
-    """Type of connection between zones
-
-    This enum class is used to classify a connection as connecting
-    a right or left edge of the "source" zone to the right or left edge of
-    the "target" zone
-    """
-
-    RightToRight = "RightToRight"
-    RightToLeft = "RightToLeft"
-    LeftToRight = "LeftToRight"
-    LeftToLeft = "LeftToLeft"
-
-
-def source_edge_type(connection_type: ConnectionType) -> EdgeType:
-    """Retrieves the "source" EdgeType from the ConnectionType"""
-    if (
-        connection_type == ConnectionType.RightToLeft
-        or connection_type == ConnectionType.RightToRight
-    ):
-        return EdgeType.Right
-    return EdgeType.Left
-
-
-def target_edge_type(connection_type: ConnectionType) -> EdgeType:
-    """Retrieves the "target" EdgeType from the ConnectionType"""
-    if (
-        connection_type == ConnectionType.LeftToRight
-        or connection_type == ConnectionType.RightToRight
-    ):
-        return EdgeType.Right
-    return EdgeType.Left
+    zone_id: int
+    port_id: PortId
 
 
 class ZoneConnection(BaseModel):
-    """A connection between two zones
+    """A connection between two zone ports
 
     The connection allows shuttling between the zones
-    according to the connection type and transfer limit (max
-    number of ions per shuttle)
     """
 
-    connection_type: ConnectionType
-    max_transfer: int
-    model_config = ConfigDict(use_enum_values=True)
+    zone_port_spec0: PortSpec
+    zone_port_spec1: PortSpec
 
 
 class Operation(BaseModel):
@@ -93,50 +60,24 @@ class Operation(BaseModel):
     fidelity: Union[float, str]
 
 
-class ZoneType(BaseModel):
-    """A general zone type
-
-    A zone type is a template that can be used to "instantiate" an
-    actual zone.
-
-    The connections are placeholders for connections to actual zones
-    """
-
-    name: str
-    max_ions: int
-    min_ions: int
-    zone_connections: dict[str, ZoneConnection]
-    operations: list[Operation]
-
-
 class Zone(BaseModel):
     """Processor Zone within the architecture"""
 
-    name: str
-    zone_type_id: int
-    connected_zones: dict[int, str]
+    max_ions: int
+    memory_only: bool = False
 
 
-class MultiZoneArchitecture(BaseModel):
+class MultiZoneArchitectureSpec(BaseModel):
     """Class that determines the entire Multi-Zone Architecture"""
 
     n_qubits_max: int
     n_zones: int
-    zone_types: list[ZoneType]
     zones: list[Zone]
-
-    def get_connection_type(
-        self, zone_index_source: int, zone_index_target: int
-    ) -> ConnectionType:
-        source_zone = self.zones[zone_index_source]
-        source_zone_type = self.zone_types[source_zone.zone_type_id]
-        connection_name = source_zone.connected_zones[zone_index_target]
-        return source_zone_type.zone_connections[connection_name].connection_type
+    connections: list[ZoneConnection]
 
     def get_zone_max_ions(self, zone_index: int) -> int:
         zone = self.zones[zone_index]
-        zone_type = self.zone_types[zone.zone_type_id]
-        return zone_type.max_ions
+        return zone.max_ions
 
     def __str__(self) -> str:
         arch_spec_lines = [
@@ -144,21 +85,27 @@ class MultiZoneArchitecture(BaseModel):
             f"Number of zones: {self.n_zones}",
             "",
         ]
+        connections_per_zone_port: list[list[list[tuple[int, PortId]]]] = [
+            [[], []] for _ in range(self.n_zones)
+        ]
+        for connection in self.connections:
+            zone_0 = connection.zone_port_spec0.zone_id
+            zone_1 = connection.zone_port_spec1.zone_id
+            port_0 = connection.zone_port_spec0.port_id
+            port_1 = connection.zone_port_spec1.port_id
+            connections_per_zone_port[zone_0][port_0.value].append((zone_1, port_1))
+            connections_per_zone_port[zone_1][port_1.value].append((zone_0, port_0))
+
         for zone_id, zone in enumerate(self.zones):
-            zone_type = self.zone_types[zone.zone_type_id]
+            connections_port_0 = connections_per_zone_port[zone_id][0]
+            connections_port_1 = connections_per_zone_port[zone_id][1]
             arch_spec_lines.extend(
                 [
                     f"Zone {zone_id}:",
-                    f"    Max qubits {zone_type.max_ions}",
-                    f"    Min qubits {zone_type.min_ions}",
+                    f"    Max qubits {zone.max_ions}",
                     "    Connections:",
                 ]
             )
-            for connected_zone, connection_name in zone.connected_zones.items():
-                connection_type = zone_type.zone_connections[
-                    connection_name
-                ].connection_type
-                arch_spec_lines.append(
-                    f"       {connection_type}: Zone {connected_zone}"
-                )
+            arch_spec_lines.append(f"       Port 0: Zone {connections_port_0}")
+            arch_spec_lines.append(f"       Port 1: Zone {connections_port_1}")
         return f"{os.linesep}".join(arch_spec_lines)
