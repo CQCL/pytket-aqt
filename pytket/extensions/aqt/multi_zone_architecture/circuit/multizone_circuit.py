@@ -47,6 +47,10 @@ class AcrossZoneOperationError(Exception):
     pass
 
 
+class ValidationError(Exception):
+    pass
+
+
 class VirtualZonePosition(Enum):
     VirtualLeft = 0
     VirtualRight = 1
@@ -381,9 +385,7 @@ class MultiZoneCircuit:
         self.qubit_to_zones[qubit].append(new_zone)
         self.multi_zone_operations[qubit].append(move_operations)
         if precompiled:
-            barrier_qubits = [
-                qubit for zone in shortest_path for qubit in self.zone_to_qubits[zone]
-            ]
+            barrier_qubits = [qubit for qubit in range(self.pytket_circuit.n_qubits)]
             self.pytket_circuit.add_barrier(barrier_qubits)
             for multi_op in move_operations:
                 if isinstance(multi_op, Shuttle):
@@ -485,11 +487,15 @@ class MultiZoneCircuit:
             op_string = f"{op}"
             # check init
             if i < self.architecture.n_zones:
-                assert "INIT" in op_string
+                if "INIT" not in op_string:
+                    raise ValidationError(
+                        "All zones must be initialized" " before any other operations"
+                    )
                 target_zone = int(op.params[0])
-                assert current_placement[target_zone] == [
-                    arg.index[0] for arg in cmd.args
-                ]
+                if current_placement[target_zone] != [arg.index[0] for arg in cmd.args]:
+                    raise ValidationError(
+                        "INIT command does not align with " "expected initial placement"
+                    )
             elif "MOVE_BARRIER" in op_string:
                 pass
             elif "PSWAP" in op_string:
@@ -497,10 +503,20 @@ class MultiZoneCircuit:
                 qubit_1 = cmd.args[0].index[0]
                 qubit_2 = cmd.args[1].index[0]
                 zone = current_qubit_to_zone[qubit_1]
-                assert zone == current_qubit_to_zone[qubit_2]
+                if zone != current_qubit_to_zone[qubit_2]:
+                    raise ValidationError(
+                        f"Invalid PSWAP, qubits"
+                        f" to swap {[qubit_1, qubit_2]} "
+                        f" are not located in the same zone"
+                    )
                 index1 = current_placement[zone].index(qubit_1)
                 index2 = current_placement[zone].index(qubit_2)
-                assert abs(index1 - index2) == 1
+                if abs(index1 - index2) > 1:
+                    raise ValidationError(
+                        f"Invalid PSWAP, qubits"
+                        f" to swap {[qubit_1, qubit_2]} "
+                        f" are not next to each other in zone {zone}"
+                    )
                 # perform swap
                 current_placement[zone][index1] = qubit_2
                 current_placement[zone][index2] = qubit_1
@@ -509,55 +525,72 @@ class MultiZoneCircuit:
                 target_zone = int(op.params[0])
                 origin_zone = current_qubit_to_zone[qubit]
                 # check zones connected
-                assert target_zone in self.macro_arch.zone_connections[origin_zone]
+                if target_zone not in self.macro_arch.zone_connections[origin_zone]:
+                    raise ValidationError(
+                        f"Invalid SHUTTLE, current zone {origin_zone} "
+                        f"and target zone {target_zone} of "
+                        f"qubit {qubit} are not connected."
+                    )
                 connected_ports = self.macro_arch.get_connected_ports(
                     origin_zone, target_zone
                 )
+                if qubit == 14:
+                    pass
                 # check connection exists and perform shuttle
-                match connected_ports:
-                    case (PortId.p0, PortId.p0):
-                        assert current_placement[origin_zone].index(qubit) == 0
-                        current_placement[origin_zone].pop(0)
-                        current_placement[target_zone].insert(0, qubit)
-                    case (PortId.p0, PortId.p1):
-                        assert current_placement[origin_zone].index(qubit) == 0
-                        current_placement[origin_zone].pop(0)
-                        current_placement[target_zone].append(qubit)
-                    case (PortId.p1, PortId.p0):
-                        assert (
-                            current_placement[origin_zone].index(qubit)
-                            == len(current_placement[origin_zone]) - 1
+                if connected_ports[0] == PortId.p0:
+                    if not current_placement[origin_zone].index(qubit) == 0:
+                        raise ValidationError(
+                            "Invalid SHUTTLE, qubit not at necessary port"
                         )
-                        current_placement[origin_zone].pop()
-                        current_placement[target_zone].insert(0, qubit)
-                    case (PortId.p1, PortId.p1):
-                        assert (
-                            current_placement[origin_zone].index(qubit)
-                            == len(current_placement[origin_zone]) - 1
+                    current_placement[origin_zone].pop(0)
+                else:
+                    expected_position = len(current_placement[origin_zone]) - 1
+                    if (
+                        not current_placement[origin_zone].index(qubit)
+                        == expected_position
+                    ):
+                        raise ValidationError(
+                            "Invalid SHUTTLE," " qubit not at necessary port"
                         )
-                        current_placement[origin_zone].pop()
-                        current_placement[target_zone].append(qubit)
+                    current_placement[origin_zone].pop()
+                if connected_ports[1] == PortId.p0:
+                    current_placement[target_zone].insert(0, qubit)
+                else:
+                    current_placement[target_zone].append(qubit)
+
                 current_qubit_to_zone[qubit] = target_zone
             elif len(cmd.args) == 2 and optype != OpType.Measure:
                 qubit_1 = cmd.args[0].index[0]
                 qubit_2 = cmd.args[1].index[0]
                 current_zone = current_qubit_to_zone[qubit_1]
-                assert current_zone == current_qubit_to_zone[qubit_2]
+                if current_zone != current_qubit_to_zone[qubit_2]:
+                    raise ValidationError(
+                        "Invalid 2 qubit gate." " Qubits located in different zones"
+                    )
                 memory_only = self.architecture.zones[current_zone].memory_only
-                assert not memory_only
+                if memory_only:
+                    raise ValidationError(
+                        "Invalid 2 qubit gate." " Qubits located in a non-gate zone"
+                    )
             else:
-                assert optype in [
+                if optype not in [
                     OpType.Rx,
                     OpType.Ry,
                     OpType.Rz,
                     OpType.Measure,
                     OpType.Barrier,
-                ]
+                ]:
+                    raise ValidationError(
+                        f"Invalid operation with OpType {optype} detected."
+                    )
                 if optype != OpType.Barrier:
                     qubit_1 = cmd.args[0].index[0]
                     current_zone = current_qubit_to_zone[qubit_1]
                     memory_only = self.architecture.zones[current_zone].memory_only
-                    assert not memory_only
+                    if memory_only:
+                        raise ValidationError(
+                            "Invalid 1 qubit gate." " Qubit located in a non-gate zone"
+                        )
 
 
 def _get_qubit_to_zone(n_qubits: int, placement: dict[int, list[int]]) -> list[int]:
