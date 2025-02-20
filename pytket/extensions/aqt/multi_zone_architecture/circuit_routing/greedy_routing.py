@@ -331,6 +331,8 @@ def _make_necessary_moves_2q(
 
         match best_gate_zone_free_space:
             case 1:
+                moved0 = False
+                moved1 = False
                 # find first qubit in gate_zone that isn't involved
                 qubits_to_remove = qubit_tracker.zone_occupants(best_gate_zone)[0:2]
                 potential_swap_zones = [zone0, zone1]
@@ -344,8 +346,17 @@ def _make_necessary_moves_2q(
                     mz_circ,
                     qubit_tracker,
                 )
-                if target_zone in potential_swap_zones:
-                    potential_swap_zones.remove(target_zone)
+                # If this is a swap we need to perform the entire swap, otherwise the
+                # current target zone could be too full
+                if target_zone == zone0:
+                    _move_qubit(qubit0, zone0, best_gate_zone, mz_circ, qubit_tracker)
+                    moved0 = True
+                    potential_swap_zones.remove(zone0)
+                elif target_zone == zone1:
+                    _move_qubit(qubit1, zone1, best_gate_zone, mz_circ, qubit_tracker)
+                    moved1 = True
+                    potential_swap_zones.remove(zone1)
+
                 target_zone = _find_target_zone(
                     best_gate_zone, potential_swap_zones, mz_circ, qubit_tracker
                 )
@@ -356,9 +367,14 @@ def _make_necessary_moves_2q(
                     mz_circ,
                     qubit_tracker,
                 )
-                _move_qubit(qubit0, zone0, best_gate_zone, mz_circ, qubit_tracker)
-                _move_qubit(qubit1, zone1, best_gate_zone, mz_circ, qubit_tracker)
+                if not moved0:
+                    _move_qubit(qubit0, zone0, best_gate_zone, mz_circ, qubit_tracker)
+                if not moved1:
+                    _move_qubit(qubit1, zone1, best_gate_zone, mz_circ, qubit_tracker)
+
             case 2:
+                moved0 = False
+                moved1 = False
                 qubit_to_remove = qubit_tracker.zone_occupants(best_gate_zone)[0]
                 potential_swap_zones = [zone0, zone1]
                 target_zone = _find_target_zone(
@@ -367,8 +383,20 @@ def _make_necessary_moves_2q(
                 _move_qubit(
                     qubit_to_remove, best_gate_zone, target_zone, mz_circ, qubit_tracker
                 )
-                _move_qubit(qubit0, zone0, best_gate_zone, mz_circ, qubit_tracker)
-                _move_qubit(qubit1, zone1, best_gate_zone, mz_circ, qubit_tracker)
+                # If this is a swap we need to perform the entire swap, otherwise the
+                # current target zone could be too full
+                if target_zone == zone0:
+                    _move_qubit(qubit0, zone0, best_gate_zone, mz_circ, qubit_tracker)
+                    moved0 = True
+                    potential_swap_zones.remove(zone0)
+                elif target_zone == zone1:
+                    _move_qubit(qubit1, zone1, best_gate_zone, mz_circ, qubit_tracker)
+                    moved1 = True
+                    potential_swap_zones.remove(zone1)
+                if not moved0:
+                    _move_qubit(qubit0, zone0, best_gate_zone, mz_circ, qubit_tracker)
+                if not moved1:
+                    _move_qubit(qubit1, zone1, best_gate_zone, mz_circ, qubit_tracker)
             case a if a > 2:
                 _move_qubit(qubit0, zone0, best_gate_zone, mz_circ, qubit_tracker)
                 _move_qubit(qubit1, zone1, best_gate_zone, mz_circ, qubit_tracker)
