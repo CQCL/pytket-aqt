@@ -489,12 +489,12 @@ class MultiZoneCircuit:
             if i < self.architecture.n_zones:
                 if "INIT" not in op_string:
                     raise ValidationError(
-                        "All zones must be initialized" " before any other operations"
+                        "All zones must be initialized before any other operations"
                     )
                 target_zone = int(op.params[0])
                 if current_placement[target_zone] != [arg.index[0] for arg in cmd.args]:
                     raise ValidationError(
-                        "INIT command does not align with " "expected initial placement"
+                        "INIT command does not align with expected initial placement"
                     )
             elif "MOVE_BARRIER" in op_string:
                 pass
@@ -534,8 +534,6 @@ class MultiZoneCircuit:
                 connected_ports = self.macro_arch.get_connected_ports(
                     origin_zone, target_zone
                 )
-                if qubit == 14:
-                    pass
                 # check connection exists and perform shuttle
                 if connected_ports[0] == PortId.p0:
                     if not current_placement[origin_zone].index(qubit) == 0:
