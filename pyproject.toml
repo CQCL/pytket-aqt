@@ -27,7 +27,7 @@ classifiers= [
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13"
-pytket = "^1.39"
+pytket = "^2.0.1"
 requests = "^2.22"
 types-requests = "*"
 pydantic = "^2.0"
