@@ -5,7 +5,6 @@ description = "Extension for pytket, providing access to AQT backends"
 authors = [{name = "TKET development team", email= "tket-support@quantinuum.com"}]
 license = "Apache 2"
 readme = "README.md"
-packages = [{include = "pytket"}]
 repository = "https://github.com/CQCL/pytket-aqt"
 documentation = "https://cqcl.github.io/pytket-aqt/api/index.html"
 classifiers= [
@@ -33,6 +32,9 @@ dependencies = [
     "mtkahypar >=1.5; sys_platform != 'win32'",
 
 ]
+
+[tool.poetry]
+packages = [{include = "pytket"}]
 
 [tool.poetry.urls]
 "Bug Tracker" = "https://github.com/CQCL/pytket-aqt/issues"
