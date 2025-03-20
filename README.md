@@ -33,7 +33,10 @@ simulators. It is also possible to store and use your access token across sessio
 
 ## Ion Shuttling
 
-The `AQTMultiZoneBackend` supports routing of a circuit to a particular segmented ion-trap architecture before submission. This feature is experimental and not necessary for any currently available AQT devices. In order to use the graph partitioning based algorithms within this context, a manual installation of the [mt-kahypar](https://github.com/kahypar/mt-kahypar) package is necessary. See the instructions there for details.
+The `AQTMultiZoneBackend` supports routing of a circuit to a particular segmented ion-trap architecture before submission. This feature is experimental and not necessary for any currently available AQT devices. Using the graph partitioning based algorithms within this context requires the [mt-kahypar](https://github.com/kahypar/mt-kahypar) package.
+
+On Windows based systems, `mtkahypar` is not installable via `pip` and will not be included with `pytket-aqt` as a dependency. It must be compiled and installed manually (see the instructions provided in the mt-kahypar repository for a manual
+installation).
 
 ## Bugs, support and feature requests
 
