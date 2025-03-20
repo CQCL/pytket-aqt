@@ -1,8 +1,8 @@
-[tool.poetry]
+[project]
 name = "pytket-aqt"
 version = "0.37.0"
 description = "Extension for pytket, providing access to AQT backends"
-authors = ["TKET development team <tket-support@quantinuum.com>"]
+authors = [{name = "TKET development team", email= "tket-support@quantinuum.com"}]
 license = "Apache 2"
 readme = "README.md"
 packages = [{include = "pytket"}]
@@ -21,19 +21,21 @@ classifiers= [
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering",
 ]
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "pytket (>=1.39)",
+    "requests (>=2.22)",
+    "types-requests",
+    "pydantic >=2.0",
+    "networkx >=3.0",
+    "sympy >=1.6",
+    "qiskit-aqt-provider >=1.8.1",
+    "mtkahypar >=1.5; sys_platform != 'win32'",
+
+]
 
 [tool.poetry.urls]
 "Bug Tracker" = "https://github.com/CQCL/pytket-aqt/issues"
-
-[tool.poetry.dependencies]
-python = ">=3.10,<3.13"
-pytket = "^2.0.1"
-requests = "^2.22"
-types-requests = "*"
-pydantic = "^2.0"
-networkx = "^3.0"
-sympy = ">=1.6"
-qiskit-aqt-provider = "~1.8.1"
 
 [tool.poetry.group.tests]
 optional = true
@@ -109,5 +111,5 @@ ignore_missing_imports = true
 ignore_errors = true
 
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core>=2.0.0"]
 build-backend = "poetry.core.masonry.api"
