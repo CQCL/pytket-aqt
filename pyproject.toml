@@ -48,7 +48,7 @@ pytest-timeout = ">=1.4.2,<3.0.0"
 hypothesis = "*"
 requests_mock = "*"
 numpy = "*"
-qiskit-aqt-provider = {version = "~1.8.1", extras = ["test"]}
+qiskit-aqt-provider = {version = ">=1.8.1", extras = ["test"]}
 
 [tool.poetry.group.mypy]
 optional = true
