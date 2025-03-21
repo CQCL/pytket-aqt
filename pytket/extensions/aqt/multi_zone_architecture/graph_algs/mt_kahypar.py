@@ -30,7 +30,9 @@ class MtKahyparConfig:
 MTK: mtkahypar.Initializer | None = None
 
 
-def configure_mtkahypar(config: MtKahyparConfig, warn_configured: bool = True) -> None:
+def configure_mtkahypar(
+    config: MtKahyparConfig, warn_configured: bool = True
+) -> mtkahypar.Initializer:
     global MTK
     if MTK is None:
         mtkahypar.set_seed(config.random_seed)
@@ -40,6 +42,7 @@ def configure_mtkahypar(config: MtKahyparConfig, warn_configured: bool = True) -
             "MtKahypar is already configured and can only be configured once"
             ", ignoring new configuration call"
         )
+    return MTK
 
 
 class MtKahyparPartitioner:
@@ -51,13 +54,13 @@ class MtKahyparPartitioner:
     """
 
     def __init__(self, log_level: int = 0):
-        configure_mtkahypar(MtKahyparConfig(), warn_configured=False)
-        self.context = MTK.context_from_preset(mtkahypar.PresetType.DEFAULT)
+        self.mtk = configure_mtkahypar(MtKahyparConfig(), warn_configured=False)
+        self.context = self.mtk.context_from_preset(mtkahypar.PresetType.DEFAULT)
         self.context.logging = False
         self.log_level = log_level
 
     def graph_data_to_mtkahypar_graph(self, graph_data: GraphData) -> mtkahypar.Graph:
-        return MTK.create_graph(
+        return self.mtk.create_graph(
             self.context,
             graph_data.n_vertices,
             len(graph_data.edges),
@@ -69,7 +72,7 @@ class MtKahyparPartitioner:
     def graph_data_to_mtkahypar_target_graph(
         self, graph_data: GraphData
     ) -> mtkahypar.TargetGraph:
-        return MTK.create_target_graph(
+        return self.mtk.create_target_graph(
             self.context,
             graph_data.n_vertices,
             len(graph_data.edges),
