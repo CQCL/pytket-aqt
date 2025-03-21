@@ -29,7 +29,6 @@ class RoutingAlg(Enum):
 @dataclass
 class RoutingSettings:
     algorithm: RoutingAlg = RoutingAlg.greedy
-    n_threads: int = 1
     max_depth: int = 50
     debug_level: int = 0
 

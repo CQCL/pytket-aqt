@@ -11,13 +11,35 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from dataclasses import dataclass
+from logging import getLogger
 
 import mtkahypar  # type: ignore
 
 from pytket.extensions.aqt.multi_zone_architecture.graph_algs.graph import GraphData
 
-mtkahypar_nthreads = 1
-mtk = mtkahypar.initialize(mtkahypar_nthreads)
+logger = getLogger()
+
+
+@dataclass
+class MtKahyparConfig:
+    n_threads: int = 1
+    random_seed: int = 13
+
+
+MTK: mtkahypar.Initializer | None = None
+
+
+def configure_mtkahypar(config: MtKahyparConfig, warn_configured: bool = True) -> None:
+    global MTK
+    if MTK is None:
+        mtkahypar.set_seed(config.random_seed)
+        MTK = mtkahypar.initialize(config.n_threads)
+    elif warn_configured:
+        logger.warning(
+            "MtKahypar is already configured and can only be configured once"
+            ", ignoring new configuration call"
+        )
 
 
 class MtKahyparPartitioner:
@@ -28,14 +50,14 @@ class MtKahyparPartitioner:
 
     """
 
-    def __init__(self, n_threads: int, log_level: int = 0):
-        mtkahypar.set_seed(13)
-        self.context = mtk.context_from_preset(mtkahypar.PresetType.DEFAULT)
+    def __init__(self, log_level: int = 0):
+        configure_mtkahypar(MtKahyparConfig(), warn_configured=False)
+        self.context = MTK.context_from_preset(mtkahypar.PresetType.DEFAULT)
         self.context.logging = False
         self.log_level = log_level
 
     def graph_data_to_mtkahypar_graph(self, graph_data: GraphData) -> mtkahypar.Graph:
-        return mtk.create_graph(
+        return MTK.create_graph(
             self.context,
             graph_data.n_vertices,
             len(graph_data.edges),
@@ -47,7 +69,7 @@ class MtKahyparPartitioner:
     def graph_data_to_mtkahypar_target_graph(
         self, graph_data: GraphData
     ) -> mtkahypar.TargetGraph:
-        return mtk.create_target_graph(
+        return MTK.create_target_graph(
             self.context,
             graph_data.n_vertices,
             len(graph_data.edges),
