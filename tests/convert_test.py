@@ -14,7 +14,7 @@
 import json
 
 import numpy as np
-from qiskit_aqt_provider import api_models
+from qiskit_aqt_provider.api_client import models
 
 from pytket.circuit import Circuit, OpType
 from pytket.extensions.aqt.backends.aqt import (
@@ -24,7 +24,7 @@ from pytket.extensions.aqt.backends.aqt import (
 )
 
 
-def tk_to_aqt(circ: Circuit) -> tuple[api_models.Circuit, str]:
+def tk_to_aqt(circ: Circuit) -> tuple[models.Circuit, str]:
     """Convert a circuit to AQT list representation"""
     c = circ.copy()
     AQTBackend().default_compilation_pass().apply(c)

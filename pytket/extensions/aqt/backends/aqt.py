@@ -18,7 +18,7 @@ from collections.abc import Sequence
 from typing import Any, Optional, Union, cast
 
 import numpy
-from qiskit_aqt_provider import api_models, api_models_generated
+from qiskit_aqt_provider.api_client import models, models_generated
 from qiskit_aqt_provider.aqt_provider import OFFLINE_SIMULATORS
 from typing_extensions import assert_never
 
@@ -423,10 +423,10 @@ class AQTBackend(Backend):
 
         payload = self._aqt_api.get_job_result(jobid)
 
-        if isinstance(payload, api_models_generated.JobResponseRRQueued):
+        if isinstance(payload, models_generated.JobResponseRRQueued):
             return CircuitStatus(StatusEnum.QUEUED, "")
 
-        if isinstance(payload, api_models_generated.JobResponseRROngoing):
+        if isinstance(payload, models_generated.JobResponseRROngoing):
             finished_count = payload.response.finished_count
             num_circuits = len(job.circuits_data)
             msg = (
@@ -436,7 +436,7 @@ class AQTBackend(Backend):
             )
             return CircuitStatus(StatusEnum.RUNNING, msg)
 
-        if isinstance(payload, api_models_generated.JobResponseRRFinished):
+        if isinstance(payload, models_generated.JobResponseRRFinished):
             # Entire job is complete, so update results of all circuits in the job
             for circuit_index_string, shots in payload.response.result.items():
                 circuit_index = int(circuit_index_string)
@@ -455,10 +455,10 @@ class AQTBackend(Backend):
                 )
             return CircuitStatus(StatusEnum.COMPLETED, "")
 
-        if isinstance(payload, api_models_generated.JobResponseRRError):
+        if isinstance(payload, models_generated.JobResponseRRError):
             return CircuitStatus(StatusEnum.ERROR, payload.response.message)
 
-        if isinstance(payload, api_models_generated.JobResponseRRCancelled):
+        if isinstance(payload, models_generated.JobResponseRRCancelled):
             return CircuitStatus(StatusEnum.CANCELLED, "")
 
         assert_never(payload)
@@ -517,10 +517,10 @@ def _add_aqt_circ_and_measure_data(
 
 def _pytket_to_aqt_circuit(
     pytket_circuit: Circuit,
-) -> tuple[api_models.Circuit, str]:
+) -> tuple[models.Circuit, str]:
     """Get the AQT API model representation of a rebased pytket circuit,
     along with a JSON string describing the measure result permutations."""
-    ops: list[api_models.OperationModel] = []
+    ops: list[models.OperationModel] = []
     num_measurements = 0
     measures: list[int | None] = []
     for cmd in pytket_circuit.get_commands():
@@ -529,14 +529,14 @@ def _pytket_to_aqt_circuit(
         # https://arnica.aqt.eu/api/v1/docs
         if optype == OpType.Rz:
             ops.append(
-                api_models.Operation.rz(
+                models.Operation.rz(
                     phi=float(op.params[0]),
                     qubit=cmd.args[0].index[0],
                 )
             )
         elif optype == OpType.PhasedX:
             ops.append(
-                api_models.Operation.r(
+                models.Operation.r(
                     theta=_restrict_to_range_zero_to_x(float(op.params[0]), 1),
                     phi=_restrict_to_range_zero_to_x(float(op.params[1]), 2),
                     qubit=cmd.args[0].index[0],
@@ -544,7 +544,7 @@ def _pytket_to_aqt_circuit(
             )
         elif optype == OpType.XXPhase:
             ops.append(
-                api_models.Operation.rxx(
+                models.Operation.rxx(
                     theta=float(op.params[0]),
                     qubits=[cmd.args[0].index[0], cmd.args[1].index[0]],
                 )
@@ -566,8 +566,8 @@ def _pytket_to_aqt_circuit(
         raise CircuitNotValidError("Circuit must contain at least one measurement")
     if None in measures:
         raise IndexError("Bit index not written to by a measurement.")
-    ops.append(api_models.Operation.measure())
-    aqt_circuit = api_models.Circuit(root=ops)
+    ops.append(models.Operation.measure())
+    aqt_circuit = models.Circuit(root=ops)
     return aqt_circuit, json.dumps(measures)
 
 
