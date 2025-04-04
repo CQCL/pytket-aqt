@@ -186,9 +186,7 @@ class PartitionCircuitRouter:
         shuttle_graph_data = self.get_circuit_shuttle_graph_data(
             starting_placement, depth_list
         )
-        partitioner = MtKahyparPartitioner(
-            self._settings.n_threads, log_level=self._settings.debug_level
-        )
+        partitioner = MtKahyparPartitioner(log_level=self._settings.debug_level)
         if self._settings.debug_level > 0:
             print("Depth List:")  # noqa: T201
             for i in range(min(4, len(depth_list))):

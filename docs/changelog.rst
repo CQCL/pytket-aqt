@@ -3,10 +3,13 @@
 Changelog
 ~~~~~~~~~
 
-0.37.0 (unreleased)
+0.37.0 (March 2025)
 -------------------
 
 * Update pytket minimium version requirement to 2.0.1.
+* Respect memory and gate zones during routing
+* Update to mt-kahypar 1.5
+* Update poetry minimum version requirement to 2.0.0
 
 0.36.0 (November 2024)
 ----------------------

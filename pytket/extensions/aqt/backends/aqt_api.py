@@ -18,8 +18,9 @@ import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final, Protocol, TypeVar
 
-from qiskit_aqt_provider import AQTProvider, api_models
-from qiskit_aqt_provider.api_models_generated import (
+from qiskit_aqt_provider import AQTProvider
+from qiskit_aqt_provider.api_client import models
+from qiskit_aqt_provider.api_client.models_generated import (
     JobResponseRRFinished,
     JobUser,
     ResultItem,
@@ -72,7 +73,7 @@ class AqtApi(Protocol):
 
     def post_aqt_job(self, aqt_job: PytketAqtJob, aqt_device: AqtDevice) -> str: ...
 
-    def get_job_result(self, job_id: str) -> api_models.JobResponse: ...
+    def get_job_result(self, job_id: str) -> models.JobResponse: ...
 
     def cancel_job(self, job_id: str) -> None: ...
 
@@ -87,7 +88,7 @@ class AqtRemoteApi(AqtApi):
     @property
     def _http_client(self) -> httpx.Client:
         """HTTP client for communicating with the AQT cloud service."""
-        return api_models.http_client(base_url=self._base_url, token=self._access_token)
+        return models.http_client(base_url=self._base_url, token=self._access_token)
 
     def get_devices(self) -> list[AqtDevice]:
         aqt_provider = AQTProvider(access_token=self._access_token)
@@ -109,12 +110,12 @@ class AqtRemoteApi(AqtApi):
             json=aqt_job.model_dump(),
         )
         resp.raise_for_status()
-        return str(api_models.Response.model_validate(resp.json()).job.job_id)
+        return str(models.Response.model_validate(resp.json()).job.job_id)
 
-    def get_job_result(self, job_id: str) -> api_models.JobResponse:
+    def get_job_result(self, job_id: str) -> models.JobResponse:
         resp = self._http_client.get(f"/result/{job_id}")
         resp.raise_for_status()
-        return api_models.Response.model_validate(resp.json())
+        return models.Response.model_validate(resp.json())
 
     def cancel_job(self, job_id: str) -> None:
         resp = self._http_client.delete(f"/jobs/{job_id}")
@@ -128,7 +129,7 @@ class AqtOfflineApi(AqtApi):
         self._aqt_provider = AQTProvider(access_token="offline")
         self._offline_sim = OfflineSimulatorResource(
             self._aqt_provider,
-            resource_id=api_models.ResourceId(
+            resource_id=models.Resource(
                 workspace_id="default",
                 resource_id=simulator.id,
                 resource_name=simulator.name,
@@ -161,7 +162,7 @@ class AqtOfflineApi(AqtApi):
         job = AQTJob(self._offline_sim, circuits, options)
         return str(self._offline_sim.submit(job))
 
-    def get_job_result(self, job_id: str) -> api_models.JobResponse:
+    def get_job_result(self, job_id: str) -> models.JobResponse:
         return self._offline_sim.result(uuid.UUID(job_id))
 
     def cancel_job(self, job_id: str) -> None:
@@ -195,7 +196,7 @@ class AqtMockApi(AqtApi):
         self._jobs[job_id] = aqt_job
         return job_id
 
-    def get_job_result(self, job_id: str) -> api_models.JobResponse:
+    def get_job_result(self, job_id: str) -> models.JobResponse:
         job = self._jobs[job_id]
         results: dict[str, list[list[ResultItem]]] = dict()
         for i, circ_spec in enumerate(job.circuits_data):
@@ -221,15 +222,15 @@ class AqtMockApi(AqtApi):
 
 def _aqt_job_from_pytket_aqt_job(
     job: PytketAqtJob,
-) -> api_models.SubmitJobRequest:
+) -> models.SubmitJobRequest:
     """Create AQT SubmitJobRequest from a list of circuits
     and corresponding numbers of shots"""
-    return api_models.SubmitJobRequest(
+    return models.SubmitJobRequest(
         job_type="quantum_circuit",
         label="pytket",
-        payload=api_models.QuantumCircuits(
+        payload=models.QuantumCircuits(
             circuits=[
-                api_models.QuantumCircuit(
+                models.QuantumCircuit(
                     repetitions=spec.n_shots,
                     quantum_circuit=unwrap(spec.aqt_circuit),
                     number_of_qubits=spec.circuit.n_qubits,

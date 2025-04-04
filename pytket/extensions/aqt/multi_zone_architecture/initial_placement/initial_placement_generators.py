@@ -119,7 +119,6 @@ class GraphMapInitialPlacement(InitialPlacementGenerator):
     """
 
     zone_free_space: int
-    n_threads: int
     max_depth: int
 
     def initial_placement(
@@ -142,7 +141,7 @@ class GraphMapInitialPlacement(InitialPlacementGenerator):
         initial_depth_list = get_initial_depth_list(circuit)
         circuit_graph_data = self.get_circuit_graph_data(initial_depth_list, arch)
         arch_graph_data = self.get_arch_graph_data(arch)
-        partitioner = MtKahyparPartitioner(self.n_threads)
+        partitioner = MtKahyparPartitioner()
         vertex_to_part = partitioner.map_graph_to_target_graph(
             circuit_graph_data, arch_graph_data
         )
@@ -227,7 +226,6 @@ def get_initial_placement_generator(
             if MT_KAHYPAR_INSTALLED:
                 return GraphMapInitialPlacement(
                     zone_free_space=settings.zone_free_space,
-                    n_threads=settings.n_threads,
                     max_depth=settings.max_depth,
                 )
             else:

@@ -16,3 +16,4 @@ docs/extensions
 .pytest_cache
 .coverage
 poetry.lock
+poetry.toml
