@@ -1,5 +1,5 @@
 import re
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import urljoin
 
 from docutils import nodes
@@ -92,7 +92,7 @@ custom_internal_mapping = {
 
 def add_reference(
     app: Sphinx, env: BuildEnvironment, node: Element, contnode: TextElement
-) -> Optional[nodes.reference]:
+) -> nodes.reference | None:
     # Fix references in docstrings that are inherited from the
     # base pytket.backends.Backend class.
     mapping = app.config.external_url_mapping
@@ -109,7 +109,7 @@ def add_reference(
     return None
 
 
-def correct_signature(
+def correct_signature(  # noqa: PLR0913
     app: Sphinx,
     what: str,
     name: str,

@@ -16,7 +16,7 @@ from typing import TypeAlias
 from pytket import Circuit, Qubit
 from pytket._tket.circuit import OpType
 
-DepthList: TypeAlias = list[list[tuple[int, int]]]
+DepthList: TypeAlias = list[list[tuple[int, int]]]  # noqa: UP040
 
 
 def get_2q_gate_pairs_from_circuit(circuit: Circuit) -> list[tuple[int, int]]:
@@ -25,8 +25,8 @@ def get_2q_gate_pairs_from_circuit(circuit: Circuit) -> list[tuple[int, int]]:
         n_args = len(cmd.args)
         if n_args == 1 or cmd.op.type == OpType.Measure:
             continue
-        elif (
-            n_args == 2
+        if (
+            n_args == 2  # noqa: PLR2004
             and isinstance(cmd.args[0], Qubit)
             and isinstance(cmd.args[1], Qubit)
         ):
@@ -114,4 +114,4 @@ def get_updated_depth_list(
     flattened_depth_list = [pair for depth in pruned_depth_list for pair in depth]
     # new depth list
     new_depth_list = get_depth_list(n_qubits, flattened_depth_list)
-    return new_depth_list
+    return new_depth_list  # noqa: RET504

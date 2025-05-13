@@ -17,7 +17,7 @@ from collections.abc import Iterator
 from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Optional, TypeAlias
+from typing import Any, TypeAlias
 
 from sympy import Expr, symbols  # type: ignore
 
@@ -32,7 +32,7 @@ from ..macro_architecture_graph import (
     empty_macro_arch_from_architecture,
 )
 
-ParamType: TypeAlias = Expr | float
+ParamType: TypeAlias = Expr | float  # noqa: UP040
 
 
 class QubitPlacementError(Exception):
@@ -154,7 +154,7 @@ def _swap_right_to_left_through_list(
     return [SwapWithinZone(swap_qubit, qubit) for swap_qubit in reversed(qubit_list)]
 
 
-def _move_from_zone_position_to_connected_zone_edge(
+def _move_from_zone_position_to_connected_zone_edge(  # noqa: PLR0913
     qubit: int,
     zone_qubit_list: list[int],
     position_in_zone: int | VirtualZonePosition,
@@ -298,7 +298,7 @@ class MultiZoneCircuit:
         for qubit in qubits:
             self._place_qubit(zone, qubit)
 
-    def move_qubit(self, qubit: int, new_zone: int, precompiled: bool = False) -> None:
+    def move_qubit(self, qubit: int, new_zone: int, precompiled: bool = False) -> None:  # noqa: PLR0912
         """Move a qubit from its current zone to new_zone
 
         Calculates the needs "PSWAP" and "SHUTTLE" operations to implement move.
@@ -385,7 +385,7 @@ class MultiZoneCircuit:
         self.qubit_to_zones[qubit].append(new_zone)
         self.multi_zone_operations[qubit].append(move_operations)
         if precompiled:
-            barrier_qubits = [qubit for qubit in range(self.pytket_circuit.n_qubits)]
+            barrier_qubits = [qubit for qubit in range(self.pytket_circuit.n_qubits)]  # noqa: C416
             self.pytket_circuit.add_barrier(barrier_qubits)
             for multi_op in move_operations:
                 if isinstance(multi_op, Shuttle):
@@ -400,7 +400,7 @@ class MultiZoneCircuit:
         self,
         op_type: OpType,
         args: list[UnitID] | list[int],
-        params: Optional[list[ParamType]] = None,
+        params: list[ParamType] | None = None,
     ) -> "MultiZoneCircuit":
         if op_type == OpType.Barrier:
             raise ValueError(
@@ -446,9 +446,9 @@ class MultiZoneCircuit:
             self._validate_compiled()
             return
 
-        current_multiop_index_per_qubit: dict[int, int] = {
-            k: 0 for k in self.multi_zone_operations
-        }
+        current_multiop_index_per_qubit: dict[int, int] = dict.fromkeys(
+            self.multi_zone_operations, 0
+        )
         for i, cmd in enumerate(self.pytket_circuit):
             op = cmd.op
             if "MOVE_BARRIER" in f"{op}":
@@ -467,7 +467,7 @@ class MultiZoneCircuit:
                     qubit_to_zone_message = " ".join(
                         [
                             f"q[{qz[0]}] in zone {qz[1]},"
-                            for qz in zip(qubits, cmd_qubit_zones)
+                            for qz in zip(qubits, cmd_qubit_zones, strict=False)
                         ]
                     )
                     raise AcrossZoneOperationError(
@@ -475,7 +475,7 @@ class MultiZoneCircuit:
                         f"zones. {qubit_to_zone_message}"
                     )
 
-    def _validate_compiled(self) -> None:
+    def _validate_compiled(self) -> None:  # noqa: PLR0912, PLR0915
         current_placement = deepcopy(self.initial_zone_to_qubits)
         current_qubit_to_zone = _get_qubit_to_zone(
             self.pytket_circuit.n_qubits, current_placement
@@ -548,7 +548,7 @@ class MultiZoneCircuit:
                         == expected_position
                     ):
                         raise ValidationError(
-                            "Invalid SHUTTLE," " qubit not at necessary port"
+                            "Invalid SHUTTLE, qubit not at necessary port"
                         )
                     current_placement[origin_zone].pop()
                 if connected_ports[1] == PortId.p0:
@@ -557,18 +557,18 @@ class MultiZoneCircuit:
                     current_placement[target_zone].append(qubit)
 
                 current_qubit_to_zone[qubit] = target_zone
-            elif len(cmd.args) == 2 and optype != OpType.Measure:
+            elif len(cmd.args) == 2 and optype != OpType.Measure:  # noqa: PLR2004
                 qubit_1 = cmd.args[0].index[0]
                 qubit_2 = cmd.args[1].index[0]
                 current_zone = current_qubit_to_zone[qubit_1]
                 if current_zone != current_qubit_to_zone[qubit_2]:
                     raise ValidationError(
-                        "Invalid 2 qubit gate." " Qubits located in different zones"
+                        "Invalid 2 qubit gate. Qubits located in different zones"
                     )
                 memory_only = self.architecture.zones[current_zone].memory_only
                 if memory_only:
                     raise ValidationError(
-                        "Invalid 2 qubit gate." " Qubits located in a non-gate zone"
+                        "Invalid 2 qubit gate. Qubits located in a non-gate zone"
                     )
             else:
                 if optype not in [
@@ -587,7 +587,7 @@ class MultiZoneCircuit:
                     memory_only = self.architecture.zones[current_zone].memory_only
                     if memory_only:
                         raise ValidationError(
-                            "Invalid 1 qubit gate." " Qubit located in a non-gate zone"
+                            "Invalid 1 qubit gate. Qubit located in a non-gate zone"
                         )
 
 

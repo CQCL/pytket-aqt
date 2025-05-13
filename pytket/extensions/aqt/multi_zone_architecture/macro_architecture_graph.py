@@ -35,7 +35,6 @@ class MacroZoneData:
 
 
 class MultiZoneArch:
-
     def __init__(self, spec: MultiZoneArchitectureSpec):
         self.zones = Graph()
         self.shortest_paths: dict[tuple[int, int], list[int] | None] = {}
@@ -78,7 +77,7 @@ class MultiZoneArch:
         cached_path = self.shortest_paths.get((zone_1, zone_2))
         if cached_path:
             return cached_path
-        path = cast(list[int], shortest_path(self.zones, zone_1, zone_2))
+        path = cast("list[int]", shortest_path(self.zones, zone_1, zone_2))
         self.shortest_paths[(zone_1, zone_2)] = path
         self.shortest_paths[(zone_2, zone_1)] = path[::-1]
         return path
@@ -89,7 +88,7 @@ class MultiZoneArch:
         try:
             return self.connection_ports[(source_zone, target_zone)]
         except KeyError:
-            raise ValueError(
+            raise ValueError(  # noqa: B904
                 f"No connection exists between zones {source_zone} and {target_zone}"
             )
 

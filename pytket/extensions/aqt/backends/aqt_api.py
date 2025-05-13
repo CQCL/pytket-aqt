@@ -183,7 +183,7 @@ class AqtMockApi(AqtApi):
     """Mock API for debugging purposes"""
 
     def __init__(self) -> None:
-        self._jobs: dict[str, PytketAqtJob] = dict()
+        self._jobs: dict[str, PytketAqtJob] = dict()  # noqa: C408
 
     def get_devices(self) -> list[AqtDevice]:
         return AQT_MOCK_DEVICES
@@ -198,7 +198,7 @@ class AqtMockApi(AqtApi):
 
     def get_job_result(self, job_id: str) -> models.JobResponse:
         job = self._jobs[job_id]
-        results: dict[str, list[list[ResultItem]]] = dict()
+        results: dict[str, list[list[ResultItem]]] = dict()  # noqa: C408
         for i, circ_spec in enumerate(job.circuits_data):
             circ_measure_permutations = json.loads(unwrap(circ_spec.measures))
             results[str(i)] = [

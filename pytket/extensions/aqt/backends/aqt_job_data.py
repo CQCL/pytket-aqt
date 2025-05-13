@@ -14,7 +14,6 @@
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Optional
 
 from qiskit_aqt_provider.api_client import models
 
@@ -27,9 +26,9 @@ class PytketAqtJobCircuitData:
     circuit: Circuit
     n_shots: int
     postprocess_json: str = json.dumps(None)
-    aqt_circuit: Optional[models.Circuit] = None
-    measures: Optional[str] = None
-    handle: Optional[ResultHandle] = None
+    aqt_circuit: models.Circuit | None = None
+    measures: str | None = None
+    handle: ResultHandle | None = None
 
 
 @dataclass

@@ -75,7 +75,7 @@ class ManualInitialPlacement(InitialPlacementGenerator):
                 f"Duplicate placements detected in manual"
                 f" initial placement. {duplicates}"
             )
-        unplaced_qubits = {i for i in range(circuit.n_qubits)}.difference(placed_qubits)
+        unplaced_qubits = {i for i in range(circuit.n_qubits)}.difference(placed_qubits)  # noqa: C416
         if unplaced_qubits:
             raise InitialPlacementError(
                 f"Some qubits missing in manual initial placement."
@@ -106,7 +106,7 @@ class QubitOrderInitialPlacement(InitialPlacementGenerator):
         for zone in range(arch.n_zones):
             places_avail = arch.get_zone_max_ions(zone) - self.zone_free_space
             i_end = min(i_start + places_avail, circuit.n_qubits)
-            placement[zone] = [i for i in range(i_start, i_end)]
+            placement[zone] = [i for i in range(i_start, i_end)]  # noqa: C416
             i_start = i_end
         return placement
 
@@ -158,7 +158,7 @@ class GraphMapInitialPlacement(InitialPlacementGenerator):
         # the rest available spaces for qubits in the arch
         places_per_zone = [arch.get_zone_max_ions(i) for i, _ in enumerate(arch.zones)]
         free_places_per_zone = [
-            self.zone_free_space if places_avail > 3 else 1
+            self.zone_free_space if places_avail > 3 else 1  # noqa: PLR2004
             for places_avail in places_per_zone
         ]
         block_weights = [
@@ -228,8 +228,7 @@ def get_initial_placement_generator(
                     zone_free_space=settings.zone_free_space,
                     max_depth=settings.max_depth,
                 )
-            else:
-                raise MissingMtKahyparInstallError()
+            raise MissingMtKahyparInstallError()  # noqa: RSE102
         case InitialPlacementAlg.qubit_order:
             return QubitOrderInitialPlacement(zone_free_space=settings.zone_free_space)
         case InitialPlacementAlg.manual:

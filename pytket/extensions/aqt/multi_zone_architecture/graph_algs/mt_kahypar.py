@@ -33,7 +33,7 @@ MTK: mtkahypar.Initializer | None = None
 def configure_mtkahypar(
     config: MtKahyparConfig, warn_configured: bool = True
 ) -> mtkahypar.Initializer:
-    global MTK
+    global MTK  # noqa: PLW0603
     if MTK is None:
         mtkahypar.set_seed(config.random_seed)
         MTK = mtkahypar.initialize(config.n_threads)
@@ -108,7 +108,7 @@ class MtKahyparPartitioner:
             print("cut_cost: ", part_graph.cut())  # noqa: T201
         vertex_part_id: list[int] = []
         for vertex in range(graph_data.n_vertices):
-            vertex_part_id.append(part_graph.block_id(vertex))
+            vertex_part_id.append(part_graph.block_id(vertex))  # noqa: PERF401
         return vertex_part_id
 
     def map_graph_to_target_graph(
@@ -133,5 +133,5 @@ class MtKahyparPartitioner:
         part_graph = graph.map_onto_graph(target_graph, self.context)
         vertex_part_id: list[int] = []
         for vertex in range(graph_data.n_vertices):
-            vertex_part_id.append(part_graph.block_id(vertex))
+            vertex_part_id.append(part_graph.block_id(vertex))  # noqa: PERF401
         return vertex_part_id

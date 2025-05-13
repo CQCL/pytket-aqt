@@ -69,7 +69,7 @@ class GreedyCircuitRouter:
         self._initial_placement = initial_placement
         self._settings = settings
 
-    def get_routed_circuit(self) -> MultiZoneCircuit:
+    def get_routed_circuit(self) -> MultiZoneCircuit:  # noqa: PLR0912
         """Returns the routed MultiZoneCircuit"""
         n_qubits = self._circuit.n_qubits
         mz_circuit = MultiZoneCircuit(
@@ -92,7 +92,7 @@ class GreedyCircuitRouter:
                     waiting_one_qubit_gates[qubit0].append(cmd)
                 else:
                     waiting_one_qubit_gates[qubit0] = [cmd]
-            elif n_args == 2:
+            elif n_args == 2:  # noqa: PLR2004
                 qubit0 = cmd.args[0].index[0]
                 qubit1 = cmd.args[1].index[0]
                 if isinstance(cmd.args[0], Qubit) and isinstance(cmd.args[1], Qubit):
@@ -248,7 +248,7 @@ def _find_best_gate_zone_to_move_to(
     return best_gate_zone, best_gate_zone_free_space
 
 
-def _make_necessary_moves_2q(
+def _make_necessary_moves_2q(  # noqa: PLR0912, PLR0915
     qubit0: int,
     qubit1: int,
     mz_circ: MultiZoneCircuit,
@@ -397,7 +397,7 @@ def _make_necessary_moves_2q(
                     _move_qubit(qubit0, zone0, best_gate_zone, mz_circ, qubit_tracker)
                 if not moved1:
                     _move_qubit(qubit1, zone1, best_gate_zone, mz_circ, qubit_tracker)
-            case a if a > 2:
+            case a if a > 2:  # noqa: PLR2004
                 _move_qubit(qubit0, zone0, best_gate_zone, mz_circ, qubit_tracker)
                 _move_qubit(qubit1, zone1, best_gate_zone, mz_circ, qubit_tracker)
             case 0:
