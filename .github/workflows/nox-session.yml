@@ -25,10 +25,9 @@ on:
       python-version:
         description: "Python version to use"
         type: choice
-        default: "3.10"
+        default: "3.12"
         required: true
         options:
-          - "3.10"
           - "3.11"
           - "3.12"
       os:
