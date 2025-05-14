@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -27,12 +26,12 @@ class GraphData:
     """Edges between two vertices"""
     edge_weights: list[int]
     """Edge weights. One weight per edge required"""
-    fixed_list: Optional[list[int]] = None
+    fixed_list: list[int] | None = None
     """Optional list designating which partition a vertex
     should be fixed to. If given, one value per vertex is required.
     The i'th value determines the partition
     vertex i should be fixed to. A value of -1 means do not fix vertex"""
-    part_max_sizes: Optional[list[int]] = None
+    part_max_sizes: list[int] | None = None
     """Optional list designating the max size of each partition.
     If given, one value per partition is required.
     The i'th value determines the max size of partition i"""

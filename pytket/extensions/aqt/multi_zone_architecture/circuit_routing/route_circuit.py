@@ -52,8 +52,7 @@ def route_circuit(
                 return PartitionCircuitRouter(
                     circuit, arch, initial_placement, settings
                 ).get_routed_circuit()
-            else:
-                raise MissingMtKahyparInstallError()
+            raise MissingMtKahyparInstallError()  # noqa: RSE102
         case RoutingAlg.greedy:
             return GreedyCircuitRouter(
                 circuit, arch, initial_placement, settings

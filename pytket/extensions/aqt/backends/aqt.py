@@ -15,12 +15,11 @@ import json
 import logging
 import time
 from collections.abc import Sequence
-from typing import Any, Optional, Union, cast
+from typing import Any, assert_never, cast
 
 import numpy
 from qiskit_aqt_provider.api_client import models, models_generated
 from qiskit_aqt_provider.aqt_provider import OFFLINE_SIMULATORS
-from typing_extensions import assert_never
 
 from pytket.backends import Backend, CircuitStatus, ResultHandle, StatusEnum
 from pytket.backends.backend import KwargTypes
@@ -110,7 +109,7 @@ class AQTBackend(Backend):
         self,
         aqt_workspace_id: str = "default",
         aqt_resource_id: str = "offline_simulator_no_noise",
-        access_token: Optional[str] = None,
+        access_token: str | None = None,
         label: str = "",
         machine_debug: bool = False,
     ):
@@ -146,7 +145,7 @@ class AQTBackend(Backend):
 
         # cache of AQT jobs submitted to the server
         # (keys are UUIDs returned from AQT Job submission as str's)
-        self._aqt_jobs: dict[str, PytketAqtJob] = dict()
+        self._aqt_jobs: dict[str, PytketAqtJob] = dict()  # noqa: C408
 
         available_devices = self._aqt_api.get_devices()
         matched_devices = [
@@ -181,7 +180,7 @@ class AQTBackend(Backend):
             },
         )
         self._qm = {
-            Qubit(i): cast(Qubit, node)
+            Qubit(i): cast("Qubit", node)
             for i, node in enumerate(self._backend_info.nodes)
         }
 
@@ -189,11 +188,11 @@ class AQTBackend(Backend):
         return _aqt_rebase()
 
     @property
-    def backend_info(self) -> Optional[BackendInfo]:
+    def backend_info(self) -> BackendInfo | None:
         return self._backend_info
 
     @classmethod
-    def print_device_table(cls, access_token: Optional[str] = None) -> None:
+    def print_device_table(cls, access_token: str | None = None) -> None:
         """
         Print AQT devices available for the configured access token
 
@@ -207,7 +206,7 @@ class AQTBackend(Backend):
 
     @classmethod
     def available_devices(
-        cls, access_token: Optional[str] = None, **kwargs: Any
+        cls, access_token: str | None = None, **kwargs: Any
     ) -> list[BackendInfo]:
         """
         See :py:meth:`pytket.backends.Backend.available_devices`.
@@ -259,7 +258,7 @@ class AQTBackend(Backend):
                     self.rebase_pass(),
                 ]
             )
-        elif optimisation_level == 1:
+        if optimisation_level == 1:
             return SequencePass(
                 [
                     DecomposeBoxes(),
@@ -270,17 +269,16 @@ class AQTBackend(Backend):
                     EulerAngleReduction(OpType.Ry, OpType.Rx),
                 ]
             )
-        else:
-            return SequencePass(
-                [
-                    DecomposeBoxes(),
-                    FullPeepholeOptimise(),
-                    FlattenRegisters(),
-                    RenameQubitsPass(self._qm),
-                    self.rebase_pass(),
-                    EulerAngleReduction(OpType.Ry, OpType.Rx),
-                ]
-            )
+        return SequencePass(
+            [
+                DecomposeBoxes(),
+                FullPeepholeOptimise(),
+                FlattenRegisters(),
+                RenameQubitsPass(self._qm),
+                self.rebase_pass(),
+                EulerAngleReduction(OpType.Ry, OpType.Rx),
+            ]
+        )
 
     @property
     def _result_id_type(self) -> _ResultIdTuple:
@@ -345,7 +343,7 @@ class AQTBackend(Backend):
     def process_circuits(
         self,
         circuits: Sequence[Circuit],
-        n_shots: Union[None, int, Sequence[Optional[int]]] = None,
+        n_shots: None | int | Sequence[int | None] = None,
         valid_check: bool = True,
         **kwargs: KwargTypes,
     ) -> list[ResultHandle]:
@@ -360,7 +358,7 @@ class AQTBackend(Backend):
           False)
         """
         circuits = list(circuits)
-        n_shots_list = Backend._get_n_shots_as_list(
+        n_shots_list = Backend._get_n_shots_as_list(  # noqa: SLF001
             n_shots,
             len(circuits),
             optional=False,
@@ -404,7 +402,7 @@ class AQTBackend(Backend):
         self._aqt_jobs[job_id] = job
 
         for handle in handles:
-            self._cache[handle] = dict()
+            self._cache[handle] = dict()  # noqa: C408
         return handles
 
     def _update_cache_result(
@@ -471,18 +469,18 @@ class AQTBackend(Backend):
         try:
             return super().get_result(handle)
         except CircuitNotRunError:
-            timeout = cast(float, kwargs.get("timeout"))
+            timeout = cast("float", kwargs.get("timeout"))
             wait = kwargs.get("wait", 1.0)
             # Wait for job to finish; result will then be in the cache.
             end_time = (time.time() + timeout) if (timeout is not None) else None
             while (end_time is None) or (time.time() < end_time):
                 circuit_status = self.circuit_status(handle)
                 if circuit_status.status is StatusEnum.COMPLETED:
-                    return cast(BackendResult, self._cache[handle]["result"])
+                    return cast("BackendResult", self._cache[handle]["result"])
                 if circuit_status.status is StatusEnum.ERROR:
-                    raise RuntimeError(circuit_status.message)
-                time.sleep(cast(float, wait))
-            raise RuntimeError(f"Timed out: no results after {timeout} seconds.")
+                    raise RuntimeError(circuit_status.message)  # noqa: B904
+                time.sleep(cast("float", wait))
+            raise RuntimeError(f"Timed out: no results after {timeout} seconds.")  # noqa: B904
 
 
 def _perform_circuit_postprocessing(
@@ -558,10 +556,9 @@ def _pytket_to_aqt_circuit(
             while len(measures) <= bit_id:
                 measures.append(None)
             measures[bit_id] = qb_id
-        else:
-            if optype not in {OpType.noop, OpType.Barrier}:
-                message = f"Gate {optype} is not in the allowed AQT gate set"
-                raise ValueError(message)
+        elif optype not in {OpType.noop, OpType.Barrier}:
+            message = f"Gate {optype} is not in the allowed AQT gate set"
+            raise ValueError(message)
     if num_measurements == 0:
         raise CircuitNotValidError("Circuit must contain at least one measurement")
     if None in measures:

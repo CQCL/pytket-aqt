@@ -55,7 +55,7 @@ class PartitionCircuitRouter:
         self._initial_placement = initial_placement
         self._settings = settings
 
-    def get_routed_circuit(self) -> MultiZoneCircuit:
+    def get_routed_circuit(self) -> MultiZoneCircuit:  # noqa: PLR0912
         """Returns the routed MultiZoneCircuit"""
         n_qubits = self._circuit.n_qubits
         depth_list = get_initial_depth_list(self._circuit)
@@ -98,7 +98,7 @@ class PartitionCircuitRouter:
                         leftovers.append(cmd)
                     else:
                         mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
-                elif n_args == 2:
+                elif n_args == 2:  # noqa: PLR2004
                     qubit1 = cmd.args[1].index[0]
                     if qubit0 in stragglers:
                         stragglers.add(qubit1)
@@ -256,7 +256,7 @@ class PartitionCircuitRouter:
 
         fixed_list = (
             [-1] * n_qubits
-            + [zone for zone in range(num_zones)]
+            + [zone for zone in range(num_zones)]  # noqa: C416
             + [-1] * (num_vertices - n_qubits - num_zones)
         )
 

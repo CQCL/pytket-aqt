@@ -14,7 +14,7 @@
 import json
 from collections.abc import Sequence
 from copy import deepcopy
-from typing import Any, Optional, Union, cast
+from typing import Any, cast
 
 from pytket.backends import Backend, CircuitStatus, ResultHandle, StatusEnum
 from pytket.backends.backend import KwargTypes
@@ -42,7 +42,7 @@ from pytket.predicates import (
     NoSymbolsPredicate,
     Predicate,
 )
-from pytket.unit_id import UnitID
+from pytket.unit_id import UnitID  # noqa: TC001
 
 from ..backends.config import AQTConfig
 from ..extension_version import __extension_version__
@@ -102,7 +102,7 @@ class AQTMultiZoneBackend(Backend):
         self,
         architecture: MultiZoneArchitectureSpec,
         device_name: str = "multi_zone",
-        access_token: Optional[str] = None,
+        access_token: str | None = None,
         label: str = "",
     ):
         """
@@ -129,10 +129,10 @@ class AQTMultiZoneBackend(Backend):
         if access_token is None:
             access_token = config.access_token
         if access_token is None:
-            raise AqtAuthenticationError()
+            raise AqtAuthenticationError
 
         self._header = {"Ocp-Apim-Subscription-Key": access_token, "SDK": "pytket"}
-        self._backend_info: Optional[BackendInfo] = None
+        self._backend_info: BackendInfo | None = None
         self._qm: dict[Qubit, Qubit] = {}
         self._architecture = architecture
         self._backend_info = fully_connected_backendinfo(
@@ -143,7 +143,7 @@ class AQTMultiZoneBackend(Backend):
             _GATE_SET,
         )
         self._qm = {
-            Qubit(i): cast(Qubit, node)
+            Qubit(i): cast("Qubit", node)
             for i, node in enumerate(self._backend_info.nodes)
         }
         self._MACHINE_DEBUG = True
@@ -152,7 +152,7 @@ class AQTMultiZoneBackend(Backend):
         return _aqt_rebase()
 
     @property
-    def backend_info(self) -> Optional[BackendInfo]:
+    def backend_info(self) -> BackendInfo | None:
         return self._backend_info
 
     @classmethod
@@ -187,7 +187,7 @@ class AQTMultiZoneBackend(Backend):
                     self.rebase_pass(),
                 ]
             )
-        elif optimisation_level == 1:
+        if optimisation_level == 1:
             return SequencePass(
                 [
                     DecomposeBoxes(),
@@ -198,17 +198,16 @@ class AQTMultiZoneBackend(Backend):
                     EulerAngleReduction(OpType.Ry, OpType.Rx),
                 ]
             )
-        else:
-            return SequencePass(
-                [
-                    DecomposeBoxes(),
-                    FullPeepholeOptimise(),
-                    FlattenRegisters(),
-                    RenameQubitsPass(self._qm),
-                    self.rebase_pass(),
-                    EulerAngleReduction(OpType.Ry, OpType.Rx),
-                ]
-            )
+        return SequencePass(
+            [
+                DecomposeBoxes(),
+                FullPeepholeOptimise(),
+                FlattenRegisters(),
+                RenameQubitsPass(self._qm),
+                self.rebase_pass(),
+                EulerAngleReduction(OpType.Ry, OpType.Rx),
+            ]
+        )
 
     @property
     def _result_id_type(self) -> _ResultIdTuple:
@@ -217,7 +216,7 @@ class AQTMultiZoneBackend(Backend):
     def process_circuits(
         self,
         circuits: Sequence[Circuit],
-        n_shots: Union[None, int, Sequence[Optional[int]]] = None,
+        n_shots: None | int | Sequence[int | None] = None,
         valid_check: bool = True,
         **kwargs: KwargTypes,
     ) -> list[ResultHandle]:
@@ -245,7 +244,7 @@ class AQTMultiZoneBackend(Backend):
     def precompile_circuit(
         self,
         circuit: Circuit,
-        compilation_settings: CompilationSettings = CompilationSettings.default(),
+        compilation_settings: CompilationSettings = CompilationSettings.default(),  # noqa: B008
     ) -> Circuit:
         """
         Compile a pytket Circuit assuming all to all connectivity
@@ -261,7 +260,7 @@ class AQTMultiZoneBackend(Backend):
         )
         # compilation renames qbit register to "fcNode" so rename back to "q"
         qubit_map = {
-            cast(UnitID, qubit): cast(UnitID, Qubit(qubit.index[0]))
+            cast("UnitID", qubit): cast("UnitID", Qubit(qubit.index[0]))
             for qubit in compiled.qubits
         }
         compiled.rename_units(qubit_map)
@@ -270,7 +269,7 @@ class AQTMultiZoneBackend(Backend):
     def route_precompiled(
         self,
         precompiled: Circuit,
-        compilation_settings: CompilationSettings = CompilationSettings.default(),
+        compilation_settings: CompilationSettings = CompilationSettings.default(),  # noqa: B008
     ) -> MultiZoneCircuit:
         """
         Route a pytket Circuit to the backend architecture
@@ -295,7 +294,7 @@ class AQTMultiZoneBackend(Backend):
     def compile_circuit_with_routing(
         self,
         circuit: Circuit,
-        compilation_settings: CompilationSettings = CompilationSettings.default(),
+        compilation_settings: CompilationSettings = CompilationSettings.default(),  # noqa: B008
     ) -> MultiZoneCircuit:
         """
         Compile a pytket Circuit and route it to the backend architecture
@@ -310,7 +309,7 @@ class AQTMultiZoneBackend(Backend):
         )
         # compilation renames qbit register to "fcNode" so rename back to "q"
         qubit_map = {
-            cast(UnitID, qubit): cast(UnitID, Qubit(qubit.index[0]))
+            cast("UnitID", qubit): cast("UnitID", Qubit(qubit.index[0]))
             for qubit in compiled.qubits
         }
         compiled.rename_units(qubit_map)
@@ -347,9 +346,9 @@ class AQTMultiZoneBackend(Backend):
         new_circuit.zone_to_qubits = deepcopy(circuit.zone_to_qubits)
         new_circuit.multi_zone_operations = deepcopy(circuit.multi_zone_operations)
 
-        current_multiop_index_per_qubit: dict[int, int] = {
-            k: 0 for k in new_circuit.multi_zone_operations
-        }
+        current_multiop_index_per_qubit: dict[int, int] = dict.fromkeys(
+            new_circuit.multi_zone_operations, 0
+        )
         for cmd in compiled_circuit:
             op = cmd.op
             if op.type == OpType.Barrier:
@@ -426,11 +425,11 @@ def _get_initial_zone_to_qubit_data(
     return qubit_to_zone_position, zone_to_occupancy_offset
 
 
-def _translate_aqt(circ: Circuit) -> tuple[list[list], str]:
+def _translate_aqt(circ: Circuit) -> tuple[list[list], str]:  # noqa: PLR0912, PLR0915
     """Convert a circuit in the AQT gate set to AQT list representation,
     along with a JSON string describing the measure result permutations."""
-    gates: list = list()
-    measures: list = list()
+    gates: list = list()  # noqa: C408
+    measures: list = list()  # noqa: C408
     qubit_to_zone_position, zone_to_occupancy_offset = _get_initial_zone_to_qubit_data(
         circ
     )
@@ -482,8 +481,8 @@ def _translate_aqt(circ: Circuit) -> tuple[list[list], str]:
                 (target_occupancy, target_offset) = zone_to_occupancy_offset[
                     target_zone
                 ]
-                source_edge_encoding = int(round(op.params[1]))
-                target_edge_encoding = int(round(op.params[2]))
+                source_edge_encoding = int(round(op.params[1]))  # noqa: RUF046
+                target_edge_encoding = int(round(op.params[2]))  # noqa: RUF046
                 if source_edge_encoding == 0:
                     zone_to_occupancy_offset[source_zone] = (
                         source_occupancy - 1,

@@ -16,7 +16,7 @@
 import logging
 from dataclasses import dataclass
 from getpass import getpass
-from typing import Any, ClassVar, Optional
+from typing import Any, ClassVar
 
 from qiskit_aqt_provider.aqt_provider import AQTProvider
 
@@ -29,7 +29,7 @@ class AQTConfig(PytketExtConfig):
 
     ext_dict_key: ClassVar[str] = "aqt"
 
-    access_token: Optional[str]
+    access_token: str | None
 
     @classmethod
     def from_extension_dict(
@@ -39,7 +39,7 @@ class AQTConfig(PytketExtConfig):
 
 
 def set_aqt_config(
-    access_token: Optional[str] = None,
+    access_token: str | None = None,
 ) -> None:
     """Set default value for AQT API token."""
     config = AQTConfig.from_default_config_file()
@@ -51,18 +51,18 @@ def set_aqt_config(
 class AQTAccessToken:
     """Holds the aqt access token in memory."""
 
-    _access_token: Optional[str] = None
+    _access_token: str | None = None
 
     @classmethod
     def overwrite(cls, access_token: str) -> None:
         cls._access_token = access_token
 
     @classmethod
-    def retrieve(cls) -> Optional[str]:
+    def retrieve(cls) -> str | None:
         return cls._access_token
 
     @classmethod
-    def reset(cls, access_token: Optional[str] = None) -> None:
+    def reset(cls, access_token: str | None = None) -> None:
         if access_token:
             cls._access_token = access_token
             return
@@ -76,11 +76,11 @@ class AQTAccessToken:
                 "Use pytket.extensions.aqt.AQTAccessToken.reset()"
                 " to reset token."
             )
-            logging.warning(warning)
+            logging.warning(warning)  # noqa: LOG015
             cls._access_token = "unspecified"
 
     @classmethod
-    def resolve(cls, access_token: Optional[str] = None) -> str:
+    def resolve(cls, access_token: str | None = None) -> str:
         """Resolve access token by looking in several locations
 
         If `access_token` is set, use it and store in memory for later.
@@ -110,7 +110,7 @@ class AQTAccessToken:
         return resolved_token
 
 
-def print_available_devices(access_token: Optional[str] = None) -> None:
+def print_available_devices(access_token: str | None = None) -> None:
     resolved_access_token = AQTAccessToken.resolve(access_token)
 
     aqt_provider = AQTProvider(access_token=resolved_access_token)

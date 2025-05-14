@@ -35,7 +35,7 @@ class RoutingSettings:
     def __post_init__(self) -> None:
         if not isinstance(self.algorithm, RoutingAlg):
             raise RoutingSettingsError(
-                f"{self.algorithm.__name__}" f" must be of type {RoutingAlg.__name__}"
+                f"{self.algorithm.__name__} must be of type {RoutingAlg.__name__}"
             )
 
     @classmethod

@@ -48,7 +48,7 @@ class InitialPlacementSettings:
             )
         if self.algorithm == InitialPlacementAlg.manual and not self.manual_placement:
             raise InitialPlacementSettingsError(
-                "Specified manual placement, but no manual placement " "provided"
+                "Specified manual placement, but no manual placement provided"
             )
 
     @classmethod

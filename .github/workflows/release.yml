@@ -18,7 +18,7 @@ on:
     - cron: "0 4 * * 2"
 
 env:
-  PYTHON_VERSION: "3.11"
+  PYTHON_VERSION: "3.12"
 
 jobs:
   build:
@@ -29,7 +29,7 @@ jobs:
         with:
           fetch-depth: "0"
       - run: git fetch --depth=1 origin +refs/tags/*:refs/tags/* +refs/heads/*:refs/remotes/origin/*
-      - name: Set up Python 3.11
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}

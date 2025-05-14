@@ -14,7 +14,6 @@
 
 import os
 from enum import Enum
-from typing import Union
 
 from pydantic import BaseModel
 
@@ -57,7 +56,7 @@ class Operation(BaseModel):
     """
 
     operation_spec: str
-    fidelity: Union[float, str]
+    fidelity: float | str
 
 
 class Zone(BaseModel):
