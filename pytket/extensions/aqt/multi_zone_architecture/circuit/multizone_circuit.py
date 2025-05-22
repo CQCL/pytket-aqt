@@ -32,7 +32,7 @@ from ..macro_architecture_graph import (
     empty_macro_arch_from_architecture,
 )
 
-ParamType: TypeAlias = Expr | float  # noqa: UP040
+ParamType: TypeAlias = Expr | float
 
 
 class QubitPlacementError(Exception):
