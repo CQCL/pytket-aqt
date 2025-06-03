@@ -1,6 +1,6 @@
 [project]
 name = "pytket-aqt"
-version = "0.38.0"
+version = "0.37.0"
 description = "Extension for pytket, providing access to AQT backends"
 authors = [{name = "TKET development team", email= "tket-support@quantinuum.com"}]
 license = "Apache 2"
