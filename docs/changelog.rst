@@ -6,6 +6,7 @@ Changelog
 0.37.0 (June 2025)
 ------------------
 
+* fix validation error (barrier treated as gate)
 * drop Python 3.10
 * Update pytket minimium version requirement to 2.5.0.
 * Respect memory and gate zones during routing
