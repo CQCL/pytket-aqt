@@ -6,6 +6,7 @@ Changelog
 0.38.0
 ------
 
+* fix validation error (barrier treated as gate)
 * drop Python 3.10
 
 0.37.0 (March 2025)

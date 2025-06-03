@@ -557,7 +557,7 @@ class MultiZoneCircuit:
                     current_placement[target_zone].append(qubit)
 
                 current_qubit_to_zone[qubit] = target_zone
-            elif len(cmd.args) == 2 and optype != OpType.Measure:  # noqa: PLR2004
+            elif len(cmd.args) == 2 and optype not in (OpType.Measure, OpType.Barrier):  # noqa: PLR2004
                 qubit_1 = cmd.args[0].index[0]
                 qubit_2 = cmd.args[1].index[0]
                 current_zone = current_qubit_to_zone[qubit_1]
