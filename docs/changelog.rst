@@ -3,15 +3,11 @@
 Changelog
 ~~~~~~~~~
 
-0.38.0 (June 2025)
+0.37.0 (June 2025)
 ------------------
 
 * drop Python 3.10
-
-0.37.0 (March 2025)
--------------------
-
-* Update pytket minimium version requirement to 2.0.1.
+* Update pytket minimium version requirement to 2.5.0.
 * Respect memory and gate zones during routing
 * Update to mt-kahypar 1.5
 * Update poetry minimum version requirement to 2.0.0

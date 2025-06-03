@@ -22,7 +22,7 @@ classifiers= [
 ]
 requires-python = ">=3.10,<3.13"
 dependencies = [
-    "pytket >=2.0",
+    "pytket >=2.5",
     "requests >=2.22",
     "types-requests",
     "pydantic >=2.0",
