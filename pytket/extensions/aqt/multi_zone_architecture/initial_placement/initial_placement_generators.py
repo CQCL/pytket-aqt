@@ -56,10 +56,10 @@ class ManualInitialPlacement(InitialPlacementGenerator):
         placed_qubits = []
         for zone, qubits in self.placement.items():
             placed_qubits.extend(qubits)
-            if len(qubits) > arch.get_zone_max_ions(zone):
+            if len(qubits) > arch.get_zone_max_ions_gates(zone):
                 raise InitialPlacementError(
                     f"Specified manual initial placement is faulty, zone {zone},"
-                    f" can hold {arch.get_zone_max_ions(zone)} qubits, but"
+                    f" can hold {arch.get_zone_max_ions_gates(zone)} qubits, but"
                     f" {len(qubits)} were placed"
                 )
         counts = [placed_qubits.count(i) for i in range(circuit.n_qubits)]
@@ -104,7 +104,7 @@ class QubitOrderInitialPlacement(InitialPlacementGenerator):
         placement: ZonePlacement = {}
         i_start = 0
         for zone in range(arch.n_zones):
-            places_avail = arch.get_zone_max_ions(zone) - self.zone_free_space
+            places_avail = arch.get_zone_max_ions_gates(zone) - self.zone_free_space
             i_end = min(i_start + places_avail, circuit.n_qubits)
             placement[zone] = [i for i in range(i_start, i_end)]  # noqa: C416
             i_start = i_end
@@ -156,15 +156,13 @@ class GraphMapInitialPlacement(InitialPlacementGenerator):
     ) -> GraphData:
         # Vertices up to n_qubit represent qubits,
         # the rest available spaces for qubits in the arch
-        places_per_zone = [arch.get_zone_max_ions(i) for i, _ in enumerate(arch.zones)]
-        free_places_per_zone = [
-            self.zone_free_space if places_avail > 3 else 1  # noqa: PLR2004
-            for places_avail in places_per_zone
-        ]
-        block_weights = [
-            max(0, places_per_zone[i] - free_places_per_zone[i])
+        places_per_zone = [
+            max(arch.get_zone_max_ions_gates(i) - self.zone_free_space, 0)
             for i, _ in enumerate(arch.zones)
         ]
+        # need to check if sum of places per zone is enough to accomodate all qubits, if not, the user set zone_free_space to high!
+
+        block_weights = [max(0, places_per_zone[i]) for i, _ in enumerate(arch.zones)]
         num_vertices = sum(block_weights)
         vertex_weights = [1 for _ in range(num_vertices)]
 

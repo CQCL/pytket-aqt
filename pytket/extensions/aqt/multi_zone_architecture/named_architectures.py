@@ -35,7 +35,7 @@ four_zones_in_a_line = MultiZoneArchitectureSpec(
     n_qubits_max=16,
     n_zones=4,
     zones=[
-        Zone(max_ions=mi, memory_only=mem)
+        Zone(max_ions_gate_op=mi, memory_only=mem)
         for mi, mem in [(8, False), (6, True), (6, True), (8, True)]
     ],
     connections=[
@@ -52,7 +52,7 @@ racetrack_max_ions = 6
 racetrack = MultiZoneArchitectureSpec(
     n_qubits_max=84,
     n_zones=28,
-    zones=[Zone(max_ions=racetrack_max_ions) for _ in range(28)],
+    zones=[Zone(max_ions_gate_op=racetrack_max_ions) for _ in range(28)],
     connections=[
         ZoneConnection(
             zone_port_spec0=PortSpec(zone_id=i % 28, port_id=PortId.p1),
@@ -67,9 +67,9 @@ racetrack_4_gatezones = MultiZoneArchitectureSpec(
     n_zones=28,
     zones=[
         (
-            Zone(max_ions=racetrack_max_ions)
+            Zone(max_ions_gate_op=racetrack_max_ions)
             if i in [0, 1, 2, 3]
-            else Zone(max_ions=racetrack_max_ions, memory_only=True)
+            else Zone(max_ions_gate_op=racetrack_max_ions, memory_only=True)
         )
         for i in range(28)
     ],
@@ -113,7 +113,7 @@ grid_zone_max_ion = 8
 grid12 = MultiZoneArchitectureSpec(
     n_qubits_max=32,
     n_zones=12,
-    zones=[Zone(max_ions=grid_zone_max_ion) for _ in range(12)],
+    zones=[Zone(max_ions_gate_op=grid_zone_max_ion) for _ in range(12)],
     connections=get_all_to_all_port_connections([(0, PortId.p0), (2, PortId.p0)])
     + get_all_to_all_port_connections([(0, PortId.p1), (1, PortId.p0), (3, PortId.p0)])
     + get_all_to_all_port_connections([(1, PortId.p1), (4, PortId.p0)])
@@ -135,9 +135,9 @@ grid12_mod = MultiZoneArchitectureSpec(
     n_zones=12,
     zones=[
         (
-            Zone(max_ions=grid_zone_max_ion)
+            Zone(max_ions_gate_op=grid_zone_max_ion)
             if i in [2, 4, 7, 9]
-            else Zone(max_ions=grid_zone_max_ion, memory_only=True)
+            else Zone(max_ions_gate_op=grid_zone_max_ion, memory_only=True)
         )
         for i in range(12)
     ],

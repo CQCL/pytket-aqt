@@ -284,9 +284,8 @@ class MultiZoneCircuit:
     def _place_qubit(self, zone: int, qubit: int) -> None:
         if qubit in self.qubit_to_zones:
             raise QubitPlacementError(f"Qubit {qubit} was already placed")
-        if (
-            self.architecture.get_zone_max_ions(zone)
-            < len(self.zone_to_qubits[zone]) + 1
+        if len(self.zone_to_qubits[zone]) >= self.architecture.get_zone_max_ions_gates(
+            zone
         ):
             raise QubitPlacementError(
                 f"Cannot add ion to zone {zone}, maximum ion capacity already reached"
@@ -298,7 +297,13 @@ class MultiZoneCircuit:
         for qubit in qubits:
             self._place_qubit(zone, qubit)
 
-    def move_qubit(self, qubit: int, new_zone: int, precompiled: bool = False) -> None:  # noqa: PLR0912
+    def move_qubit(  # noqa: PLR0912
+        self,
+        qubit: int,
+        new_zone: int,
+        precompiled: bool = False,
+        use_transport_limit: bool = False,
+    ) -> None:
         """Move a qubit from its current zone to new_zone
 
         Calculates the needs "PSWAP" and "SHUTTLE" operations to implement move.
@@ -319,6 +324,8 @@ class MultiZoneCircuit:
         :param new_zone: zone to move it too
         :param precompiled: whether the underlying pytket circuit has already been
          compiled (but not yet routed)
+        :param use_transport_limit: If False will use the maximum ion limit for gate operations for new_zone,
+         if True, use maximum transport limit (assuming any overflow will be corrected before gates are performed)
         """
         if qubit not in self.qubit_to_zones:
             raise QubitPlacementError("Cannot move qubit that was never placed")
@@ -339,17 +346,22 @@ class MultiZoneCircuit:
         old_zone_qubits = self.zone_to_qubits[old_zone]
         position_in_zone: int | VirtualZonePosition = old_zone_qubits.index(qubit)
 
+        new_zone_limit = (
+            self.architecture.get_zone_max_ions_gates(new_zone)
+            if not use_transport_limit
+            else self.architecture.get_zone_max_ions_transport(new_zone)
+        )
+
         for source_zone, target_zone in itertools.pairwise(shortest_path):
             n_qubits_in_target_zone = len(self.zone_to_qubits[target_zone])
-            if (
-                self.architecture.get_zone_max_ions(target_zone)
-                < n_qubits_in_target_zone + 1
+            if target_zone == new_zone and n_qubits_in_target_zone >= new_zone_limit:
+                raise MoveError(
+                    f"Cannot move ion to zone {target_zone},"
+                    f" maximum ion capacity already reached"
+                )
+            if n_qubits_in_target_zone >= self.architecture.get_zone_max_ions_transport(
+                target_zone
             ):
-                if target_zone == new_zone:
-                    raise MoveError(
-                        f"Cannot move ion to zone {target_zone},"
-                        f" maximum ion capacity already reached"
-                    )
                 raise MoveError(
                     f"Move requires shuttling ion through zone {target_zone},"
                     f" but this zone is at maximum capacity"

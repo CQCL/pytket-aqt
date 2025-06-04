@@ -36,7 +36,8 @@ class MacroZoneData:
 
 class MultiZoneArch:
     def __init__(self, spec: MultiZoneArchitectureSpec):
-        self.zones = Graph()
+        self.zone_graph = Graph()
+        self.port_graph = Graph()
         self.shortest_paths: dict[tuple[int, int], list[int] | None] = {}
         self.zone_connections: list[list[int]] = [[]] * spec.n_zones
         self.connection_ports: dict[tuple[int, int], tuple[PortId, PortId]] = {}
@@ -46,14 +47,22 @@ class MultiZoneArch:
         for zone_id, zone in enumerate(spec.zones):
             zone_data = MacroZoneData(
                 qubits=set(),
-                zone_config=MacroZoneConfig(max_occupancy=zone.max_ions),
+                zone_config=MacroZoneConfig(max_occupancy=zone.max_ions_gate_op),
             )
-            self.zones.add_node(int(zone_id), zone_data=zone_data)
+            self.zone_graph.add_node(int(zone_id), zone_data=zone_data)
             if zone.memory_only:
                 self.memory_zones.append(zone_id)
             else:
                 self.gate_zones.append(zone_id)
             self.has_memory_zones = len(self.memory_zones) > 0
+            # The zone port graph treats the ports of each zone as separate nodes int the graph
+            zone_port0_id = int(zone_id) * 2
+            zone_port1_id = zone_port0_id + 1
+            self.port_graph.add_node(zone_port0_id)
+            self.port_graph.add_node(zone_port1_id)
+            self.port_graph.add_edge(
+                zone_port0_id, zone_port1_id, gate_capacity=zone.max_ions_gate_op
+            )
 
         for connection in spec.connections:
             zone0 = connection.zone_port_spec0.zone_id
@@ -71,13 +80,13 @@ class MultiZoneArch:
                     f"Two connections between zones {zone0} and {zone1}"
                     f" specified, but only 1 connection between two zones is allowed"
                 )
-            self.zones.add_edge(int(zone0), int(zone1))
+            self.zone_graph.add_edge(int(zone0), int(zone1))
 
     def shortest_path(self, zone_1: int, zone_2: int) -> list[int]:
         cached_path = self.shortest_paths.get((zone_1, zone_2))
         if cached_path:
             return cached_path
-        path = cast("list[int]", shortest_path(self.zones, zone_1, zone_2))
+        path = cast("list[int]", shortest_path(self.zone_graph, zone_1, zone_2))
         self.shortest_paths[(zone_1, zone_2)] = path
         self.shortest_paths[(zone_2, zone_1)] = path[::-1]
         return path

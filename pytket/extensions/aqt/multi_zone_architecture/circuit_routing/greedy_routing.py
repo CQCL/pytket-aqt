@@ -134,7 +134,9 @@ def _move_qubit(
     mz_circ: MultiZoneCircuit,
     qubit_tracker: QubitTracker,
 ) -> None:
-    mz_circ.move_qubit(qubit_to_move, target_zone, precompiled=True)
+    mz_circ.move_qubit(
+        qubit_to_move, target_zone, precompiled=True, use_transport_limit=True
+    )
     qubit_tracker.move_qubit(qubit_to_move, starting_zone, target_zone)
 
 
@@ -148,14 +150,14 @@ def _find_target_zone(
     # using breadth-first-search
     # potential_swap_zone does not require the free spot check
     targ_zone = -1
-    for layer in bfs_layers(mz_circ.macro_arch.zones, starting_zone):
+    for layer in bfs_layers(mz_circ.macro_arch.zone_graph, starting_zone):
         for zone in layer:
             if zone == starting_zone:
                 continue
             zone_occupancy = len(qubit_tracker.zone_occupants(zone))
-            max_zone_occupancy = mz_circ.architecture.get_zone_max_ions(zone)
+            max_zone_occupancy = mz_circ.architecture.get_zone_max_ions_gates(zone)
             zone_free_space = max_zone_occupancy - zone_occupancy
-            if zone_free_space > 1 or zone in potential_swap_zones:
+            if zone_free_space > 0 or zone in potential_swap_zones:
                 targ_zone = zone
                 break
         if targ_zone != -1:
@@ -188,7 +190,7 @@ def _make_necessary_moves_1q(
         [zone0], mz_circ, qubit_tracker
     )
     match best_gate_zone_free_space:
-        case 1:
+        case 0:
             # find first qubit in gate_zone that isn't involved (we know that
             # any qubit currently in a gate zone no longer requires the application
             # of gates, otherwise it would
@@ -202,10 +204,8 @@ def _make_necessary_moves_1q(
                 qubit_to_remove, best_gate_zone, target_zone, mz_circ, qubit_tracker
             )
             _move_qubit(qubit0, zone0, best_gate_zone, mz_circ, qubit_tracker)
-        case a if a > 1:
+        case a if a > 0:
             _move_qubit(qubit0, zone0, best_gate_zone, mz_circ, qubit_tracker)
-        case 0:
-            raise ValueError("Should not allow full registers")
 
 
 def _gate_zone_metric(
@@ -237,7 +237,7 @@ def _find_best_gate_zone_to_move_to(
     )  # this is strictly larger than the largest possible
     best_gate_zone, best_gate_zone_free_space = (-1, -1)
     for gate_zone in mz_circ.macro_arch.gate_zones:
-        free_space = mz_circ.architecture.get_zone_max_ions(gate_zone) - len(
+        free_space = mz_circ.architecture.get_zone_max_ions_gates(gate_zone) - len(
             qubit_tracker.zone_occupants(gate_zone)
         )
         metric = _gate_zone_metric(gate_zone, zones, free_space, mz_circ)
@@ -271,17 +271,15 @@ def _make_necessary_moves_2q(  # noqa: PLR0912, PLR0915
     is_gate_zone1 = not mz_circ.architecture.zones[zone1].memory_only
     if zone0 == zone1 and is_gate_zone0:
         return
-    free_space_zone_0 = mz_circ.architecture.get_zone_max_ions(zone0) - len(
+    free_space_zone_0 = mz_circ.architecture.get_zone_max_ions_gates(zone0) - len(
         qubit_tracker.zone_occupants(zone0)
     )
-    free_space_zone_1 = mz_circ.architecture.get_zone_max_ions(zone1) - len(
+    free_space_zone_1 = mz_circ.architecture.get_zone_max_ions_gates(zone1) - len(
         qubit_tracker.zone_occupants(zone1)
     )
     if is_gate_zone1 and is_gate_zone0:
         match (free_space_zone_0, free_space_zone_1):
             case (0, 0):
-                raise ValueError("Should not allow full registers")
-            case (1, 1):
                 # find first qubit in zone1 that isn't qubit1
                 uninvolved_qubit = next(
                     qubit
@@ -306,7 +304,7 @@ def _make_necessary_moves_2q(  # noqa: PLR0912, PLR0915
             else (qubit1, zone1, free_space_zone_1, qubit0, zone0)
         )
         match free_space_gate_zone:
-            case 1:
+            case 0:
                 # find first qubit in gate_zone that isn't involved
                 uninvolved_qubit = next(
                     qubit
@@ -320,17 +318,15 @@ def _make_necessary_moves_2q(  # noqa: PLR0912, PLR0915
                     uninvolved_qubit, gate_zone, target_zone, mz_circ, qubit_tracker
                 )
                 _move_qubit(mem_zone_qubit, mem_zone, gate_zone, mz_circ, qubit_tracker)
-            case a if a > 1:
+            case a if a > 0:
                 _move_qubit(mem_zone_qubit, mem_zone, gate_zone, mz_circ, qubit_tracker)
-            case 0:
-                raise ValueError("Should not allow full registers")
     else:
         best_gate_zone, best_gate_zone_free_space = _find_best_gate_zone_to_move_to(
             [zone0, zone1], mz_circ, qubit_tracker
         )
 
         match best_gate_zone_free_space:
-            case 1:
+            case 0:
                 moved0 = False
                 moved1 = False
                 # find first qubit in gate_zone that isn't involved
@@ -372,7 +368,7 @@ def _make_necessary_moves_2q(  # noqa: PLR0912, PLR0915
                 if not moved1:
                     _move_qubit(qubit1, zone1, best_gate_zone, mz_circ, qubit_tracker)
 
-            case 2:
+            case 1:
                 moved0 = False
                 moved1 = False
                 qubit_to_remove = qubit_tracker.zone_occupants(best_gate_zone)[0]
@@ -397,8 +393,6 @@ def _make_necessary_moves_2q(  # noqa: PLR0912, PLR0915
                     _move_qubit(qubit0, zone0, best_gate_zone, mz_circ, qubit_tracker)
                 if not moved1:
                     _move_qubit(qubit1, zone1, best_gate_zone, mz_circ, qubit_tracker)
-            case a if a > 2:  # noqa: PLR2004
+            case a if a > 1:
                 _move_qubit(qubit0, zone0, best_gate_zone, mz_circ, qubit_tracker)
                 _move_qubit(qubit1, zone1, best_gate_zone, mz_circ, qubit_tracker)
-            case 0:
-                raise ValueError("Should not allow full registers")

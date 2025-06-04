@@ -31,13 +31,13 @@ class InitialPlacementAlg(Enum):
     graph_partition = 2
 
 
-MIN_ZONE_FREE_SPACE: Final = 1
+MIN_ZONE_FREE_SPACE: Final = 0
 
 
 @dataclass
 class InitialPlacementSettings:
     algorithm: InitialPlacementAlg = InitialPlacementAlg.qubit_order
-    zone_free_space: int = 2
+    zone_free_space: int = 1
     manual_placement: ZonePlacement | None = None
     max_depth: int = 200
 

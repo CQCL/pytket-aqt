@@ -207,7 +207,10 @@ class PartitionCircuitRouter:
         n_qubits = self._circuit.n_qubits
         num_zones = self._arch.n_zones
         places_per_zone = [
-            self._arch.get_zone_max_ions(i) for i, _ in enumerate(self._arch.zones)
+            self._arch.get_zone_max_ions_gates(i) + 1
+            for i, _ in enumerate(
+                self._arch.zones
+            )  # +1 is for the fixed vertex for each zone itself
         ]
         num_spots = sum(places_per_zone)
         edges: list[tuple[int, int]] = []
@@ -316,24 +319,24 @@ def _make_necessary_config_moves(
             )
     # sort based on ascending number of free places in the target zone (at beginning)
     qubits_to_move.sort(
-        key=lambda x: mz_circ.architecture.get_zone_max_ions(x[2])
+        key=lambda x: mz_circ.architecture.get_zone_max_ions_gates(x[2])
         - len(current_placement[x[2]])
     )
 
     def _move_qubit(qubit_to_move: int, starting_zone: int, target_zone: int) -> None:
-        mz_circ.move_qubit(qubit_to_move, target_zone, precompiled=True)
+        mz_circ.move_qubit(
+            qubit_to_move, target_zone, precompiled=True, use_transport_limit=True
+        )
         current_placement[starting_zone].remove(qubit_to_move)
         current_placement[target_zone].append(qubit_to_move)
 
     while qubits_to_move:
         qubit, start, targ = qubits_to_move[-1]
-        free_space_target_zone = mz_circ.architecture.get_zone_max_ions(targ) - len(
-            current_placement[targ]
-        )
+        free_space_target_zone = mz_circ.architecture.get_zone_max_ions_gates(
+            targ
+        ) - len(current_placement[targ])
         match free_space_target_zone:
             case 0:
-                raise ValueError("Should not allow full register here")
-            case 1:
                 _move_qubit(qubit, start, targ)
                 # remove this move from list
                 qubits_to_move.pop()
