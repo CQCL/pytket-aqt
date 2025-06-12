@@ -15,18 +15,14 @@ import json
 import logging
 import time
 from collections.abc import Sequence
-
-try:
-    from typing import Any, assert_never, cast
-except ImportError:
-    from typing import Any, cast
-
-    # In Python 3.10, assert_never is only available through extensions
-    from typing_extensions import assert_never  # noqa: UP035
+from typing import Any, cast
 
 import numpy
 from qiskit_aqt_provider.api_client import models, models_generated
 from qiskit_aqt_provider.aqt_provider import OFFLINE_SIMULATORS
+
+# In Python 3.10, assert_never is only available through extensions
+from typing_extensions import assert_never  # noqa: UP035
 
 from pytket.backends import Backend, CircuitStatus, ResultHandle, StatusEnum
 from pytket.backends.backend import KwargTypes
