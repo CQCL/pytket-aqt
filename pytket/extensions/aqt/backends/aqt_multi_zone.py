@@ -158,7 +158,7 @@ class AQTMultiZoneBackend(Backend):
     @classmethod
     def available_devices(cls, **kwargs: Any) -> list[BackendInfo]:
         """
-        See :py:meth:`pytket.backends.Backend.available_devices`.
+        See :py:meth:`pytket.backends.backend.Backend.available_devices`.
         Supported kwargs: none.
         """
         return []
@@ -221,7 +221,7 @@ class AQTMultiZoneBackend(Backend):
         **kwargs: KwargTypes,
     ) -> list[ResultHandle]:
         """
-        See :py:meth:`pytket.backends.Backend.process_circuits`.
+        See :py:meth:`pytket.backends.backend.Backend.process_circuits`.
         Supported kwargs: none.
         """
         raise NotImplementedError
@@ -236,7 +236,7 @@ class AQTMultiZoneBackend(Backend):
 
     def get_result(self, handle: ResultHandle, **kwargs: KwargTypes) -> BackendResult:
         """
-        See :py:meth:`pytket.backends.Backend.get_result`.
+        See :py:meth:`pytket.backends.backend.Backend.get_result`.
         Supported kwargs: `timeout`, `wait`.
         """
         raise NotImplementedError

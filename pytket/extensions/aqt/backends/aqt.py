@@ -120,19 +120,14 @@ class AQTBackend(Backend):
         Construct a new AQT backend.
 
         Requires a valid API key/access token, this can either be provided as a
-        parameter or set in config using :py:meth:`pytket.extensions.aqt.set_aqt_config`
+        parameter or set in config using :py:func:`pytket.extensions.aqt.backends.config.set_aqt_config`
 
         :param      aqt_workspace_id:  the aqt workspace
-        :type       aqt_workspace_id:  string
         :param      aqt_resource_id:  the aqt resource id
-        :type       aqt_resource_id:  string
         :param      access_token: AQT access token, default None
-        :type       access_token: string
         :param      label:        label to apply to submitted jobs
-        :type       label:        string
         :param      machine_debug: If true,
          use mock aqt API (for debug/testing purposes)
-        :type       label: bool
         """
         super().__init__()
         self._portal_url = AQT_PORTAL_URL
@@ -202,7 +197,6 @@ class AQTBackend(Backend):
         The access token will be resolved by the AQTAccessToken class
 
         :param      access_token:  optional access token override
-        :type       access_token:  string
         """
         aqt_api = AqtRemoteApi(AQT_PORTAL_URL, access_token)
         aqt_api.print_device_table()
@@ -212,13 +206,12 @@ class AQTBackend(Backend):
         cls, access_token: str | None = None, **kwargs: Any
     ) -> list[BackendInfo]:
         """
-        See :py:meth:`pytket.backends.Backend.available_devices`.
+        See :py:meth:`pytket.backends.backend.Backend.available_devices`.
         Supported kwargs: none.
 
         The access token will be resolved by the AQTAccessToken class
 
         :param      access_token:  optional access token override
-        :type       access_token:  string
         """
         aqt_api = AqtRemoteApi(AQT_PORTAL_URL, access_token)
         aqt_devices = aqt_api.get_devices()
@@ -351,9 +344,10 @@ class AQTBackend(Backend):
         **kwargs: KwargTypes,
     ) -> list[ResultHandle]:
         """
-        See :py:meth:`pytket.backends.Backend.process_circuits`.
+        See :py:meth:`pytket.backends.backend.Backend.process_circuits`.
 
         Supported kwargs:
+
         - `postprocess`: apply end-of-circuit simplifications and classical
           postprocessing to improve fidelity of results (bool, default False)
         - `simplify_initial`: apply the pytket ``SimplifyInitial`` pass to improve
@@ -466,7 +460,7 @@ class AQTBackend(Backend):
 
     def get_result(self, handle: ResultHandle, **kwargs: KwargTypes) -> BackendResult:
         """
-        See :py:meth:`pytket.backends.Backend.get_result`.
+        See :py:meth:`pytket.backends.backend.Backend.get_result`.
         Supported kwargs: `timeout`, `wait`.
         """
         try:
