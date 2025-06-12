@@ -17,3 +17,5 @@ docs/extensions
 .coverage
 poetry.lock
 poetry.toml
+docs/pyproject.toml
+docs/poetry.lock
