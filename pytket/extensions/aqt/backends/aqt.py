@@ -15,7 +15,8 @@ import json
 import logging
 import time
 from collections.abc import Sequence
-from typing import Any, assert_never, cast
+from typing import Any, cast
+from typing_extensions import assert_never # Only needed to support Python 3.10
 
 import numpy
 from qiskit_aqt_provider.api_client import models, models_generated
