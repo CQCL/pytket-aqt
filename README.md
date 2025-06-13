@@ -47,8 +47,7 @@ There is also a Slack channel for discussion and support. Click [here](https://t
 
 ## Development
 
-This project uses [Poetry](https://python-poetry.org/) for packaging and dependency management and
-[Nox](https://nox.thea.codes/en/stable/) for task automation.
+This project uses [Poetry](https://python-poetry.org/) for packaging and dependency management task automation.
 
 ### Recommended development setup
 
@@ -58,36 +57,7 @@ Install development tools:
 pip install -r dev-tool-requirements.txt
 ```
 
-### Local development with Nox (recommended)
-
-[Nox](https://nox.thea.codes/en/stable/) can be used to automate various development tasks running in isolated python environments.
-The following Nox sessions are provided:
-
-- `pre-commit`: run the configured pre-commit hooks within [.pre-commit-config.yaml](.pre-commit-config.yaml), this includes linting with black and pylint
-- `mypy`: run type checks using mypy
-- `tests`: run the unit tests
-- `docs-build`: build the documentation
-
-To run a session use:
-
-```shell
-nox -s <session_name>
-```
-
-To save time, reuse the session virtual environment using the `-r` option, i.e. `nox -rs <session_name>` (may cause errors after a dependency update).
-
-[Pre-commit](https://pre-commit.com/) can be used to run the pre-commit hooks before each commit. This is recommended.
-To set up the pre-commit hooks to run automatically on each commit run:
-
-```shell
-nox -s pre-commit -- install
-```
-
-Afterward, the [pre-configured hooks](.pre-commit-config.yaml) will run on all changed files in a commit and the commit will be
-rejected if the hooks find errors. Some hooks will correct formatting issues automatically (but will still reject the commit, so that
-the `git commit` command will need to be repeated).
-
-### Local development without Nox
+### Local development
 
 To install the local package, its dependencies and various development dependencies run:
 
@@ -107,7 +77,7 @@ Within this environment, the following commands can be used:
 # run tests
 pytest tests
 # run mypy
-mypy --explicit-package-bases pytket tests docs/conf.py docs/build-docs
+mypy --config-file=mypy.ini --no-incremental --explicit-package-bases pytket tests
 # run pre-commit checks
 pre-commit run --all-files --show-diff-on-failure
 # build documentation
@@ -120,6 +90,17 @@ To exit the Poetry environment, run:
 exit
 ```
 
+[Pre-commit](https://pre-commit.com/) can be used to run the pre-commit hooks before each commit. This is recommended.
+To set up the pre-commit hooks to run automatically on each commit run:
+
+```shell
+poetry run pre-commit install
+```
+
+Afterward, the [pre-configured hooks](.pre-commit-config.yaml) will run on all changed files in a commit and the commit will be
+rejected if the hooks find errors. Some hooks will correct formatting issues automatically (but will still reject the commit, so that
+the `git commit` command will need to be repeated).
+
 ## Contributing
 
 Pull requests are welcome. To make a PR, first fork the repo, make your proposed
@@ -130,17 +111,16 @@ tests and is accepted after review, it will be merged in.
 
 #### Formatting and Linting
 
-All code will be checked on the CI with [black](https://black.readthedocs.io/en/stable/) and [pylint](https://pypi.org/project/pylint/)
+All code will be checked on the CI with [ruff](https://docs.astral.sh/ruff/)
 as configured within the `pre-commit` checks. These checks should be
-run locally before any pull request submission using the corresponding `nox` session or `pre-commit` directly (see above).
+run locally before any pull request submission using `pre-commit` directly (see above).
 The used versions of the formatting ad linting tools is specified in the [pyproject.toml](pyproject.toml).
 
 #### Type annotation
 
 On the CI, [mypy](https://mypy.readthedocs.io/en/stable/) is used as a static
 type checker and all submissions must pass its checks. You should therefore run
-`mypy` locally on any changed files before submitting a PR. This should be done using the method
-described under Local development [with Nox](#local-development-with-nox-recommended) or [without Nox](#local-development-without-nox).
+`mypy` locally on any changed files before submitting a PR.
 
 ### Adding Tests
 

@@ -12,7 +12,6 @@ obj
 docs/extensions
 .ipynb_checkpoints
 /.python-version
-.nox
 .pytest_cache
 .coverage
 poetry.lock
