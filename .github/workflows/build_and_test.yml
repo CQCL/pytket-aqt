@@ -60,8 +60,8 @@ jobs:
             ${{ steps.pre-commit-cache.outputs.result }}-
       - name: Run pre-commit
         run: |
-          poetry install --no-root --only=pre-commit
           poetry sync
+          poetry install --no-root --only=pre-commit
           poetry run pre-commit run --all-files --show-diff-on-failure
 
   aqt-checks:
