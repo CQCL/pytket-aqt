@@ -14,8 +14,8 @@
 import json
 import logging
 import time
-from typing import Any, assert_never, cast
 from collections.abc import Sequence
+from typing import Any, assert_never, cast
 
 import numpy
 from qiskit_aqt_provider.api_client import models, models_generated
