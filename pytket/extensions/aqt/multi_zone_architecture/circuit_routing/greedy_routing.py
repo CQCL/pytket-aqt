@@ -15,8 +15,7 @@ from copy import deepcopy
 
 from networkx import bfs_layers  # type: ignore[import-untyped]
 
-from pytket import Circuit, Qubit
-from pytket.circuit import Command, OpType
+from pytket.circuit import Circuit, Command, OpType, Qubit
 
 from ..architecture import MultiZoneArchitectureSpec
 from ..circuit.helpers import ZonePlacement, ZoneRoutingError

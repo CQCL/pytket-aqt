@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from logging import getLogger
 from typing import Protocol
 
-from pytket import Circuit
+from pytket.circuit import Circuit
 
 from ..architecture import MultiZoneArchitectureSpec
 from ..circuit.helpers import ZonePlacement

@@ -15,7 +15,7 @@ import math
 from collections.abc import Generator
 from copy import deepcopy
 
-from pytket import Circuit
+from pytket.circuit import Circuit
 
 from ..architecture import MultiZoneArchitectureSpec
 from ..circuit.helpers import ZonePlacement, ZoneRoutingError
