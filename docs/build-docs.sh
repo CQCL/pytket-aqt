@@ -16,6 +16,6 @@ sed -i '' 's#CQCL/tket#CQCL/'$EXTENSION_NAME'#' _static/nav-config.js
 sphinx-build -b html -D html_title="$EXTENSION_NAME" . build
 
 # Remove copied files. This ensures reusability.
-rm -r _static 
+rm -r _static
 rm -r quantinuum-sphinx
 rm conf.py

@@ -10,7 +10,7 @@ from textwrap import dedent
 import nox
 
 package = "pytket_aqt"
-python_versions = ["3.12", "3.11", "3.10"]
+python_versions = ["3.12", "3.11"]
 nox.needs_version = ">= 2021.10.1"
 nox.options.sessions = (
     "pre-commit",
