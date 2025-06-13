@@ -22,8 +22,10 @@ jobs:
     name: Run pre-commit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@5
+      - name: Check out the repository
+        uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - name: Upgrade pip
@@ -58,9 +60,10 @@ jobs:
             ${{ steps.pre-commit-cache.outputs.result }}-
       - name: Run pre-commit
         run: |
-          poetry install --no-root -only=pre-commit
           poetry sync
+          poetry install --no-root --with=pre-commit,mypy,tests,docs
           poetry run pre-commit run --all-files --show-diff-on-failure
+          poetry run mypy --config-file=mypy.ini --no-incremental --explicit-package-bases pytket tests
 
   aqt-checks:
     name: AQT - Build and test module
