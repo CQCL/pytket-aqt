@@ -18,6 +18,50 @@ on:
     - cron: "0 4 * * 2"
 
 jobs:
+  pre-commit:
+    name: Run pre-commit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@5
+        with:
+          python-version: "3.11"
+      - name: Upgrade pip
+        run: |
+          pip install --upgrade pip
+          pip --version
+      - name: Install poetry
+        run: |
+          pipx install --pip-args=--constraint=${{ github.workspace }}/dev-tool-requirements.txt poetry
+          poetry --version
+      - name: Compute pre-commit cache key
+        id: pre-commit-cache
+        shell: python
+        run: |
+          import hashlib
+          import sys
+          import os
+
+          python = "py{}.{}".format(*sys.version_info[:2])
+          payload = sys.version.encode() + sys.executable.encode()
+          digest = hashlib.sha256(payload).hexdigest()
+          result = "${{ runner.os }}-{}-{}-pre-commit".format(python, digest[:8])
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as github_output:
+              github_output.write(f"result={result}")
+      - name: Restore pre-commit cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: ${{ steps.pre-commit-cache.outputs.result }}-${{ hashFiles('.pre-commit-config.yaml') }}
+          restore-keys: |
+            ${{ steps.pre-commit-cache.outputs.result }}-
+      - name: Run pre-commit
+        run: |
+          poetry install --no-root -only=pre-commit
+          poetry sync
+          poetry run pre-commit run --all-files --show-diff-on-failure
+
   aqt-checks:
     name: AQT - Build and test module
     strategy:
