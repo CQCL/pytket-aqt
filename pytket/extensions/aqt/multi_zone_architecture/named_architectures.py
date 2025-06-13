@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Pre-defined named multi-zone architectures for use in multi-zone circuits"""
-
 from itertools import combinations
 
 from .architecture import (

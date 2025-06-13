@@ -83,7 +83,7 @@ def get_updated_depth_list(
     depth_list: DepthList,
 ) -> DepthList:
     """From a given placement of qubits in zones
-     update the DepthList used to determine gate priority.
+    update the DepthList used to determine gate priority.
 
     Used for graph partitioning routing.
     """

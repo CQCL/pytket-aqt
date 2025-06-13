@@ -88,10 +88,10 @@ AQT_OFFLINE_SIMULATORS = {sim.id: sim for sim in OFFLINE_SIMULATORS}
 
 class AqtAccessError(Exception):
     """Raised when the provided access token does not
-     allow access to the specified device.
+    allow access to the specified device.
 
     If no access token provided, the user will only
-     have access to offline simulators
+    have access to offline simulators
     """
 
 

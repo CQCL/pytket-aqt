@@ -115,10 +115,10 @@ class MtKahyparPartitioner:
         self, graph_data: GraphData, target_graph_data: GraphData
     ) -> list[int]:
         """Partition vertices of graph onto the nodes of
-         another graph minimizing Steiner tree metric
+        another graph minimizing Steiner tree metric
 
         Returns a list whose i'th element is the target
-         graph node that vertex i is assigned to
+        graph node that vertex i is assigned to
         """
         avg_part_weight = sum(graph_data.vertex_weights) / target_graph_data.n_vertices
         self.context.set_partitioning_parameters(
