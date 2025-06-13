@@ -19,12 +19,12 @@ API documentation
         .. automethod:: overwrite
         .. automethod:: reset
         .. automethod:: retrieve
-    
+
     .. autoclass:: AQTConfig
         :members:
-    
+
     .. autofunction:: set_aqt_config
-    
+
     .. autofunction:: print_available_devices
 
 .. automodule:: pytket.extensions.aqt.backends.aqt_api
@@ -36,11 +36,11 @@ API documentation
         .. automethod:: get_job_result
         .. automethod:: post_aqt_job
         .. automethod:: print_device_table
-    
+
     .. autoclass:: AqtDevice
 
         .. automethod:: from_aqt_resource
-    
+
     .. autoclass:: AqtMockApi
 
         .. automethod:: cancel_job
@@ -48,7 +48,7 @@ API documentation
         .. automethod:: get_job_result
         .. automethod:: post_aqt_job
         .. automethod:: print_device_table
-    
+
     .. autoclass:: AqtOfflineApi
 
         .. automethod:: cancel_job
@@ -56,7 +56,7 @@ API documentation
         .. automethod:: get_job_result
         .. automethod:: post_aqt_job
         .. automethod:: print_device_table
-    
+
     .. autoclass:: AqtRemoteApi
 
         .. automethod:: cancel_job
@@ -64,7 +64,7 @@ API documentation
         .. automethod:: get_job_result
         .. automethod:: post_aqt_job
         .. automethod:: print_device_table
-    
+
     .. autofunction:: unwrap
 
 .. automodule:: pytket.extensions.aqt.backends.aqt_job_data
@@ -85,19 +85,19 @@ API documentation
 
         .. autoproperty:: model_config
         .. automethod:: get_zone_max_ions
-    
+
     .. autoclass:: Operation
         :members:
-    
+
     .. autoenum:: PortId
         :members:
-    
+
     .. autoclass:: PortSpec
         :members:
-    
+
     .. autoclass:: Zone
         :members:
-    
+
     .. autoclass:: ZoneConnection
         :members:
 
@@ -111,10 +111,10 @@ API documentation
     .. autoexception:: MoveError
     .. autoexception:: QubitPlacementError
     .. autoexception:: ValidationError
-    
+
     .. autoclass:: Init
         :members:
-    
+
     .. autoclass:: MultiZoneCircuit
 
         .. automethod:: add_gate
@@ -126,17 +126,17 @@ API documentation
         .. automethod:: measure_all
         .. automethod:: move_qubit
         .. automethod:: validate
-    
+
     .. autoclass:: Shuttle
 
         .. automethod:: append_to_circuit
-    
+
     .. autoclass:: SwapWithinZone
 
         .. automethod:: append_to_circuit
-    
+
     .. autoenum:: VirtualZonePosition
-    
+
     .. autodata:: move_gate
     .. autodata:: shuttle_gate
     .. autodata:: swap_gate
@@ -146,7 +146,7 @@ API documentation
 
     .. autoclass:: GreedyCircuitRouter
         :members:
-    
+
     .. autoclass:: QubitTracker
 
         .. automethod:: current_zone
@@ -162,10 +162,10 @@ API documentation
 .. automodule:: pytket.extensions.aqt.multi_zone_architecture.circuit_routing.settings
 
     .. autoexception:: RoutingSettingsError
-    
+
     .. autoclass:: RoutingAlg
         :members:
-    
+
     .. autoclass:: RoutingSettings
 
         .. automethod:: default
@@ -173,7 +173,7 @@ API documentation
 .. automodule:: pytket.extensions.aqt.multi_zone_architecture.compilation_settings
 
     .. autoexception:: CompilationSettingsError
-    
+
     .. autoclass:: CompilationSettings
 
         .. automethod:: default
@@ -194,7 +194,7 @@ API documentation
 
     .. autoclass:: MtKahyparConfig
         :members:
-    
+
     .. autoclass:: MtKahyparPartitioner
 
         .. automethod:: graph_data_to_mtkahypar_graph
@@ -211,13 +211,13 @@ API documentation
 .. automodule:: pytket.extensions.aqt.multi_zone_architecture.initial_placement.initial_placement_generators
 
     .. autoexception:: InitialPlacementError
-    
+
     .. autoclass:: GraphMapInitialPlacement
 
         .. automethod:: get_arch_graph_data
         .. automethod:: get_circuit_graph_data
         .. automethod:: initial_placement
-    
+
     .. autoclass:: InitialPlacementGenerator
 
         .. automethod:: initial_placement
@@ -229,16 +229,16 @@ API documentation
     .. autoclass:: QubitOrderInitialPlacement
 
         .. automethod:: initial_placement
-    
+
     .. autofunction:: get_initial_placement
     .. autofunction:: get_initial_placement_generator
 
 .. automodule:: pytket.extensions.aqt.multi_zone_architecture.initial_placement.settings
 
     .. autoexception:: InitialPlacementSettingsError
-    
+
     .. autoenum:: InitialPlacementAlg
-    
+
     .. autoclass:: InitialPlacementSettings
 
         .. automethod:: default
@@ -247,7 +247,7 @@ API documentation
 
     .. autoclass:: MacroZoneConfig
         :members:
-    
+
     .. autoclass:: MacroZoneData
         :members:
 
@@ -255,7 +255,7 @@ API documentation
 
         .. automethod:: get_connected_ports
         .. automethod:: shortest_path
-    
+
     .. autofunction:: empty_macro_arch_from_architecture
 
 .. automodule:: pytket.extensions.aqt.multi_zone_architecture.named_architectures
