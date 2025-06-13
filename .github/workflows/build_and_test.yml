@@ -61,7 +61,7 @@ jobs:
       - name: Run pre-commit
         run: |
           poetry sync
-          poetry install --no-root --only=pre-commit
+          poetry install --no-root --only=pre-commit --with=mypy,tests,docs
           poetry run pre-commit run --all-files --show-diff-on-failure
           poetry run mypy --config-file=mypy.ini --no-incremental --explicit-package-bases pytket tests
 
