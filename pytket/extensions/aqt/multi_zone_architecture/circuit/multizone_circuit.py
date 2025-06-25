@@ -493,6 +493,19 @@ class MultiZoneCircuit:
             self.pytket_circuit.n_qubits, current_placement
         )
         commands = self.pytket_circuit.get_commands()
+
+        def check_transport_limit(zone_id: int, message: str):
+            if len(
+                current_placement[zone_id]
+            ) > self.architecture.get_zone_max_ions_transport(zone_id):
+                raise ValidationError(message)
+
+        def check_gate_limit(zone_id: int, message: str):
+            if len(
+                current_placement[zone_id]
+            ) > self.architecture.get_zone_max_ions_gates(zone_id):
+                raise ValidationError(message)
+
         for i, cmd in enumerate(commands):
             op = cmd.op
             optype = op.type
@@ -508,6 +521,11 @@ class MultiZoneCircuit:
                     raise ValidationError(
                         "INIT command does not align with expected initial placement"
                     )
+                check_gate_limit(
+                    target_zone,
+                    f"Initial placement of zone {target_zone}"
+                    f" does not respect max qubit limit for gate operation phase",
+                )
             elif "MOVE_BARRIER" in op_string:
                 pass
             elif "PSWAP" in op_string:
@@ -569,6 +587,10 @@ class MultiZoneCircuit:
                     current_placement[target_zone].append(qubit)
 
                 current_qubit_to_zone[qubit] = target_zone
+                check_transport_limit(
+                    target_zone,
+                    f"Transport into zone {target_zone} violates max allowed qubits",
+                )
             elif len(cmd.args) == 2 and optype not in (OpType.Measure, OpType.Barrier):  # noqa: PLR2004
                 qubit_1 = cmd.args[0].index[0]
                 qubit_2 = cmd.args[1].index[0]
@@ -582,6 +604,11 @@ class MultiZoneCircuit:
                     raise ValidationError(
                         "Invalid 2 qubit gate. Qubits located in a non-gate zone"
                     )
+                check_gate_limit(
+                    current_zone,
+                    f"Performing gate in zone {current_zone}"
+                    f" while it is above limit capacity for performing gates",
+                )
             else:
                 if optype not in [
                     OpType.Rx,
