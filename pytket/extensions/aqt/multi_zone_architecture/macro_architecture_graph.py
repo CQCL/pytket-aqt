@@ -37,7 +37,6 @@ class MacroZoneData:
 class MultiZoneArch:
     def __init__(self, spec: MultiZoneArchitectureSpec):
         self.zone_graph = Graph()
-        self.port_graph = Graph()
         self.shortest_paths: dict[tuple[int, int], list[int] | None] = {}
         self.zone_connections: list[list[int]] = [[]] * spec.n_zones
         self.connection_ports: dict[tuple[int, int], tuple[PortId, PortId]] = {}
@@ -56,13 +55,6 @@ class MultiZoneArch:
                 self.gate_zones.append(zone_id)
             self.has_memory_zones = len(self.memory_zones) > 0
             # The zone port graph treats the ports of each zone as separate nodes int the graph
-            zone_port0_id = int(zone_id) * 2
-            zone_port1_id = zone_port0_id + 1
-            self.port_graph.add_node(zone_port0_id)
-            self.port_graph.add_node(zone_port1_id)
-            self.port_graph.add_edge(
-                zone_port0_id, zone_port1_id, gate_capacity=zone.max_ions_gate_op
-            )
 
         for connection in spec.connections:
             zone0 = connection.zone_port_spec0.zone_id
