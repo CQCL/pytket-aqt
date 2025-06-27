@@ -29,6 +29,23 @@ def port_id_to_zone_port(port_id: int) -> tuple[int, int]:
     return port_id // 2, port_id % 2
 
 
+def port_path_to_zone_path(port_path: list[int]) -> list[int]:
+    """Translate a path through zone ports to a path through zones
+
+    A port path starts with the port of a zone (s_p), moves through the two ports
+    of n >= 0 intermediary zones (i_p0, i_p1) and stops at a target port of a zone (t_p)
+
+    s_p -> 0_p0 -> 0_p1 -> ... -> n_p0 -> n_p1 -> t_p
+    """
+    # add source zone
+    result = [port_id_to_zone_port(port_path[0])[0]]
+    # only use the first port of each intermediary zone
+    result.extend([port_id_to_zone_port(port)[0] for port in port_path[1::2]])
+    # add target zone
+    result.append(port_id_to_zone_port(port_path[-1])[0])
+    return result
+
+
 class MultiZonePortGraph:
     def __init__(self, spec: MultiZoneArchitectureSpec):
         self.port_graph = Graph()
@@ -66,8 +83,9 @@ class MultiZonePortGraph:
     ) -> tuple[tuple[list[int], int, int], tuple[list[int], int, int]]:
         """Return the shortest path lengths for going from start to target zone
 
-        The return value is a tuple. The first value is a tuple of the shortest path
-        from port 0 of the start port to the closest port of the target port, this paths length, and the value of the
+        The return value is a tuple. The first value is a tuple of the shortest zone path
+        from port 0 of the start port to the closest port of the target port,
+        this paths (port path) length, and the value of the
         target port for this shortest path. The second is the same values starting from port 1 of
         the starting zone.
         """
@@ -88,13 +106,13 @@ class MultiZonePortGraph:
             self.port_graph, port_ids1, port_idt1, weight="weight"
         )
         path_length_s0_targ_port = (
-            (path_s0t0, length_s0t0, 0)
+            (port_path_to_zone_path(path_s0t0), length_s0t0, 0)
             if length_s0t0 <= length_s0t1
-            else (path_s0t1, length_s0t1, 1)
+            else (port_path_to_zone_path(path_s0t1), length_s0t1, 1)
         )
         path_length_s1_targ_port = (
-            (path_s1t0, length_s1t0, 0)
+            (port_path_to_zone_path(path_s1t0), length_s1t0, 0)
             if length_s1t0 <= length_s1t1
-            else (path_s1t1, length_s1t1, 1)
+            else (port_path_to_zone_path(path_s1t1), length_s1t1, 1)
         )
         return path_length_s0_targ_port, path_length_s1_targ_port
