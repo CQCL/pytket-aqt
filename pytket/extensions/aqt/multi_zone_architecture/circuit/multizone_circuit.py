@@ -303,6 +303,7 @@ class MultiZoneCircuit:
         new_zone: int,
         precompiled: bool = False,
         use_transport_limit: bool = False,
+        shortest_path_override: list[int] | None = None,
     ) -> None:
         """Move a qubit from its current zone to new_zone
 
@@ -336,12 +337,16 @@ class MultiZoneCircuit:
                 f" qubit {qubit} is already in zone {new_zone}"
             )
         move_operations = []
-        shortest_path = self.macro_arch.shortest_path(int(old_zone), int(new_zone))
-        if not shortest_path:
-            raise MoveError(
-                f"Cannot move ion to zone {new_zone},"
-                f" no path found from current zone {old_zone}"
-            )
+        shortest_path: list[int] = []
+        if shortest_path_override:
+            shortest_path = shortest_path_override
+        else:
+            shortest_path = self.macro_arch.shortest_path(int(old_zone), int(new_zone))
+            if not shortest_path:
+                raise MoveError(
+                    f"Cannot move ion to zone {new_zone},"
+                    f" no path found from current zone {old_zone}"
+                )
 
         old_zone_qubits = self.zone_to_qubits[old_zone]
         position_in_zone: int | VirtualZonePosition = old_zone_qubits.index(qubit)

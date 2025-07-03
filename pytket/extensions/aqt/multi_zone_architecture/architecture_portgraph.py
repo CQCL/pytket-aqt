@@ -71,6 +71,7 @@ class MultiZonePortGraph:
             zone1 = connection.zone_port_spec1.zone_id
             port1 = connection.zone_port_spec1.port_id
             portid1 = zone_port_to_port_id(zone1, port1.value)
+            # TODO: update arch spec to include connection shuttle cost and use that as weight
             self.port_graph.add_edge(portid0, portid1, weight=1)
 
     def update_zone_occupancy_weight(self, zone: int, new_weight: int):

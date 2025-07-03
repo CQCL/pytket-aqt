@@ -15,7 +15,7 @@ import math
 from collections.abc import Generator
 from copy import deepcopy
 
-from pytket import Circuit
+from pytket import Circuit, OpType
 
 from ..architecture import MultiZoneArchitectureSpec
 from ..circuit.helpers import ZonePlacement, ZoneRoutingError
@@ -89,6 +89,8 @@ class PartitionCircuitRouter:
             qubit_to_zone_old = _get_qubit_to_zone(n_qubits, old_place)
             last_cmd_index = 0
             for i, cmd in enumerate(commands):
+                if cmd.op.type in [OpType.Barrier]:
+                    continue
                 last_cmd_index = i
                 n_args = len(cmd.args)
                 qubit0 = cmd.args[0].index[0]
