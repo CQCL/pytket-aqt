@@ -16,12 +16,14 @@ from collections.abc import Generator
 from copy import deepcopy
 
 from pytket import Circuit, OpType
+from pytket._tket.circuit import Command
 
 from ..architecture import MultiZoneArchitectureSpec
-from ..circuit.helpers import ZonePlacement, ZoneRoutingError
+from ..circuit.helpers import TrapConfiguration, ZonePlacement, ZoneRoutingError
 from ..circuit.multizone_circuit import MultiZoneCircuit
 from ..depth_list.depth_list import (
     DepthList,
+    depth_list_from_command_list,
     get_initial_depth_list,
     get_updated_depth_list,
 )
@@ -88,6 +90,7 @@ class PartitionCircuitRouter:
             stragglers: set[int] = set()
             qubit_to_zone_old = _get_qubit_to_zone(n_qubits, old_place)
             last_cmd_index = 0
+
             for i, cmd in enumerate(commands):
                 if cmd.op.type in [OpType.Barrier]:
                     continue
@@ -124,6 +127,7 @@ class PartitionCircuitRouter:
                 commands = leftovers
             else:
                 commands = leftovers + commands[last_cmd_index + 1 :]
+
             _make_necessary_config_moves((old_place, new_place), mz_circuit)
         for cmd in commands:
             mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
@@ -360,3 +364,232 @@ def _make_necessary_config_moves(
                 _move_qubit(qubit, start, targ)
                 # remove this move from list
                 qubits_to_move.pop()
+
+
+class PartitionGateSelector:
+    """Uses graph partitioning to add shuttles and swaps to a circuit
+
+    The routed circuit can be directly run on the given Architecture
+
+    :param arch: The architecture to route to
+    :param settings: The settings used for routing
+    """
+
+    def __init__(
+        self,
+        arch: MultiZoneArchitectureSpec,
+        settings: RoutingSettings,
+    ):
+        self._arch = arch
+        self._macro_arch = empty_macro_arch_from_architecture(arch)
+        self._settings = settings
+
+    def next_config(
+        self,
+        current_configuration: TrapConfiguration,
+        remaining_commands: list[Command],
+    ) -> TrapConfiguration:
+        """Generates a new TrapConfiguration to implement the next gates
+
+        The returned TrapConfiguration
+        represents the "optimal" next state to implement the remaining gates in
+        the depth list.
+
+        :param current_configuration: The starting configuration of ions in ion trap zones
+        :param remaining_commands: The list of gate commands used to determine the next ion placement.
+        """
+        n_qubits = current_configuration.n_qubits
+        depth_list = depth_list_from_command_list(n_qubits, remaining_commands)
+
+        num_zones = self._arch.n_zones
+        shuttle_graph_data = self.get_circuit_shuttle_graph_data(
+            current_configuration, depth_list
+        )
+        partitioner = MtKahyparPartitioner(log_level=self._settings.debug_level)
+        if self._settings.debug_level > 0:
+            print("Depth List:")  # noqa: T201
+            for i in range(min(4, len(depth_list))):
+                print(depth_list[i])  # noqa: T201
+        vertex_to_part = partitioner.partition_graph(shuttle_graph_data, num_zones)
+        new_placement: ZonePlacement = {i: [] for i in range(num_zones)}
+        part_to_zone = [-1] * num_zones
+        for vertex in range(n_qubits, n_qubits + num_zones):
+            part_to_zone[vertex_to_part[vertex]] = vertex - n_qubits
+        for vertex in range(n_qubits):
+            new_placement[part_to_zone[vertex_to_part[vertex]]].append(vertex)
+        return TrapConfiguration(n_qubits, new_placement)
+
+    def get_circuit_shuttle_graph_data(
+        self, starting_config: TrapConfiguration, depth_list: DepthList
+    ) -> GraphData:
+        """Calculate graph data for qubit-zone graph to be partitioned"""
+        n_qubits = starting_config.n_qubits
+        num_zones = self._arch.n_zones
+        places_per_zone = [
+            self._arch.get_zone_max_ions_gates(i) + 1
+            for i, _ in enumerate(
+                self._arch.zones
+            )  # +1 is for the fixed vertex for each zone itself
+        ]
+        num_spots = sum(places_per_zone)
+        edges: list[tuple[int, int]] = []
+        edge_weights: list[int] = []
+
+        # add gate edges
+        max_considered_depth = min(self._settings.max_depth, len(depth_list))
+        max_weight = math.ceil(math.pow(2, 18))
+        for depth, pairs in enumerate(depth_list):
+            if depth > max_considered_depth:
+                break
+            weight = math.ceil(math.exp(-2 * depth) * max_weight)
+            edges.extend(pairs)
+            edge_weights.extend([weight] * len(pairs))
+
+        # "assign" depth 0 qubits to gate zones
+        if self._macro_arch.has_memory_zones:
+            edge_pair_pairs = [
+                (pair[i], zone + n_qubits)
+                for i in [0, 1]
+                for pair in depth_list[0]
+                for zone in self._macro_arch.gate_zones
+            ]
+            edge_pair_weights = (
+                [max_weight] * len(depth_list[0]) * 2 * len(self._macro_arch.gate_zones)
+            )
+            edges.extend(edge_pair_pairs)
+            edge_weights.extend(edge_pair_weights)
+
+        # add shuttling penalty (just distance between zones for now,
+        # should later be dependent on shuttling cost)
+        max_shuttle_weight = math.ceil(max_weight / 2)
+        for zone, qubits in starting_config.zone_placement.items():
+            for other_zone in range(num_zones):
+                weight = math.ceil(
+                    math.exp(-0.8 * self.shuttling_penalty(zone, other_zone))
+                    * max_shuttle_weight
+                )
+                if weight < 1:
+                    continue
+                edges.extend([(other_zone + n_qubits, qubit) for qubit in qubits])
+                edge_weights.extend([weight for _ in qubits])
+
+        num_vertices = num_spots
+        vertex_weights = [1 for _ in range(num_vertices)]
+
+        fixed_list = (
+            [-1] * n_qubits
+            + [zone for zone in range(num_zones)]  # noqa: C416
+            + [-1] * (num_vertices - n_qubits - num_zones)
+        )
+
+        return GraphData(
+            num_vertices,
+            vertex_weights,
+            edges,
+            edge_weights,
+            fixed_list,
+            places_per_zone,
+        )
+
+    def shuttling_penalty(self, zone1: int, other_zone1: int) -> int:
+        """Calculate penalty for shuttling from one zone to another"""
+        shortest_path = self._macro_arch.shortest_path(int(zone1), int(other_zone1))
+        if shortest_path:
+            return len(shortest_path) - 1
+        raise ZoneRoutingError(
+            f"Shortest path could not be calculated"
+            f" between zones {zone1} and {other_zone1}"
+        )
+
+
+class PartitionRouter:
+    def __init__(
+        self,
+        circuit: Circuit,
+        arch: MultiZoneArchitectureSpec,
+        initial_placement: ZonePlacement,
+        settings: RoutingSettings,
+    ):
+        self._circuit = circuit
+        self._arch = arch
+        self._macro_arch = empty_macro_arch_from_architecture(arch)
+        self._initial_placement = initial_placement
+        self._settings = settings
+
+    def route_source_to_target_config(
+        self,
+        source: TrapConfiguration,
+        target: TrapConfiguration,
+        mz_circ: MultiZoneCircuit,
+    ) -> None:
+        n_qubits = source.n_qubits
+        new_place = target.zone_placement
+        old_place = source.zone_placement
+        if self._settings.debug_level > 0:
+            print("-------")  # noqa: T201
+            for zone in range(self._arch.n_zones):
+                changes_str = ", ".join(
+                    [f"+{i}" for i in set(new_place[zone]).difference(old_place[zone])]
+                    + [
+                        f"-{i}"
+                        for i in set(old_place[zone]).difference(new_place[zone])
+                    ]
+                )
+                print(  # noqa: T201
+                    f"Z{zone}: {old_place[zone]} ->"
+                    f" {new_place[zone]} -- ({changes_str})"
+                )
+        qubit_to_zone_old = _get_qubit_to_zone(n_qubits, old_place)
+        qubit_to_zone_new = _get_qubit_to_zone(n_qubits, new_place)
+        qubits_to_move: list[tuple[int, int, int]] = []
+        current_placement = deepcopy(old_place)
+        for qubit in range(n_qubits):
+            old_zone = qubit_to_zone_old[qubit]
+            new_zone = qubit_to_zone_new[qubit]
+            if old_zone != new_zone:
+                qubits_to_move.append(
+                    (qubit, qubit_to_zone_old[qubit], qubit_to_zone_new[qubit])
+                )
+        # sort based on ascending number of free places in the target zone (at beginning)
+        qubits_to_move.sort(
+            key=lambda x: mz_circ.architecture.get_zone_max_ions_gates(x[2])
+            - len(current_placement[x[2]])
+        )
+
+        def _move_qubit(
+            qubit_to_move: int, starting_zone: int, target_zone: int
+        ) -> None:
+            mz_circ.move_qubit(
+                qubit_to_move, target_zone, precompiled=True, use_transport_limit=True
+            )
+            current_placement[starting_zone].remove(qubit_to_move)
+            current_placement[target_zone].append(qubit_to_move)
+
+        while qubits_to_move:
+            qubit, start, targ = qubits_to_move[-1]
+            free_space_target_zone = mz_circ.architecture.get_zone_max_ions_gates(
+                targ
+            ) - len(current_placement[targ])
+            match free_space_target_zone:
+                case 0:
+                    _move_qubit(qubit, start, targ)
+                    # remove this move from list
+                    qubits_to_move.pop()
+                    # find a qubit in target zone that needs to move and put it at end
+                    # of qubits_to_move, so it comes next
+                    moves_with_start_equals_current_targ = [
+                        i
+                        for i, move_tup in enumerate(qubits_to_move)
+                        if move_tup[1] == targ
+                    ]
+                    if not moves_with_start_equals_current_targ:
+                        raise ValueError("This shouldn't happen")
+                    next_move_index = moves_with_start_equals_current_targ[0]
+                    next_move = qubits_to_move.pop(next_move_index)
+                    qubits_to_move.append(next_move)
+                case a if a < 0:
+                    raise ValueError("Should never be negative")
+                case _:
+                    _move_qubit(qubit, start, targ)
+                    # remove this move from list
+                    qubits_to_move.pop()

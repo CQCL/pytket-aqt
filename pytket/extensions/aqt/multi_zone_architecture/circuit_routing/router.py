@@ -11,18 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from __future__ import annotations
+from typing import Protocol
 
-from dataclasses import dataclass
+from pytket.circuit import Command
 
-ZonePlacement = dict[int, list[int]]
-
-
-class ZoneRoutingError(Exception):
-    pass
+from ..circuit.helpers import TrapConfiguration
+from ..circuit.multizone_circuit import MZAOperation
 
 
-@dataclass
-class TrapConfiguration:
-    n_qubits: int
-    zone_placement: ZonePlacement
+class ConfigSelector(Protocol):
+    def next_config(
+        self, current_placement: TrapConfiguration, remaining_circuit: list[Command]
+    ) -> TrapConfiguration: ...
+
+
+class Router(Protocol):
+    def route_source_to_target_config(
+        self, source: TrapConfiguration, target: TrapConfiguration
+    ) -> list[MZAOperation]: ...

@@ -11,18 +11,31 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from __future__ import annotations
-
 from dataclasses import dataclass
 
-ZonePlacement = dict[int, list[int]]
 
-
-class ZoneRoutingError(Exception):
+class RoutingOp:
     pass
 
 
 @dataclass
-class TrapConfiguration:
-    n_qubits: int
-    zone_placement: ZonePlacement
+class PSwap(RoutingOp):
+    zone_nr: int
+    swap_qubits: tuple[int, int]
+    zone_config: list[int]
+
+
+@dataclass
+class LSwap(RoutingOp):
+    zone_nr: int
+    swap_qubits: tuple[int, int]
+    zone_config: list[int]
+
+
+@dataclass
+class Shuttle(RoutingOp):
+    qubit: int
+    src_zone: int
+    targ_zone: int
+    src_zone_config: list[int]
+    targ_zone_config: list[int]

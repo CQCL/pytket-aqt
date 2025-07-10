@@ -14,14 +14,20 @@
 from typing import TypeAlias
 
 from pytket import Circuit, Qubit
-from pytket._tket.circuit import OpType
+from pytket._tket.circuit import Command, OpType
 
 DepthList: TypeAlias = list[list[tuple[int, int]]]  # noqa: UP040
 
 
 def get_2q_gate_pairs_from_circuit(circuit: Circuit) -> list[tuple[int, int]]:
+    return get_2q_gate_pairs_from_commands(circuit.get_commands())
+
+
+def get_2q_gate_pairs_from_commands(commands: list[Command]) -> list[tuple[int, int]]:
     pair_list: list[tuple[int, int]] = []
-    for cmd in circuit.get_commands():
+    for cmd in commands:
+        if cmd.op.type == OpType.Barrier:
+            continue
         n_args = len(cmd.args)
         if n_args == 1 or cmd.op.type == OpType.Measure:
             continue
@@ -74,6 +80,15 @@ def get_initial_depth_list(circuit: Circuit) -> DepthList:
     """
     n_qubits = circuit.n_qubits
     gate_pairs = get_2q_gate_pairs_from_circuit(circuit)
+    return get_depth_list(n_qubits, gate_pairs)
+
+
+def depth_list_from_command_list(n_qubits: int, commands: list[Command]) -> DepthList:
+    """From a given list of Circuit Commands get the Depth list used to determine gate priority.
+
+    Used for the initial placement of ions based on partitioning algorithms
+    """
+    gate_pairs = get_2q_gate_pairs_from_commands(commands)
     return get_depth_list(n_qubits, gate_pairs)
 
 

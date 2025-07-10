@@ -219,7 +219,9 @@ def test_automatically_routed_circuit_has_correct_syntax(  # noqa: PLR0915
     compilation_settings = CompilationSettings(
         initial_placement=init_pl_settings, routing=routing_settings
     )
-    mz_circuit = backend.compile_circuit_with_routing(circuit, compilation_settings)
+    mz_circuit = backend.compile_circuit_with_routing(
+        circuit, compilation_settings, v2=True
+    )
 
     n_shuttles = mz_circuit.get_n_shuttles()
     n_pswaps = mz_circuit.get_n_pswaps()

@@ -53,6 +53,7 @@ from ..multi_zone_architecture.circuit.multizone_circuit import (
 from ..multi_zone_architecture.circuit_routing.route_circuit import (
     route_circuit,
 )
+from ..multi_zone_architecture.circuit_routing.route_circuit_v2 import route_circuit_v2
 from ..multi_zone_architecture.compilation_settings import CompilationSettings
 from ..multi_zone_architecture.initial_placement.initial_placement_generators import (
     get_initial_placement,
@@ -270,6 +271,8 @@ class AQTMultiZoneBackend(Backend):
         self,
         precompiled: Circuit,
         compilation_settings: CompilationSettings = CompilationSettings.default(),  # noqa: B008
+        *,
+        v2: bool = False,
     ) -> MultiZoneCircuit:
         """
         Route a pytket Circuit to the backend architecture
@@ -281,12 +284,21 @@ class AQTMultiZoneBackend(Backend):
         initial_placement = get_initial_placement(
             compilation_settings.initial_placement, precompiled, self._architecture
         )
-        routed = route_circuit(
-            compilation_settings.routing,
-            precompiled,
-            self._architecture,
-            initial_placement,
-        )
+        if v2:
+            routed = route_circuit_v2(
+                compilation_settings.routing,
+                precompiled,
+                self._architecture,
+                initial_placement,
+            )
+        else:
+            routed = route_circuit(
+                compilation_settings.routing,
+                precompiled,
+                self._architecture,
+                initial_placement,
+            )
+
         routed.is_compiled = True
         routed.validate()
         return routed
@@ -295,6 +307,8 @@ class AQTMultiZoneBackend(Backend):
         self,
         circuit: Circuit,
         compilation_settings: CompilationSettings = CompilationSettings.default(),  # noqa: B008
+        *,
+        v2: bool = False,
     ) -> MultiZoneCircuit:
         """
         Compile a pytket Circuit and route it to the backend architecture
