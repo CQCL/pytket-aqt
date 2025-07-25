@@ -36,7 +36,7 @@ four_zones_in_a_line = MultiZoneArchitectureSpec(
     n_zones=4,
     zones=[
         Zone(max_ions_gate_op=mi, memory_only=mem)
-        for mi, mem in [(8, False), (6, True), (6, True), (8, True)]
+        for mi, mem in [(8, True), (6, False), (6, False), (8, True)]
     ],
     connections=[
         ZoneConnection(

@@ -22,12 +22,30 @@ from ..circuit.helpers import TrapConfiguration, ZonePlacement
 from ..circuit.multizone_circuit import MultiZoneCircuit
 from ..graph_algs.mt_kahypar_check import (
     MT_KAHYPAR_INSTALLED,
+    MissingMtKahyparInstallError,
 )
 from ..macro_architecture_graph import MultiZoneArch
-from .settings import RoutingSettings
+from .general_router import GeneralRouter
+from .greedy_gate_selection import GreedyGateSelector
+from .router import ConfigSelector
+from .settings import RoutingAlg, RoutingSettings
 
 if MT_KAHYPAR_INSTALLED:
-    from .partition_routing import PartitionGateSelector, PartitionRouter
+    from .partition_routing import PartitionGateSelector
+
+
+def config_selector_from_settings(
+    arch: MultiZoneArchitectureSpec, settings: RoutingSettings
+) -> ConfigSelector:
+    match settings.algorithm:
+        case RoutingAlg.graph_partition:
+            if MT_KAHYPAR_INSTALLED:
+                return PartitionGateSelector(arch, settings)
+            raise MissingMtKahyparInstallError()  # noqa: RSE102
+        case RoutingAlg.greedy:
+            return GreedyGateSelector(arch, settings)
+        case _:
+            raise ValueError("Unknown gate selection algorithm")
 
 
 def route_circuit_v2(
@@ -50,8 +68,8 @@ def route_circuit_v2(
      zones to lists of qubits
     """
 
-    gate_selector = PartitionGateSelector(arch, settings)
-    router = PartitionRouter(circuit, arch, initial_placement, settings)
+    gate_selector = config_selector_from_settings(arch, settings)
+    router = GeneralRouter(circuit, arch, initial_placement, settings)
     mz_circuit = MultiZoneCircuit(
         arch, initial_placement, circuit.n_qubits, circuit.n_bits
     )
@@ -73,10 +91,8 @@ def route_circuit_v2(
         implementable, commands = filter_implementable_commands(
             current_config, macro_arch.gate_zones, commands
         )
-        [
+        for cmd in implementable:
             mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
-            for cmd in implementable
-        ]
     return mz_circuit
 
 
