@@ -9,7 +9,6 @@ repository = "https://github.com/CQCL/pytket-aqt"
 documentation = "https://cqcl.github.io/pytket-aqt/api/index.html"
 classifiers= [
     "Environment :: Console",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "License :: OSI Approved :: Apache Software License",
@@ -20,7 +19,7 @@ classifiers= [
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering",
 ]
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.11,<3.13"
 dependencies = [
     "pytket >=2.5",
     "requests >=2.22",
@@ -66,8 +65,6 @@ coverage = {extras = ["toml"], version = ">=6.1,<8.0"}
 optional = true
 
 [tool.poetry.group.pre-commit.dependencies]
-black = ">=22.3"
-pylint = ">=2.13,<4.0"
 pre-commit = ">=2.15,<5.0"
 pyupgrade = ">=2.29,<4.0"
 
