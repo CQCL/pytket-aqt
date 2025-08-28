@@ -12,8 +12,10 @@ obj
 docs/extensions
 .ipynb_checkpoints
 /.python-version
-.nox
 .pytest_cache
 .coverage
 poetry.lock
 poetry.toml
+docs/pyproject.toml
+docs/poetry.lock
+node_modules

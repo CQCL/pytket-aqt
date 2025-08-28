@@ -17,8 +17,8 @@ from dataclasses import dataclass, field
 
 from qiskit_aqt_provider.api_client import models
 
-from pytket import Circuit
 from pytket.backends import ResultHandle
+from pytket.circuit import Circuit
 
 
 @dataclass

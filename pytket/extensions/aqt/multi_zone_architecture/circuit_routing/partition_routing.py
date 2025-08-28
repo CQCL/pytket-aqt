@@ -15,8 +15,7 @@ import math
 from collections.abc import Generator
 from copy import deepcopy
 
-from pytket import Circuit, OpType
-from pytket._tket.circuit import Command
+from pytket.circuit import Circuit, Command, OpType
 
 from ..architecture import MultiZoneArchitectureSpec
 from ..circuit.helpers import TrapConfiguration, ZonePlacement, ZoneRoutingError

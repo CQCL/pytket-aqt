@@ -20,9 +20,8 @@ from _pytest.logging import LogCaptureFixture
 from hypothesis import given, strategies
 from pydantic_core import ValidationError
 
-from pytket import Qubit
 from pytket.backends import StatusEnum
-from pytket.circuit import Circuit
+from pytket.circuit import Circuit, Qubit
 from pytket.extensions.aqt import AQTBackend
 from pytket.extensions.aqt.backends.aqt import AqtAccessError
 

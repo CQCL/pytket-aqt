@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, TypeAlias
 
-from sympy import Expr, symbols  # type: ignore
+from sympy import Expr, symbols
 
 from pytket.circuit import Circuit, CustomGateDef, OpType, UnitID
 

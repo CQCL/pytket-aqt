@@ -13,8 +13,7 @@
 # limitations under the License.
 from typing import TypeAlias
 
-from pytket import Circuit, Qubit
-from pytket._tket.circuit import Command, OpType
+from pytket.circuit import Circuit, Command, OpType, Qubit
 
 DepthList: TypeAlias = list[list[tuple[int, int]]]  # noqa: UP040
 
