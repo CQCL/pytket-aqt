@@ -13,7 +13,7 @@
 # limitations under the License.
 import json
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from qiskit_aqt_provider.api_client import models
 
@@ -25,7 +25,7 @@ from pytket.backends import ResultHandle
 class PytketAqtJobCircuitData:
     circuit: Circuit
     n_shots: int
-    postprocess_json: str = json.dumps(None)
+    postprocess_json: str = field(default=json.dumps(None))
     aqt_circuit: models.Circuit | None = None
     measures: str | None = None
     handle: ResultHandle | None = None

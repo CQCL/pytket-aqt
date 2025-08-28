@@ -14,7 +14,7 @@
 import json
 from collections.abc import Sequence
 from copy import deepcopy
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from pytket.backends import Backend, CircuitStatus, ResultHandle, StatusEnum
 from pytket.backends.backend import KwargTypes
@@ -42,7 +42,6 @@ from pytket.predicates import (
     NoSymbolsPredicate,
     Predicate,
 )
-from pytket.unit_id import UnitID  # noqa: TC001
 
 from ..backends.config import AQTConfig
 from ..extension_version import __extension_version__
@@ -58,6 +57,9 @@ from ..multi_zone_architecture.compilation_settings import CompilationSettings
 from ..multi_zone_architecture.initial_placement.initial_placement_generators import (
     get_initial_placement,
 )
+
+if TYPE_CHECKING:
+    from pytket.unit_id import UnitID
 
 AQT_URL_PREFIX = "https://gateway.aqt.eu/marmot/"
 
@@ -495,8 +497,8 @@ def _translate_aqt(circ: Circuit) -> tuple[list[list], str]:  # noqa: PLR0912, P
                 (target_occupancy, target_offset) = zone_to_occupancy_offset[
                     target_zone
                 ]
-                source_edge_encoding = int(round(op.params[1]))  # noqa: RUF046
-                target_edge_encoding = int(round(op.params[2]))  # noqa: RUF046
+                source_edge_encoding = round(op.params[1])
+                target_edge_encoding = round(op.params[2])
                 if source_edge_encoding == 0:
                     zone_to_occupancy_offset[source_zone] = (
                         source_occupancy - 1,

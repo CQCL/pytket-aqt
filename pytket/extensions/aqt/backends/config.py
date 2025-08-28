@@ -22,6 +22,8 @@ from qiskit_aqt_provider.aqt_provider import AQTProvider
 
 from pytket.config import PytketExtConfig
 
+logger = logging.getLogger()
+
 
 @dataclass
 class AQTConfig(PytketExtConfig):
@@ -76,7 +78,7 @@ class AQTAccessToken:
                 "Use pytket.extensions.aqt.AQTAccessToken.reset()"
                 " to reset token."
             )
-            logging.warning(warning)  # noqa: LOG015
+            logger.warning(warning)
             cls._access_token = "unspecified"
 
     @classmethod
