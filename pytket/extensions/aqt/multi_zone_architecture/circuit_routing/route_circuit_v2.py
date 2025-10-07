@@ -31,7 +31,7 @@ from .router import ConfigSelector
 from .settings import RoutingAlg, RoutingSettings
 
 if MT_KAHYPAR_INSTALLED:
-    from .partition_routing import PartitionGateSelector
+    from .graph_partition_gate_selection import PartitionGateSelector
 
 
 def config_selector_from_settings(
