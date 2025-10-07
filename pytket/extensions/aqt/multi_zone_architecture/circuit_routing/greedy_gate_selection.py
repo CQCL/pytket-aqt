@@ -71,7 +71,7 @@ class GreedyGateSelector:
            Necessary moves may require the displacement of other qubits, due to max
            qubit requirements (using the "gate operation" maximum). This displacement is
            taken into account "lazily". Any qubits that have been displaced and were not involved
-           in gates before termination will be placed in the "nearest" zones will available
+           in gates before termination will be placed in the "nearest" zones with available
            capacity
 
         :param current_configuration: The starting configuration of ions in ion trap zones
@@ -143,9 +143,10 @@ class GreedyGateSelector:
                     locked_q, other_q = (
                         (qubit0, qubit1) if is_locked_0 else (qubit1, qubit0)
                     )
-                    if handle_one_locked_qubit(
+                    implementable = handle_one_locked_qubit(
                         locked_q, other_q, qubit_tracker, self._arch
-                    ):
+                    )
+                    if implementable:
                         locked_qubits.append(other_q)
                     else:
                         must_wait_qubits.append(other_q)
@@ -313,7 +314,7 @@ def gate_zone_metric(
     """Calculate metric estimating cost of moving one qubit from each of a
      list of zones to a specific gate zone
 
-    Prefers gate zones with low total distance and high free space
+    Prefers gate zones with low total distance
     """
     distances = [len(macro_arch.shortest_path(gate_zone, zone)) for zone in zones]
     return sum(distances)
