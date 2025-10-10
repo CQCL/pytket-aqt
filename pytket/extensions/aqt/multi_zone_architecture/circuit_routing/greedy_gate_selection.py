@@ -18,6 +18,7 @@ from networkx import bfs_layers  # type: ignore[import-untyped]
 from pytket.circuit import Command, OpType
 
 from ..architecture import MultiZoneArchitectureSpec
+from ..architecture_portgraph import MultiZonePortGraph
 from ..circuit.helpers import TrapConfiguration
 from ..depth_list.depth_list import depth_list_from_command_list
 from ..macro_architecture_graph import MultiZoneArch
@@ -41,6 +42,7 @@ class GreedyGateSelector:
     ):
         self._arch = arch
         self._macro_arch = MultiZoneArch(arch)
+        self._port_graph = MultiZonePortGraph(arch)
         self._settings = settings
 
     def next_config(
@@ -79,6 +81,10 @@ class GreedyGateSelector:
         """
         n_qubits = current_configuration.n_qubits
         qubit_tracker = QubitTracker(current_configuration.zone_placement)
+        # Update occupancy of port graph to current configuration
+        if not self._settings.ignore_swap_costs:
+            for zone, occupants in current_configuration.zone_placement.items():
+                self._port_graph.update_zone_occupancy_weight(zone, len(occupants))
         two_qubit_gate_depth_list = depth_list_from_command_list(
             n_qubits, remaining_commands
         )
@@ -87,7 +93,12 @@ class GreedyGateSelector:
             self.handle_depth_list(n_qubits, two_qubit_gate_depth_list, qubit_tracker)
         else:
             handle_only_single_qubits_remaining(
-                remaining_commands, qubit_tracker, self._arch, self._macro_arch
+                remaining_commands,
+                qubit_tracker,
+                self._arch,
+                self._macro_arch,
+                self._port_graph,
+                self._settings.ignore_swap_costs,
             )
         # Now move any unused qubits to vacant spots in new config
         handle_unused_qubits(self._arch, self._macro_arch, qubit_tracker)
@@ -187,7 +198,12 @@ class GreedyGateSelector:
 
                 # try to find the closest gate zone with two available spots
                 closest_zone = find_best_gate_zone_to_move_to(
-                    self._arch, self._macro_arch, [zone0, zone1], qubit_tracker
+                    self._arch,
+                    self._macro_arch,
+                    self._port_graph,
+                    [zone0, zone1],
+                    qubit_tracker,
+                    self._settings.ignore_swap_costs,
                 )
                 if closest_zone is not None:
                     qubit_tracker.lock_qubit(qubit0, zone0, closest_zone)
@@ -202,11 +218,13 @@ class GreedyGateSelector:
                 # left could still be implemented, so continue loop
 
 
-def handle_only_single_qubits_remaining(
+def handle_only_single_qubits_remaining(  # noqa: PLR0913
     remaining_commands: list[Command],
     qubit_tracker: QubitTracker,
     arch: MultiZoneArchitectureSpec,
     macro_arch: MultiZoneArch,
+    port_graph: MultiZonePortGraph,
+    ignore_swap_costs: bool,
 ) -> None:
     # locked qubits have already been assigned a zone in the new config and should therefore not move again
     locked_qubits = []
@@ -229,7 +247,7 @@ def handle_only_single_qubits_remaining(
 
         # try to find the closest gate zone with two available spots
         closest_zone = find_best_gate_zone_to_move_to(
-            arch, macro_arch, [zone0], qubit_tracker
+            arch, macro_arch, port_graph, [zone0], qubit_tracker, ignore_swap_costs
         )
         if closest_zone is not None:
             qubit_tracker.lock_qubit(qubit0, zone0, closest_zone)
@@ -276,11 +294,13 @@ def handle_one_locked_qubit(
     return False
 
 
-def find_best_gate_zone_to_move_to(
+def find_best_gate_zone_to_move_to(  # noqa: PLR0913
     arch: MultiZoneArchitectureSpec,
     macro_arch: MultiZoneArch,
+    port_graph: MultiZonePortGraph,
     zones: list[int],
     qubit_tracker: QubitTracker,
+    ignore_swap_costs: bool,
 ) -> int | None:
     """Determines which gate zone to move to
 
@@ -296,7 +316,9 @@ def find_best_gate_zone_to_move_to(
             gate_zone
         ) - qubit_tracker.n_zone_new_occupants(gate_zone)
         if free_space >= len(zones):
-            metric = gate_zone_metric(macro_arch, gate_zone, zones)
+            metric = gate_zone_metric(
+                macro_arch, port_graph, gate_zone, zones, ignore_swap_costs
+            )
             if metric < min_metric:
                 min_metric = metric
                 best_gate_zone = gate_zone
@@ -308,16 +330,29 @@ def find_best_gate_zone_to_move_to(
 
 def gate_zone_metric(
     macro_arch: MultiZoneArch,
+    port_graph: MultiZonePortGraph,
     gate_zone: int,
     zones: list[int],
+    ignore_swap_costs: bool,
 ) -> int:
     """Calculate metric estimating cost of moving one qubit from each of a
      list of zones to a specific gate zone
 
     Prefers gate zones with low total distance
     """
-    distances = [len(macro_arch.shortest_path(gate_zone, zone)) for zone in zones]
-    return sum(distances)
+    if not ignore_swap_costs:
+        metric = sum(
+            [
+                min(
+                    port_graph.shortest_port_path_length(gate_zone, 0, zone)[1],
+                    port_graph.shortest_port_path_length(gate_zone, 1, zone)[1],
+                )
+                for zone in zones
+            ]
+        )
+    else:
+        metric = sum([len(macro_arch.shortest_path(gate_zone, zone)) for zone in zones])
+    return metric
 
 
 def move_qubits_to_closest_available_spots(

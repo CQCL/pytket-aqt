@@ -69,7 +69,7 @@ def route_circuit_v2(
     """
 
     gate_selector = config_selector_from_settings(arch, settings)
-    router = GeneralRouter(circuit, arch, initial_placement, settings)
+    router = GeneralRouter(circuit, arch, settings)
     mz_circuit = MultiZoneCircuit(
         arch, initial_placement, circuit.n_qubits, circuit.n_bits
     )

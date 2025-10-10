@@ -31,6 +31,7 @@ class RoutingSettings:
     algorithm: RoutingAlg = RoutingAlg.greedy
     max_depth: int = 50
     debug_level: int = 0
+    ignore_swap_costs: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.algorithm, RoutingAlg):

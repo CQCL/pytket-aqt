@@ -3,7 +3,8 @@ from copy import deepcopy
 from pytket import Circuit
 
 from ..architecture import MultiZoneArchitectureSpec
-from ..circuit.helpers import TrapConfiguration, ZonePlacement
+from ..architecture_portgraph import MultiZonePortGraph
+from ..circuit.helpers import TrapConfiguration
 from ..circuit.multizone_circuit import MultiZoneCircuit
 from ..macro_architecture_graph import empty_macro_arch_from_architecture
 from .helpers import get_qubit_to_zone
@@ -15,13 +16,12 @@ class GeneralRouter:
         self,
         circuit: Circuit,
         arch: MultiZoneArchitectureSpec,
-        initial_placement: ZonePlacement,
         settings: RoutingSettings,
     ):
         self._circuit = circuit
         self._arch = arch
         self._macro_arch = empty_macro_arch_from_architecture(arch)
-        self._initial_placement = initial_placement
+        self._port_graph = MultiZonePortGraph(arch)
         self._settings = settings
 
     def route_source_to_target_config(
@@ -51,6 +51,9 @@ class GeneralRouter:
         qubit_to_zone_new = get_qubit_to_zone(n_qubits, new_place)
         qubits_to_move: list[tuple[int, int, int]] = []
         current_placement = deepcopy(old_place)
+        if not self._settings.ignore_swap_costs:
+            for zone, occupants in current_placement.items():
+                self._port_graph.update_zone_occupancy_weight(zone, len(occupants))
         for qubit in range(n_qubits):
             old_zone = qubit_to_zone_old[qubit]
             new_zone = qubit_to_zone_new[qubit]
@@ -67,9 +70,42 @@ class GeneralRouter:
         def _move_qubit(
             qubit_to_move: int, starting_zone: int, target_zone: int
         ) -> None:
-            mz_circ.move_qubit(
-                qubit_to_move, target_zone, precompiled=True, use_transport_limit=True
-            )
+            if not self._settings.ignore_swap_costs:
+                shortest_path_port0, path_length0, _ = (
+                    self._port_graph.shortest_port_path_length(
+                        starting_zone, 0, target_zone
+                    )
+                )
+                shortest_path_port1, path_length1, _ = (
+                    self._port_graph.shortest_port_path_length(
+                        starting_zone, 1, target_zone
+                    )
+                )
+                shortest_path = (
+                    shortest_path_port0
+                    if path_length0 <= path_length1
+                    else shortest_path_port1
+                )
+                mz_circ.move_qubit(
+                    qubit_to_move,
+                    target_zone,
+                    precompiled=True,
+                    use_transport_limit=True,
+                    shortest_path_override=shortest_path,
+                )
+                self._port_graph.update_zone_occupancy_weight(
+                    starting_zone, len(current_placement[starting_zone])
+                )
+                self._port_graph.update_zone_occupancy_weight(
+                    target_zone, len(current_placement[target_zone])
+                )
+            else:
+                mz_circ.move_qubit(
+                    qubit_to_move,
+                    target_zone,
+                    precompiled=True,
+                    use_transport_limit=True,
+                )
             current_placement[starting_zone].remove(qubit_to_move)
             current_placement[target_zone].append(qubit_to_move)
 

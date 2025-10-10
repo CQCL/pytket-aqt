@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 from networkx import (  # type: ignore
     Graph,
     single_source_dijkstra,
@@ -39,23 +38,27 @@ def port_path_to_zone_path(port_path: list[int]) -> list[int]:
     """
     # add source zone
     result = [port_id_to_zone_port(port_path[0])[0]]
-    # only use the first port of each intermediary zone
-    result.extend([port_id_to_zone_port(port)[0] for port in port_path[1::2]])
-    # add target zone
-    result.append(port_id_to_zone_port(port_path[-1])[0])
+    for port_id in port_path[1:]:
+        zone, _ = port_id_to_zone_port(port_id)
+        if result[-1] != zone:
+            result.append(zone)
     return result
 
 
 class MultiZonePortGraph:
     def __init__(self, spec: MultiZoneArchitectureSpec):
+        # TODO: Get swap cost(s) from spec (possibly zone dependent)
+        self._swap_cost = [1] * spec.n_zones
+
         self.port_graph = Graph()
 
+        # Add "capacity" edges between the two ports of a single zone.
+        # weight = occupancy = 0 for now but later will be dynamically set to current occupancy
         for zone_id, zone in enumerate(spec.zones):
             zone_port0_id = zone_port_to_port_id(zone_id, 0)
             zone_port1_id = zone_port_to_port_id(zone_id, 1)
             self.port_graph.add_node(zone_port0_id)
             self.port_graph.add_node(zone_port1_id)
-            # Add edges between ports of a zone. Weight 0 for now but later will be dynamically set to current occupancy
             self.port_graph.add_edge(
                 zone_port0_id,
                 zone_port1_id,
@@ -64,6 +67,7 @@ class MultiZonePortGraph:
                 weight=0,
             )
 
+        # Add "shuttle" edges between connected zones.
         for connection in spec.connections:
             zone0 = connection.zone_port_spec0.zone_id
             port0 = connection.zone_port_spec0.port_id
@@ -74,46 +78,33 @@ class MultiZonePortGraph:
             # TODO: update arch spec to include connection shuttle cost and use that as weight
             self.port_graph.add_edge(portid0, portid1, weight=1)
 
-    def update_zone_occupancy_weight(self, zone: int, new_weight: int):
+    def update_zone_occupancy_weight(self, zone: int, zone_occupancy: int):
         port_id0 = zone_port_to_port_id(zone, 0)
         port_id1 = zone_port_to_port_id(zone, 1)
+        new_weight = zone_occupancy * self._swap_cost[zone]
         self.port_graph.edges[port_id0, port_id1]["weight"] = new_weight
 
-    def shortest_port_path_lengths(
-        self, start_zone: int, targ_zone: int
-    ) -> tuple[tuple[list[int], int, int], tuple[list[int], int, int]]:
-        """Return the shortest path lengths for going from start to target zone
+    def shortest_port_path_length(
+        self, start_zone: int, start_port: int, targ_zone: int
+    ) -> tuple[list[int], int, int]:
+        """Return the shortest path length for going from starting (zone, port) "closest" port of a target zone
 
-        The return value is a tuple. The first value is a tuple of the shortest zone path
-        from port 0 of the start port to the closest port of the target port,
-        this paths (port path) length, and the value of the
-        target port for this shortest path. The second is the same values starting from port 1 of
-        the starting zone.
+        The return value is a tuple. The first value is the shortest zone path
+        from the starting (zone, port) to the closest port of the target zone. The second
+        is the calculated port path length. The third is the corresponding closest port of the
+        target zone.
         """
-        port_ids0 = zone_port_to_port_id(start_zone, 0)
-        port_ids1 = zone_port_to_port_id(start_zone, 1)
+        port_id_start = zone_port_to_port_id(start_zone, start_port)
         port_idt0 = zone_port_to_port_id(targ_zone, 0)
         port_idt1 = zone_port_to_port_id(targ_zone, 1)
-        path_s0t0, length_s0t0 = single_source_dijkstra(
-            self.port_graph, port_ids0, port_idt0, weight="weight"
+        length_s0t0, path_s0t0 = single_source_dijkstra(
+            self.port_graph, port_id_start, port_idt0, weight="weight"
         )
-        path_s0t1, length_s0t1 = single_source_dijkstra(
-            self.port_graph, port_ids0, port_idt1, weight="weight"
+        length_s0t1, path_s0t1 = single_source_dijkstra(
+            self.port_graph, port_id_start, port_idt1, weight="weight"
         )
-        path_s1t0, length_s1t0 = single_source_dijkstra(
-            self.port_graph, port_ids1, port_idt0, weight="weight"
-        )
-        path_s1t1, length_s1t1 = single_source_dijkstra(
-            self.port_graph, port_ids1, port_idt1, weight="weight"
-        )
-        path_length_s0_targ_port = (
+        return (
             (port_path_to_zone_path(path_s0t0), length_s0t0, 0)
             if length_s0t0 <= length_s0t1
             else (port_path_to_zone_path(path_s0t1), length_s0t1, 1)
         )
-        path_length_s1_targ_port = (
-            (port_path_to_zone_path(path_s1t0), length_s1t0, 0)
-            if length_s1t0 <= length_s1t1
-            else (port_path_to_zone_path(path_s1t1), length_s1t1, 1)
-        )
-        return path_length_s0_targ_port, path_length_s1_targ_port

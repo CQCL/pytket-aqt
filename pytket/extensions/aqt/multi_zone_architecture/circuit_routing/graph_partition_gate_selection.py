@@ -16,6 +16,7 @@ import math
 from pytket.circuit import Command
 
 from ..architecture import MultiZoneArchitectureSpec
+from ..architecture_portgraph import MultiZonePortGraph
 from ..circuit.helpers import TrapConfiguration, ZonePlacement, ZoneRoutingError
 from ..depth_list.depth_list import (
     DepthList,
@@ -48,6 +49,7 @@ class PartitionGateSelector:
     ):
         self._arch = arch
         self._macro_arch = empty_macro_arch_from_architecture(arch)
+        self._port_graph = MultiZonePortGraph(self._arch)
         self._settings = settings
 
     def next_config(
@@ -66,6 +68,10 @@ class PartitionGateSelector:
         """
         n_qubits = current_configuration.n_qubits
         depth_list = depth_list_from_command_list(n_qubits, remaining_commands)
+        if not self._settings.ignore_swap_costs:
+            # Update occupancy of port graph to current configuration
+            for zone, occupants in current_configuration.zone_placement.items():
+                self._port_graph.update_zone_occupancy_weight(zone, len(occupants))
         if depth_list:
             return self.handle_depth_list(current_configuration, depth_list)
         return self.handle_only_single_qubit_gates_remaining(
@@ -103,7 +109,12 @@ class PartitionGateSelector:
     ) -> TrapConfiguration:
         qubit_tracker = QubitTracker(current_configuration.zone_placement)
         handle_only_single_qubits_remaining(
-            remaining_commands, qubit_tracker, self._arch, self._macro_arch
+            remaining_commands,
+            qubit_tracker,
+            self._arch,
+            self._macro_arch,
+            self._port_graph,
+            self._settings.ignore_swap_costs,
         )
         # Now move any unused qubits to vacant spots in new config
         handle_unused_qubits(self._arch, self._macro_arch, qubit_tracker)
@@ -185,6 +196,14 @@ class PartitionGateSelector:
 
     def shuttling_penalty(self, zone1: int, other_zone1: int) -> int:
         """Calculate penalty for shuttling from one zone to another"""
+        if not self._settings.ignore_swap_costs:
+            shortest_path_port0, path_length0, target_port_0 = (
+                self._port_graph.shortest_port_path_length(zone1, 0, other_zone1)
+            )
+            shortest_path_port1, path_length1, target_port_1 = (
+                self._port_graph.shortest_port_path_length(zone1, 1, other_zone1)
+            )
+            return min(path_length0, path_length1)
         shortest_path = self._macro_arch.shortest_path(int(zone1), int(other_zone1))
         if shortest_path:
             return len(shortest_path) - 1

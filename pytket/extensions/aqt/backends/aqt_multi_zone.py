@@ -274,7 +274,7 @@ class AQTMultiZoneBackend(Backend):
         precompiled: Circuit,
         compilation_settings: CompilationSettings = CompilationSettings.default(),  # noqa: B008
         *,
-        v2: bool = False,
+        v2: bool = True,
     ) -> MultiZoneCircuit:
         """
         Route a pytket Circuit to the backend architecture
@@ -310,7 +310,7 @@ class AQTMultiZoneBackend(Backend):
         circuit: Circuit,
         compilation_settings: CompilationSettings = CompilationSettings.default(),  # noqa: B008
         *,
-        v2: bool = False,
+        v2: bool = True,
     ) -> MultiZoneCircuit:
         """
         Compile a pytket Circuit and route it to the backend architecture
@@ -330,7 +330,7 @@ class AQTMultiZoneBackend(Backend):
         }
         compiled.rename_units(qubit_map)
 
-        return self.route_precompiled(compiled, compilation_settings)
+        return self.route_precompiled(compiled, compilation_settings, v2=v2)
 
     def compile_manually_routed_multi_zone_circuit(
         self,
