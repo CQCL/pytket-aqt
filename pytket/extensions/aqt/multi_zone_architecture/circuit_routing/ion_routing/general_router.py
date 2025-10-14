@@ -2,13 +2,13 @@ from copy import deepcopy
 
 from pytket import Circuit
 
-from ..architecture import MultiZoneArchitectureSpec
-from ..architecture_portgraph import MultiZonePortGraph
-from ..circuit.helpers import TrapConfiguration
-from ..circuit.multizone_circuit import MultiZoneCircuit
-from ..macro_architecture_graph import empty_macro_arch_from_architecture
-from .helpers import get_qubit_to_zone
-from .settings import RoutingSettings
+from ...architecture import MultiZoneArchitectureSpec
+from ...architecture_portgraph import MultiZonePortGraph
+from ...circuit.helpers import TrapConfiguration
+from ...circuit.multizone_circuit import MultiZoneCircuit
+from ...circuit_routing.helpers import get_qubit_to_zone
+from ...circuit_routing.settings import RoutingSettings
+from ...macro_architecture_graph import empty_macro_arch_from_architecture
 
 
 class GeneralRouter:

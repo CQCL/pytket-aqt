@@ -1,6 +1,6 @@
 from copy import deepcopy
 
-from ..circuit.helpers import ZonePlacement
+from pytket.extensions.aqt.multi_zone_architecture.circuit.helpers import ZonePlacement
 
 
 class QubitTracker:

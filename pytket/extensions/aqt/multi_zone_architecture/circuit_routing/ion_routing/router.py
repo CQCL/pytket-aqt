@@ -14,9 +14,12 @@
 from typing import Protocol
 
 from pytket.circuit import Command
-
-from ..circuit.helpers import TrapConfiguration
-from ..circuit.multizone_circuit import MZAOperation
+from pytket.extensions.aqt.multi_zone_architecture.circuit.helpers import (
+    TrapConfiguration,
+)
+from pytket.extensions.aqt.multi_zone_architecture.circuit.multizone_circuit import (
+    MZAOperation,
+)
 
 
 class ConfigSelector(Protocol):

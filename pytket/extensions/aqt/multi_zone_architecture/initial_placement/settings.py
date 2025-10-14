@@ -18,7 +18,9 @@ from enum import Enum
 from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
-    from ..circuit_routing.route_circuit import ZonePlacement
+    from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.legacy.route_circuit import (
+        ZonePlacement,
+    )
 
 
 class InitialPlacementSettingsError(Exception):

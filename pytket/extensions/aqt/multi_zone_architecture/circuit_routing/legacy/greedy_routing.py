@@ -16,11 +16,19 @@ from copy import deepcopy
 from networkx import bfs_layers  # type: ignore[import-untyped]
 
 from pytket.circuit import Circuit, Command, OpType, Qubit
-
-from ..architecture import MultiZoneArchitectureSpec
-from ..circuit.helpers import ZonePlacement, ZoneRoutingError
-from ..circuit.multizone_circuit import MultiZoneCircuit
-from .settings import RoutingSettings
+from pytket.extensions.aqt.multi_zone_architecture.architecture import (
+    MultiZoneArchitectureSpec,
+)
+from pytket.extensions.aqt.multi_zone_architecture.circuit.helpers import (
+    ZonePlacement,
+    ZoneRoutingError,
+)
+from pytket.extensions.aqt.multi_zone_architecture.circuit.multizone_circuit import (
+    MultiZoneCircuit,
+)
+from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.settings import (
+    RoutingSettings,
+)
 
 
 class QubitTracker:

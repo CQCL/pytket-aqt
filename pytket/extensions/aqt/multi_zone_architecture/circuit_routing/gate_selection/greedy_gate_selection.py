@@ -17,16 +17,17 @@ from networkx import bfs_layers  # type: ignore[import-untyped]
 
 from pytket.circuit import Command, OpType
 
-from ..architecture import MultiZoneArchitectureSpec
-from ..architecture_portgraph import MultiZonePortGraph
-from ..circuit.helpers import TrapConfiguration
-from ..depth_list.depth_list import depth_list_from_command_list
-from ..macro_architecture_graph import MultiZoneArch
+from ...architecture import MultiZoneArchitectureSpec
+from ...architecture_portgraph import MultiZonePortGraph
+from ...circuit.helpers import TrapConfiguration
+from ...depth_list.depth_list import depth_list_from_command_list
+from ...macro_architecture_graph import MultiZoneArch
+from ..settings import RoutingSettings
+from .config_selector_protocol import ConfigSelector
 from .qubit_tracker import QubitTracker
-from .settings import RoutingSettings
 
 
-class GreedyGateSelector:
+class GreedyGateSelector(ConfigSelector):
     """Uses a simple greedy algorithm for gate selection
 
     The routed circuit can be directly run on the given Architecture

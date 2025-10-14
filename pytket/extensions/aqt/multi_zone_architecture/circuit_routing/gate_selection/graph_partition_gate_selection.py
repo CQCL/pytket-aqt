@@ -15,25 +15,26 @@ import math
 
 from pytket.circuit import Command
 
-from ..architecture import MultiZoneArchitectureSpec
-from ..architecture_portgraph import MultiZonePortGraph
-from ..circuit.helpers import TrapConfiguration, ZonePlacement, ZoneRoutingError
-from ..depth_list.depth_list import (
+from ...architecture import MultiZoneArchitectureSpec
+from ...architecture_portgraph import MultiZonePortGraph
+from ...circuit.helpers import TrapConfiguration, ZonePlacement, ZoneRoutingError
+from ...depth_list.depth_list import (
     DepthList,
     depth_list_from_command_list,
 )
-from ..graph_algs.graph import GraphData
-from ..graph_algs.mt_kahypar import MtKahyparPartitioner
-from ..macro_architecture_graph import empty_macro_arch_from_architecture
+from ...graph_algs.graph import GraphData
+from ...graph_algs.mt_kahypar import MtKahyparPartitioner
+from ...macro_architecture_graph import empty_macro_arch_from_architecture
+from ..settings import RoutingSettings
+from .config_selector_protocol import ConfigSelector
 from .greedy_gate_selection import (
     handle_only_single_qubits_remaining,
     handle_unused_qubits,
 )
 from .qubit_tracker import QubitTracker
-from .settings import RoutingSettings
 
 
-class PartitionGateSelector:
+class PartitionGateSelector(ConfigSelector):
     """Uses graph partitioning to add shuttles and swaps to a circuit
 
     The routed circuit can be directly run on the given Architecture

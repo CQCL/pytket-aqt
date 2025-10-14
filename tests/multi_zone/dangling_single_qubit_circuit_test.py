@@ -1,3 +1,5 @@
+import pytest
+
 from pytket import Circuit
 from pytket.extensions.aqt.backends.aqt_multi_zone import AQTMultiZoneBackend
 from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.settings import (
@@ -10,6 +12,9 @@ from pytket.extensions.aqt.multi_zone_architecture.compilation_settings import (
 from pytket.extensions.aqt.multi_zone_architecture.graph_algs.mt_kahypar import (
     MtKahyparConfig,
     configure_mtkahypar,
+)
+from pytket.extensions.aqt.multi_zone_architecture.graph_algs.mt_kahypar_check import (
+    MT_KAHYPAR_INSTALLED,
 )
 from pytket.extensions.aqt.multi_zone_architecture.initial_placement.settings import (
     InitialPlacementAlg,
@@ -69,15 +74,24 @@ greedy_compilation_settings = CompilationSettings(
     routing=greedy_routing,
 )
 
+qft_precompiled = line_backend.precompile_circuit(test_circ, graph_compilation_settings)
 
-def test_circuit_with_dangling_single_qubit_gates() -> None:
-    qft_precompiled = line_backend.precompile_circuit(
-        test_circ, graph_compilation_settings
-    )
+graph_skipif = pytest.mark.skipif(
+    not MT_KAHYPAR_INSTALLED, reason="mtkahypar required for testing graph partitioning"
+)
+
+
+@pytest.mark.parametrize(
+    "compilation_settings, use_legacy",
+    [
+        pytest.param(greedy_compilation_settings, True),
+        pytest.param(greedy_compilation_settings, False),
+        pytest.param(graph_compilation_settings, False, marks=graph_skipif),
+    ],
+)
+def test_circuit_with_dangling_single_qubit_gates(
+    compilation_settings: CompilationSettings, use_legacy: bool
+) -> None:
     line_backend.route_precompiled(
-        qft_precompiled, greedy_compilation_settings, v2=False
-    )
-    line_backend.route_precompiled(qft_precompiled, graph_compilation_settings, v2=True)
-    line_backend.route_precompiled(
-        qft_precompiled, greedy_compilation_settings, v2=True
+        qft_precompiled, compilation_settings, use_legacy_routing=use_legacy
     )

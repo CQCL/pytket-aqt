@@ -49,10 +49,10 @@ from ..multi_zone_architecture.architecture import MultiZoneArchitectureSpec
 from ..multi_zone_architecture.circuit.multizone_circuit import (
     MultiZoneCircuit,
 )
-from ..multi_zone_architecture.circuit_routing.route_circuit import (
-    route_circuit,
+from ..multi_zone_architecture.circuit_routing.legacy.route_circuit import (
+    route_circuit as legacy_route_circuit,
 )
-from ..multi_zone_architecture.circuit_routing.route_circuit_v2 import route_circuit_v2
+from ..multi_zone_architecture.circuit_routing.route_circuit import route_circuit
 from ..multi_zone_architecture.compilation_settings import CompilationSettings
 from ..multi_zone_architecture.initial_placement.initial_placement_generators import (
     get_initial_placement,
@@ -274,7 +274,7 @@ class AQTMultiZoneBackend(Backend):
         precompiled: Circuit,
         compilation_settings: CompilationSettings = CompilationSettings.default(),  # noqa: B008
         *,
-        v2: bool = True,
+        use_legacy_routing: bool = False,
     ) -> MultiZoneCircuit:
         """
         Route a pytket Circuit to the backend architecture
@@ -286,8 +286,8 @@ class AQTMultiZoneBackend(Backend):
         initial_placement = get_initial_placement(
             compilation_settings.initial_placement, precompiled, self._architecture
         )
-        if v2:
-            routed = route_circuit_v2(
+        if use_legacy_routing:
+            routed = legacy_route_circuit(
                 compilation_settings.routing,
                 precompiled,
                 self._architecture,
@@ -310,7 +310,7 @@ class AQTMultiZoneBackend(Backend):
         circuit: Circuit,
         compilation_settings: CompilationSettings = CompilationSettings.default(),  # noqa: B008
         *,
-        v2: bool = True,
+        use_legacy_routing: bool = False,
     ) -> MultiZoneCircuit:
         """
         Compile a pytket Circuit and route it to the backend architecture
@@ -330,7 +330,9 @@ class AQTMultiZoneBackend(Backend):
         }
         compiled.rename_units(qubit_map)
 
-        return self.route_precompiled(compiled, compilation_settings, v2=v2)
+        return self.route_precompiled(
+            compiled, compilation_settings, use_legacy_routing=use_legacy_routing
+        )
 
     def compile_manually_routed_multi_zone_circuit(
         self,
