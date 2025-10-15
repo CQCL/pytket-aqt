@@ -13,22 +13,10 @@
 # limitations under the License.
 from typing import Protocol
 
-from pytket.circuit import Command
-from pytket.extensions.aqt.multi_zone_architecture.circuit.helpers import (
-    TrapConfiguration,
-)
-from pytket.extensions.aqt.multi_zone_architecture.circuit.multizone_circuit import (
-    MZAOperation,
-)
-
-
-class ConfigSelector(Protocol):
-    def next_config(
-        self, current_placement: TrapConfiguration, remaining_circuit: list[Command]
-    ) -> TrapConfiguration: ...
+from ...circuit.helpers import TrapConfiguration, ZonePlacement
 
 
 class Router(Protocol):
     def route_source_to_target_config(
-        self, source: TrapConfiguration, target: TrapConfiguration
-    ) -> list[MZAOperation]: ...
+        self, source: TrapConfiguration, target: ZonePlacement
+    ) -> TrapConfiguration: ...

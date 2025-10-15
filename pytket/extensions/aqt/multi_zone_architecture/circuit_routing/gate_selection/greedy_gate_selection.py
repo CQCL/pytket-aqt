@@ -19,7 +19,7 @@ from pytket.circuit import Command, OpType
 
 from ...architecture import MultiZoneArchitectureSpec
 from ...architecture_portgraph import MultiZonePortGraph
-from ...circuit.helpers import TrapConfiguration
+from ...circuit.helpers import TrapConfiguration, ZonePlacement
 from ...depth_list.depth_list import depth_list_from_command_list
 from ...macro_architecture_graph import MultiZoneArch
 from ..settings import RoutingSettings
@@ -50,12 +50,13 @@ class GreedyGateSelector(ConfigSelector):
         self,
         current_configuration: TrapConfiguration,
         remaining_commands: list[Command],
-    ) -> TrapConfiguration:
+    ) -> ZonePlacement:
         """Generates a new TrapConfiguration to implement the next gates
 
         The returned TrapConfiguration
         represents the "optimal" next state to implement the remaining gates in
-        the depth list.
+        the depth list. The ordering of the qubits within the zones is arbitrary. The correct
+        ordering will be determined at the qubit routing stage.
 
         Cycle through commands and assign qubits to new zones in order to implement them on
         a "first come, first served" basis
@@ -103,7 +104,7 @@ class GreedyGateSelector(ConfigSelector):
             )
         # Now move any unused qubits to vacant spots in new config
         handle_unused_qubits(self._arch, self._macro_arch, qubit_tracker)
-        return TrapConfiguration(n_qubits, qubit_tracker.new_placement())
+        return qubit_tracker.new_placement()
 
     def handle_depth_list(
         self,

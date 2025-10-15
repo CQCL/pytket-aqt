@@ -57,12 +57,13 @@ class PartitionGateSelector(ConfigSelector):
         self,
         current_configuration: TrapConfiguration,
         remaining_commands: list[Command],
-    ) -> TrapConfiguration:
-        """Generates a new TrapConfiguration to implement the next gates
+    ) -> ZonePlacement:
+        """Generates a new qubit placement in zones to implement the next gates
 
-        The returned TrapConfiguration
+        The returned ZonePlacement
         represents the "optimal" next state to implement the remaining gates in
-        the depth list.
+        the depth list. The ordering of the qubits within the zones is arbitrary. The correct
+        ordering will be determined at the qubit routing stage.
 
         :param current_configuration: The starting configuration of ions in ion trap zones
         :param remaining_commands: The list of gate commands used to determine the next ion placement.
@@ -83,7 +84,7 @@ class PartitionGateSelector(ConfigSelector):
         self,
         current_configuration: TrapConfiguration,
         depth_list: list[list[tuple[int, int]]],
-    ) -> TrapConfiguration:
+    ) -> ZonePlacement:
         num_zones = self._arch.n_zones
         n_qubits = current_configuration.n_qubits
         shuttle_graph_data = self.get_circuit_shuttle_graph_data(
@@ -101,13 +102,13 @@ class PartitionGateSelector(ConfigSelector):
             part_to_zone[vertex_to_part[vertex]] = vertex - n_qubits
         for vertex in range(n_qubits):
             new_placement[part_to_zone[vertex_to_part[vertex]]].append(vertex)
-        return TrapConfiguration(n_qubits, new_placement)
+        return new_placement
 
     def handle_only_single_qubit_gates_remaining(
         self,
         current_configuration: TrapConfiguration,
         remaining_commands: list[Command],
-    ) -> TrapConfiguration:
+    ) -> ZonePlacement:
         qubit_tracker = QubitTracker(
             current_configuration.n_qubits, current_configuration.zone_placement
         )
@@ -121,9 +122,7 @@ class PartitionGateSelector(ConfigSelector):
         )
         # Now move any unused qubits to vacant spots in new config
         handle_unused_qubits(self._arch, self._macro_arch, qubit_tracker)
-        return TrapConfiguration(
-            current_configuration.n_qubits, qubit_tracker.new_placement()
-        )
+        return qubit_tracker.new_placement()
 
     def get_circuit_shuttle_graph_data(
         self, starting_config: TrapConfiguration, depth_list: DepthList

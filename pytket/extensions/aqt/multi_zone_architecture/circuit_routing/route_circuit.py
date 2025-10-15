@@ -24,9 +24,9 @@ from ..graph_algs.mt_kahypar_check import (
     MissingMtKahyparInstallError,
 )
 from ..macro_architecture_graph import MultiZoneArch
+from .gate_selection.config_selector_protocol import ConfigSelector
 from .gate_selection.greedy_gate_selection import GreedyGateSelector
-from .ion_routing.general_router import GeneralRouter
-from .ion_routing.router import ConfigSelector
+from .qubit_routing.general_router import GeneralRouter
 from .settings import RoutingAlg, RoutingSettings
 
 if MT_KAHYPAR_INSTALLED:
@@ -68,10 +68,10 @@ def route_circuit(
     """
 
     gate_selector = config_selector_from_settings(arch, settings)
-    router = GeneralRouter(circuit, arch, settings)
     mz_circuit = MultiZoneCircuit(
         arch, initial_placement, circuit.n_qubits, circuit.n_bits
     )
+    router = GeneralRouter(mz_circuit, settings)
     macro_arch = MultiZoneArch(arch)
 
     commands = circuit.get_commands().copy()
@@ -84,8 +84,9 @@ def route_circuit(
     while commands:
         target_config = gate_selector.next_config(current_config, commands)
         # Add operations needed move from the source to target configuration
-        router.route_source_to_target_config(current_config, target_config, mz_circuit)
-        current_config = target_config
+        current_config = router.route_source_to_target_config(
+            current_config, target_config
+        )
         # Add implementable gates from new config
         implementable, commands = filter_implementable_commands(
             current_config, macro_arch.gate_zones, commands
