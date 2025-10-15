@@ -62,6 +62,9 @@ def test_circuit_has_correct_init_gates_at_beginning(
         gate_zone = int(op.params[0])
         gate_qubits = [q.index[0] for q in gate.args]
         circuit_placement[gate_zone] = gate_qubits
+    for zone in range(fix_circuit.architecture.n_zones):
+        if zone not in initial_placement:
+            initial_placement[zone] = []
     assert circuit_placement == initial_placement
 
 

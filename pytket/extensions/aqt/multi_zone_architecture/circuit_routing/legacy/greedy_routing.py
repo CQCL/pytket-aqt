@@ -22,6 +22,7 @@ from pytket.extensions.aqt.multi_zone_architecture.architecture import (
 from pytket.extensions.aqt.multi_zone_architecture.circuit.helpers import (
     ZonePlacement,
     ZoneRoutingError,
+    get_qubit_to_zone,
 )
 from pytket.extensions.aqt.multi_zone_architecture.circuit.multizone_circuit import (
     MultiZoneCircuit,
@@ -34,12 +35,9 @@ from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.settings impo
 class QubitTracker:
     """Tracks which qubits are in which zones for the entire architecture"""
 
-    def __init__(self, initial_placement: ZonePlacement) -> None:
+    def __init__(self, n_qubits: int, initial_placement: ZonePlacement) -> None:
         self._current_placement = deepcopy(initial_placement)
-        self._current_qubit_to_zone = {}
-        for zone, qubit_list in initial_placement.items():
-            for qubit in qubit_list:
-                self._current_qubit_to_zone[qubit] = zone
+        self._current_qubit_to_zone = get_qubit_to_zone(n_qubits, initial_placement)
 
     def current_zone(self, qubit: int) -> int:
         return self._current_qubit_to_zone[qubit]
@@ -83,7 +81,7 @@ class GreedyCircuitRouter:
             self._arch, self._initial_placement, n_qubits, self._circuit.n_bits
         )
 
-        qubit_tracker = QubitTracker(self._initial_placement)
+        qubit_tracker = QubitTracker(n_qubits, self._initial_placement)
         waiting_one_qubit_gates: dict[int, list[Command]] = {}
 
         for cmd in self._circuit.get_commands():

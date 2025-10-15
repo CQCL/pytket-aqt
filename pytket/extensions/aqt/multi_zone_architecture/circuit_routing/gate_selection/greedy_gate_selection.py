@@ -81,10 +81,10 @@ class GreedyGateSelector(ConfigSelector):
         :param remaining_commands: The list of gate commands used to determine the next ion placement.
         """
         n_qubits = current_configuration.n_qubits
-        qubit_tracker = QubitTracker(current_configuration.zone_placement)
+        qubit_tracker = QubitTracker(n_qubits, current_configuration.zone_placement)
         # Update occupancy of port graph to current configuration
         if not self._settings.ignore_swap_costs:
-            for zone, occupants in current_configuration.zone_placement.items():
+            for zone, occupants in enumerate(current_configuration.zone_placement):
                 self._port_graph.update_zone_occupancy_weight(zone, len(occupants))
         two_qubit_gate_depth_list = depth_list_from_command_list(
             n_qubits, remaining_commands

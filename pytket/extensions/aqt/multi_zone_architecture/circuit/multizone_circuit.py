@@ -31,6 +31,7 @@ from ..macro_architecture_graph import (
     MultiZoneArch,
     empty_macro_arch_from_architecture,
 )
+from .helpers import get_qubit_to_zone
 
 ParamType: TypeAlias = Expr | float  # noqa: UP040
 
@@ -207,9 +208,9 @@ class MultiZoneCircuit:
 
     architecture: MultiZoneArchitectureSpec
     macro_arch: MultiZoneArch
-    qubit_to_zones: dict[int, list[int]]
-    zone_to_qubits: dict[int, list[int]]
-    initial_zone_to_qubits: dict[int, list[int]]
+    qubit_to_zones: list[list[int]]
+    zone_to_qubits: list[list[int]]
+    initial_zone_to_qubits: list[list[int]]
     multi_zone_operations: dict[int, list[list[MZAOperation]]]
     pytket_circuit: Circuit
     _is_compiled: bool = False
@@ -217,24 +218,51 @@ class MultiZoneCircuit:
     def __init__(
         self,
         multi_zone_arch: MultiZoneArchitectureSpec,
-        initial_zone_to_qubits: dict[int, list[int]],
+        initial_zone_to_qubits: list[list[int]] | dict[int, list[int]],
         *args: int,
         **kwargs: str,
     ):
         self.architecture = multi_zone_arch
         self.macro_arch = empty_macro_arch_from_architecture(multi_zone_arch)
         self.pytket_circuit = Circuit(*args, **kwargs)
-        self.qubit_to_zones = {}
-        self.initial_zone_to_qubits = initial_zone_to_qubits
-        self.zone_to_qubits = {
-            zone_id: [] for zone_id, _ in enumerate(multi_zone_arch.zones)
-        }
+        if isinstance(initial_zone_to_qubits, list):
+            self.initial_zone_to_qubits = deepcopy(initial_zone_to_qubits)
+        elif isinstance(initial_zone_to_qubits, dict):
+            self.initial_zone_to_qubits = [[] for _ in range(self.architecture.n_zones)]
+            for zone, qubits in initial_zone_to_qubits.items():
+                self.initial_zone_to_qubits[zone] = qubits
+        self.zone_to_qubits = deepcopy(self.initial_zone_to_qubits)
+        zone_free_space = [
+            self.architecture.get_zone_max_ions_gates(zone)
+            - len(self.zone_to_qubits[zone])
+            for zone in range(self.architecture.n_zones)
+        ]
+        violating_zones = [
+            zone for zone, free_space in enumerate(zone_free_space) if free_space < 0
+        ]
+        if violating_zones:
+            raise QubitPlacementError(
+                f"The initial placement of qubits into zones {violating_zones} violates"
+                f"their specified maximum ion capacity"
+            )
+        initial_qubit_to_zone = get_qubit_to_zone(
+            self.pytket_circuit.n_qubits, self.initial_zone_to_qubits
+        )
+        unplaced_qubits = [
+            qubit for qubit, zone in enumerate(initial_qubit_to_zone) if zone == -1
+        ]
+        if unplaced_qubits:
+            raise QubitPlacementError(
+                f"Qubits {unplaced_qubits} was not placed in initial placement"
+            )
+        self.qubit_to_zones = [
+            [initial_qubit_to_zone[qubit]]
+            for qubit in range(self.pytket_circuit.n_qubits)
+        ]
+
         self.multi_zone_operations = {
             qubit: [] for qubit in range(multi_zone_arch.n_qubits_max)
         }
-        for zone, qubits in initial_zone_to_qubits.items():
-            self._place_qubits(zone, qubits)
-
         self.all_qubit_list = list(range(len(self.pytket_circuit.qubits)))
         move_barrier_def_circ = Circuit(len(self.all_qubit_list))
         move_barrier_def_circ.add_barrier(self.all_qubit_list)
@@ -246,7 +274,7 @@ class MultiZoneCircuit:
         It prevents compiling through custom `MOVE` operations,
         which could invalidate the manual routing
         """
-        for zone, qubit_list in initial_zone_to_qubits.items():
+        for zone, qubit_list in enumerate(self.initial_zone_to_qubits):
             init_def_circ = Circuit(len(qubit_list))
             custom_init = CustomGateDef("INIT", init_def_circ, [dz])
             """An `INIT` gate.
@@ -281,29 +309,13 @@ class MultiZoneCircuit:
             self.move_barrier_gate, [], self.all_qubit_list
         )
 
-    def _place_qubit(self, zone: int, qubit: int) -> None:
-        if qubit in self.qubit_to_zones:
-            raise QubitPlacementError(f"Qubit {qubit} was already placed")
-        if len(self.zone_to_qubits[zone]) >= self.architecture.get_zone_max_ions_gates(
-            zone
-        ):
-            raise QubitPlacementError(
-                f"Cannot add ion to zone {zone}, maximum ion capacity already reached"
-            )
-        self.qubit_to_zones[qubit] = [zone]
-        self.zone_to_qubits[zone].append(qubit)
-
-    def _place_qubits(self, zone: int, qubits: list[int]) -> None:
-        for qubit in qubits:
-            self._place_qubit(zone, qubit)
-
     def move_qubit(  # noqa: PLR0912
         self,
         qubit: int,
         new_zone: int,
         precompiled: bool = False,
         use_transport_limit: bool = False,
-        shortest_path_override: list[int] | None = None,
+        path_override: list[int] | None = None,
     ) -> None:
         """Move a qubit from its current zone to new_zone
 
@@ -327,9 +339,10 @@ class MultiZoneCircuit:
          compiled (but not yet routed)
         :param use_transport_limit: If False will use the maximum ion limit for gate operations for new_zone,
          if True, use maximum transport limit (assuming any overflow will be corrected before gates are performed)
+         :param path_override: Path to take for move
         """
-        if qubit not in self.qubit_to_zones:
-            raise QubitPlacementError("Cannot move qubit that was never placed")
+        if qubit >= self.pytket_circuit.n_qubits:
+            raise QubitPlacementError("Requested move on out-of-range qubit")
         old_zone = self.qubit_to_zones[qubit][-1]
         if old_zone == new_zone:
             raise MoveError(
@@ -337,9 +350,8 @@ class MultiZoneCircuit:
                 f" qubit {qubit} is already in zone {new_zone}"
             )
         move_operations = []
-        shortest_path: list[int] = []
-        if shortest_path_override:
-            shortest_path = shortest_path_override
+        if path_override:
+            shortest_path = path_override
         else:
             shortest_path = self.macro_arch.shortest_path(int(old_zone), int(new_zone))
             if not shortest_path:
@@ -494,7 +506,7 @@ class MultiZoneCircuit:
 
     def _validate_compiled(self) -> None:  # noqa: PLR0912, PLR0915
         current_placement = deepcopy(self.initial_zone_to_qubits)
-        current_qubit_to_zone = _get_qubit_to_zone(
+        current_qubit_to_zone = get_qubit_to_zone(
             self.pytket_circuit.n_qubits, current_placement
         )
         commands = self.pytket_circuit.get_commands()
@@ -633,11 +645,3 @@ class MultiZoneCircuit:
                         raise ValidationError(
                             "Invalid 1 qubit gate. Qubit located in a non-gate zone"
                         )
-
-
-def _get_qubit_to_zone(n_qubits: int, placement: dict[int, list[int]]) -> list[int]:
-    qubit_to_zone: list[int] = [-1] * n_qubits
-    for zone, qubits in placement.items():
-        for qubit in qubits:
-            qubit_to_zone[qubit] = zone
-    return qubit_to_zone

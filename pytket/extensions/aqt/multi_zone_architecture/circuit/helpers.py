@@ -15,7 +15,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-ZonePlacement = dict[int, list[int]]
+ZonePlacement = list[list[int]]
+
+
+def get_qubit_to_zone(n_qubits: int, placement: ZonePlacement) -> list[int]:
+    qubit_to_zone: list[int] = [-1] * n_qubits
+    for zone, qubits in enumerate(placement):
+        for qubit in qubits:
+            qubit_to_zone[qubit] = zone
+    return qubit_to_zone
 
 
 class ZoneRoutingError(Exception):

@@ -71,7 +71,7 @@ class PartitionGateSelector(ConfigSelector):
         depth_list = depth_list_from_command_list(n_qubits, remaining_commands)
         if not self._settings.ignore_swap_costs:
             # Update occupancy of port graph to current configuration
-            for zone, occupants in current_configuration.zone_placement.items():
+            for zone, occupants in enumerate(current_configuration.zone_placement):
                 self._port_graph.update_zone_occupancy_weight(zone, len(occupants))
         if depth_list:
             return self.handle_depth_list(current_configuration, depth_list)
@@ -95,7 +95,7 @@ class PartitionGateSelector(ConfigSelector):
             for i in range(min(4, len(depth_list))):
                 print(depth_list[i])  # noqa: T201
         vertex_to_part = partitioner.partition_graph(shuttle_graph_data, num_zones)
-        new_placement: ZonePlacement = {i: [] for i in range(num_zones)}
+        new_placement: ZonePlacement = [[] for _ in range(num_zones)]
         part_to_zone = [-1] * num_zones
         for vertex in range(n_qubits, n_qubits + num_zones):
             part_to_zone[vertex_to_part[vertex]] = vertex - n_qubits
@@ -108,7 +108,9 @@ class PartitionGateSelector(ConfigSelector):
         current_configuration: TrapConfiguration,
         remaining_commands: list[Command],
     ) -> TrapConfiguration:
-        qubit_tracker = QubitTracker(current_configuration.zone_placement)
+        qubit_tracker = QubitTracker(
+            current_configuration.n_qubits, current_configuration.zone_placement
+        )
         handle_only_single_qubits_remaining(
             remaining_commands,
             qubit_tracker,
@@ -166,7 +168,7 @@ class PartitionGateSelector(ConfigSelector):
         # add shuttling penalty (just distance between zones for now,
         # should later be dependent on shuttling cost)
         max_shuttle_weight = math.ceil(max_weight / 2)
-        for zone, qubits in starting_config.zone_placement.items():
+        for zone, qubits in enumerate(starting_config.zone_placement):
             for other_zone in range(num_zones):
                 weight = math.ceil(
                     math.exp(-0.8 * self.shuttling_penalty(zone, other_zone))

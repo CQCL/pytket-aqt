@@ -152,7 +152,7 @@ def test_compiled_circuit_has_correct_syntax(backend: AQTMultiZoneBackend) -> No
     initialized_zones: list[int] = []
     number_initialized_qubits: int = 0
     for i, operation in enumerate(aqt_operation_list):
-        if i < 2:
+        if i < circuit.architecture.n_zones:
             assert operation[0] == "INIT"
         else:
             assert operation[0] != "INIT"
@@ -186,7 +186,7 @@ def test_compiled_circuit_has_correct_syntax(backend: AQTMultiZoneBackend) -> No
             assert _is_valid_zop(operation[1][1], initialized_zones)
         else:
             raise Exception(f"Detected invalid operation type: {operation[0]}")
-    assert initialized_zones == [zone for zone in initial_placement]  # noqa: C416
+    assert initialized_zones == [zone for zone in range(circuit.architecture.n_zones)]  # noqa: C416
     assert number_initialized_qubits == 8
 
 
@@ -231,7 +231,7 @@ def test_automatically_routed_circuit_has_correct_syntax(  # noqa: PLR0915
     aqt_shuttles = 0
     aqt_pswaps = 0
     for i, operation in enumerate(aqt_operation_list):
-        if i < backend._architecture.n_zones:  # noqa: SLF001
+        if i < mz_circuit.architecture.n_zones:
             assert operation[0] == "INIT"
         else:
             assert operation[0] != "INIT"
@@ -269,7 +269,7 @@ def test_automatically_routed_circuit_has_correct_syntax(  # noqa: PLR0915
             raise Exception(f"Detected invalid operation type: {operation[0]}")
     assert n_pswaps == aqt_pswaps
     assert n_shuttles == aqt_shuttles
-    assert initialized_zones == [zone for zone in initial_placement]  # noqa: C416
+    assert initialized_zones == list(range(mz_circuit.architecture.n_zones))
     assert number_initialized_qubits == 8
 
 

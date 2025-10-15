@@ -17,7 +17,7 @@ from pytket import OpType
 from pytket.circuit import Circuit, Command
 
 from ..architecture import MultiZoneArchitectureSpec
-from ..circuit.helpers import TrapConfiguration, ZonePlacement
+from ..circuit.helpers import TrapConfiguration, ZonePlacement, get_qubit_to_zone
 from ..circuit.multizone_circuit import MultiZoneCircuit
 from ..graph_algs.mt_kahypar_check import (
     MT_KAHYPAR_INSTALLED,
@@ -108,7 +108,9 @@ def filter_implementable_commands(
     # they have to wait for the next iteration
     n_qubits = current_config.n_qubits
     stragglers: set[int] = set()
-    qubit_to_zone_old = _get_qubit_to_zone(current_config)
+    qubit_to_zone_old = get_qubit_to_zone(
+        current_config.n_qubits, current_config.zone_placement
+    )
     last_cmd_index = 0
     for i, cmd in enumerate(commands):
         if cmd.op.type in [OpType.Barrier]:
@@ -141,11 +143,3 @@ def filter_implementable_commands(
             # at this point no more gates can be performed in this config
             break
     return implementable, leftovers + commands[last_cmd_index + 1 :]
-
-
-def _get_qubit_to_zone(trap_config: TrapConfiguration) -> list[int]:
-    qubit_to_zone: list[int] = [-1] * trap_config.n_qubits
-    for zone, qubits in trap_config.zone_placement.items():
-        for qubit in qubits:
-            qubit_to_zone[qubit] = zone
-    return qubit_to_zone

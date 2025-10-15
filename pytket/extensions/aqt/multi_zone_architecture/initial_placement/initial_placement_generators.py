@@ -47,14 +47,21 @@ class InitialPlacementGenerator(Protocol):
 class ManualInitialPlacement(InitialPlacementGenerator):
     """Used to generate an initial placement from manual input"""
 
-    placement: ZonePlacement
+    placement: ZonePlacement | dict[int, list[int]]
 
     def initial_placement(
         self, circuit: Circuit, arch: MultiZoneArchitectureSpec
     ) -> ZonePlacement:
         _check_n_qubits(circuit, arch)
         placed_qubits = []
-        for zone, qubits in self.placement.items():
+        placement_list = [[] for _ in range(arch.n_zones)]
+        if isinstance(self.placement, dict):
+            for zone, qubits in self.placement.items():
+                placement_list[zone] = qubits
+        elif isinstance(self.placement, list):
+            for zone, qubits in enumerate(self.placement):
+                placement_list[zone] = qubits
+        for zone, qubits in enumerate(placement_list):
             placed_qubits.extend(qubits)
             if len(qubits) > arch.get_zone_max_ions_gates(zone):
                 raise InitialPlacementError(
@@ -81,10 +88,7 @@ class ManualInitialPlacement(InitialPlacementGenerator):
                 f"Some qubits missing in manual initial placement."
                 f" Missing qubits: {unplaced_qubits}"
             )
-        for zone in range(arch.n_zones):
-            if zone not in self.placement:
-                self.placement[zone] = []
-        return self.placement
+        return placement_list
 
 
 @dataclass
@@ -101,7 +105,7 @@ class QubitOrderInitialPlacement(InitialPlacementGenerator):
         self, circuit: Circuit, arch: MultiZoneArchitectureSpec
     ) -> ZonePlacement:
         _check_n_qubits(circuit, arch)
-        placement: ZonePlacement = {}
+        placement: ZonePlacement = [[] for _ in range(arch.n_zones)]
         i_start = 0
         for zone in range(arch.n_zones):
             places_avail = arch.get_zone_max_ions_gates(zone) - self.zone_free_space
@@ -146,7 +150,7 @@ class GraphMapInitialPlacement(InitialPlacementGenerator):
             circuit_graph_data, arch_graph_data
         )
         qubit_to_part = vertex_to_part[:n_qubits]
-        placement: ZonePlacement = {i: [] for i in range(n_parts)}
+        placement: ZonePlacement = [[] for _ in range(n_parts)]
         for qubit, part in enumerate(qubit_to_part):
             placement[part].append(qubit)
         return placement
@@ -232,6 +236,7 @@ def get_initial_placement_generator(
         case InitialPlacementAlg.manual:
             assert settings.manual_placement is not None
             return ManualInitialPlacement(placement=settings.manual_placement)
+    raise ValueError("Unrecognized initial placement algorithm")
 
 
 def get_initial_placement(

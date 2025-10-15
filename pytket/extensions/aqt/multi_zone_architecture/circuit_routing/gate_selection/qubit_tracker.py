@@ -1,18 +1,15 @@
 from copy import deepcopy
 
-from pytket.extensions.aqt.multi_zone_architecture.circuit.helpers import ZonePlacement
+from ...circuit.helpers import ZonePlacement, get_qubit_to_zone
 
 
 class QubitTracker:
     """Tracks which qubits are in which zones for the entire architecture"""
 
-    def __init__(self, initial_placement: ZonePlacement) -> None:
+    def __init__(self, n_qubits: int, initial_placement: ZonePlacement) -> None:
         self._current_placement = deepcopy(initial_placement)
-        self._new_placement: dict[int, list[int]] = {i: [] for i in initial_placement}
-        self._current_qubit_to_zone = {}
-        for zone, qubit_list in initial_placement.items():
-            for qubit in qubit_list:
-                self._current_qubit_to_zone[qubit] = zone
+        self._new_placement: ZonePlacement = [[] for _ in initial_placement]
+        self._current_qubit_to_zone = get_qubit_to_zone(n_qubits, initial_placement)
 
     def new_placement(self):
         return self._new_placement

@@ -4,9 +4,8 @@ from pytket import Circuit
 
 from ...architecture import MultiZoneArchitectureSpec
 from ...architecture_portgraph import MultiZonePortGraph
-from ...circuit.helpers import TrapConfiguration
+from ...circuit.helpers import TrapConfiguration, get_qubit_to_zone
 from ...circuit.multizone_circuit import MultiZoneCircuit
-from ...circuit_routing.helpers import get_qubit_to_zone
 from ...circuit_routing.settings import RoutingSettings
 from ...macro_architecture_graph import empty_macro_arch_from_architecture
 
@@ -52,7 +51,7 @@ class GeneralRouter:
         qubits_to_move: list[tuple[int, int, int]] = []
         current_placement = deepcopy(old_place)
         if not self._settings.ignore_swap_costs:
-            for zone, occupants in current_placement.items():
+            for zone, occupants in enumerate(current_placement):
                 self._port_graph.update_zone_occupancy_weight(zone, len(occupants))
         for qubit in range(n_qubits):
             old_zone = qubit_to_zone_old[qubit]
@@ -91,7 +90,7 @@ class GeneralRouter:
                     target_zone,
                     precompiled=True,
                     use_transport_limit=True,
-                    shortest_path_override=shortest_path,
+                    path_override=shortest_path,
                 )
                 self._port_graph.update_zone_occupancy_weight(
                     starting_zone, len(current_placement[starting_zone])
