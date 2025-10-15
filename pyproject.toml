@@ -83,7 +83,7 @@ optional = true
 
 [tool.poetry.group.jupyter.dependencies]
 jupyter = "^1.0.0"
-ipykernel = "^6.29.5"
+ipykernel = "^7.0.1"
 
 [tool.mypy]
 warn_unused_configs = true
