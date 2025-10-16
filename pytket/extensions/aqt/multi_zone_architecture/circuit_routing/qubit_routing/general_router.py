@@ -109,13 +109,21 @@ class GeneralRouter(Router):
                     starting_zone, 1, target_zone
                 )
             )
+            current_spot = current_placement[starting_zone].index(qubit_to_move)
+            swap_cost_start_zone = self._port_graph.swap_costs[starting_zone]
+            starting_zone_occupancy = len(current_placement[starting_zone])
+            initial_swap_costs0 = current_spot * swap_cost_start_zone
+            initial_swap_costs1 = (
+                starting_zone_occupancy - 1 - current_spot
+            ) * swap_cost_start_zone
             shortest_path, target_port = (
                 (shortest_path_port0, targ_port0)
-                if path_length0 <= path_length1
+                if path_length0 + initial_swap_costs0
+                <= path_length1 + initial_swap_costs1
                 else (shortest_path_port1, targ_port1)
             )
             self._port_graph.update_zone_occupancy_weight(
-                starting_zone, len(current_placement[starting_zone]) - 1
+                starting_zone, starting_zone_occupancy - 1
             )
             self._port_graph.update_zone_occupancy_weight(
                 target_zone, len(current_placement[target_zone]) + 1

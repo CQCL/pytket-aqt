@@ -168,15 +168,28 @@ class PartitionGateSelector(ConfigSelector):
         # should later be dependent on shuttling cost)
         max_shuttle_weight = math.ceil(max_weight / 2)
         for zone, qubits in enumerate(starting_config.zone_placement):
-            for other_zone in range(num_zones):
-                weight = math.ceil(
-                    math.exp(-0.8 * self.shuttling_penalty(zone, other_zone))
-                    * max_shuttle_weight
+            zone_occupancy = len(qubits)
+            swap_cost_start_zone = self._port_graph.swap_costs[zone]
+            for current_spot, qubit in enumerate(qubits):
+                initial_swap_costs = (
+                    current_spot * swap_cost_start_zone,
+                    (zone_occupancy - 1 - current_spot) * swap_cost_start_zone,
                 )
-                if weight < 1:
-                    continue
-                edges.extend([(other_zone + n_qubits, qubit) for qubit in qubits])
-                edge_weights.extend([weight for _ in qubits])
+                for other_zone in range(num_zones):
+                    # disregard initial swap costs for now
+                    weight = math.ceil(
+                        math.exp(
+                            -0.8
+                            * self.shuttling_penalty(
+                                zone, other_zone, initial_swap_costs
+                            )
+                        )
+                        * max_shuttle_weight
+                    )
+                    if weight < 1:
+                        continue
+                    edges.append((other_zone + n_qubits, qubit))
+                    edge_weights.append(weight)
 
         num_vertices = num_spots
         vertex_weights = [1 for _ in range(num_vertices)]
@@ -196,7 +209,9 @@ class PartitionGateSelector(ConfigSelector):
             places_per_zone,
         )
 
-    def shuttling_penalty(self, zone1: int, other_zone1: int) -> int:
+    def shuttling_penalty(
+        self, zone1: int, other_zone1: int, initial_swap_costs: tuple[int, int]
+    ) -> int:
         """Calculate penalty for shuttling from one zone to another"""
         if not self._settings.ignore_swap_costs:
             shortest_path_port0, path_length0, target_port_0 = (
@@ -205,7 +220,10 @@ class PartitionGateSelector(ConfigSelector):
             shortest_path_port1, path_length1, target_port_1 = (
                 self._port_graph.shortest_port_path_length(zone1, 1, other_zone1)
             )
-            return min(path_length0, path_length1)
+            return min(
+                path_length0 + initial_swap_costs[0],
+                path_length1 + initial_swap_costs[1],
+            )
         shortest_path = self._macro_arch.shortest_path(int(zone1), int(other_zone1))
         if shortest_path:
             return len(shortest_path) - 1

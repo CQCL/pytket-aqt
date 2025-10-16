@@ -11,6 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 from copy import deepcopy
 
 from networkx import bfs_layers  # type: ignore[import-untyped]
@@ -203,7 +207,7 @@ class GreedyGateSelector(ConfigSelector):
                     self._arch,
                     self._macro_arch,
                     self._port_graph,
-                    [zone0, zone1],
+                    [(qubit0, zone0), (qubit1, zone1)],
                     qubit_tracker,
                     self._settings.ignore_swap_costs,
                 )
@@ -249,7 +253,12 @@ def handle_only_single_qubits_remaining(  # noqa: PLR0913
 
         # try to find the closest gate zone with two available spots
         closest_zone = find_best_gate_zone_to_move_to(
-            arch, macro_arch, port_graph, [zone0], qubit_tracker, ignore_swap_costs
+            arch,
+            macro_arch,
+            port_graph,
+            [(qubit0, zone0)],
+            qubit_tracker,
+            ignore_swap_costs,
         )
         if closest_zone is not None:
             qubit_tracker.lock_qubit(qubit0, zone0, closest_zone)
@@ -300,26 +309,41 @@ def find_best_gate_zone_to_move_to(  # noqa: PLR0913
     arch: MultiZoneArchitectureSpec,
     macro_arch: MultiZoneArch,
     port_graph: MultiZonePortGraph,
-    zones: list[int],
+    qubit_zones: list[tuple[int, int]],
     qubit_tracker: QubitTracker,
     ignore_swap_costs: bool,
 ) -> int | None:
     """Determines which gate zone to move to
 
-    Assumes one qubit needs to move from each zone in the zones list to the gate zone
+    Assumes the specified qubits need to move from their respective zones to the gate zone
     The gate zone must have at least len(zones) places available
 
     Return gate zone id or None if no gate zone available with two spots
     """
     min_metric = arch.n_zones * 100  # this is strictly larger than the largest possible
     best_gate_zone = -1
+    zones = [zone for _, zone in qubit_zones]
+    metric_func: Callable[
+        [MultiZoneArch, MultiZonePortGraph, int, list[int], list[tuple[int, int]]], int
+    ]
+    if not ignore_swap_costs:
+        zone_occupants = [
+            qubit_tracker.old_zone_occupants(zone) for _, zone in qubit_zones
+        ]
+        initial_swap_costs = get_initial_swap_costs(
+            port_graph, zone_occupants, qubit_zones
+        )
+        metric_func = gate_zone_metric_with_swap_costs
+    else:
+        initial_swap_costs = [[0, 0]]
+        metric_func = gate_zone_metric_ignore_swap_costs
     for gate_zone in macro_arch.gate_zones:
         free_space = arch.get_zone_max_ions_gates(
             gate_zone
         ) - qubit_tracker.n_zone_new_occupants(gate_zone)
-        if free_space >= len(zones):
-            metric = gate_zone_metric(
-                macro_arch, port_graph, gate_zone, zones, ignore_swap_costs
+        if free_space >= len(qubit_zones):
+            metric = metric_func(
+                macro_arch, port_graph, gate_zone, zones, initial_swap_costs
             )
             if metric < min_metric:
                 min_metric = metric
@@ -330,31 +354,63 @@ def find_best_gate_zone_to_move_to(  # noqa: PLR0913
     return best_gate_zone
 
 
-def gate_zone_metric(
+def get_initial_swap_costs(
+    port_graph: MultiZonePortGraph,
+    zone_occupants: list[list[int]],
+    qubit_zones: list[tuple[int, int]],
+):
+    spots_occupancies_swap_costs = [
+        (
+            zone_occupants[i].index(qubit),
+            len(zone_occupants[i]),
+            port_graph.swap_costs[zone],
+        )
+        for i, (qubit, zone) in enumerate(qubit_zones)
+    ]
+    return [
+        (sos[0] * sos[2], (sos[1] - 1 - sos[0]) * sos[2])
+        for sos in spots_occupancies_swap_costs
+    ]
+
+
+def gate_zone_metric_with_swap_costs(
     macro_arch: MultiZoneArch,
     port_graph: MultiZonePortGraph,
     gate_zone: int,
     zones: list[int],
-    ignore_swap_costs: bool,
+    swap_costs: list[tuple[int, int]],
 ) -> int:
     """Calculate metric estimating cost of moving one qubit from each of a
      list of zones to a specific gate zone
 
     Prefers gate zones with low total distance
     """
-    if not ignore_swap_costs:
-        metric = sum(
-            [
-                min(
-                    port_graph.shortest_port_path_length(gate_zone, 0, zone)[1],
-                    port_graph.shortest_port_path_length(gate_zone, 1, zone)[1],
-                )
-                for zone in zones
-            ]
-        )
-    else:
-        metric = sum([len(macro_arch.shortest_path(gate_zone, zone)) for zone in zones])
-    return metric
+    return sum(
+        [
+            min(
+                port_graph.shortest_port_path_length(zone, 0, gate_zone)[1]
+                + swap_costs[i][0],
+                port_graph.shortest_port_path_length(zone, 1, gate_zone)[1]
+                + swap_costs[i][1],
+            )
+            for i, zone in enumerate(zones)
+        ]
+    )
+
+
+def gate_zone_metric_ignore_swap_costs(
+    macro_arch: MultiZoneArch,
+    port_graph: MultiZonePortGraph,
+    gate_zone: int,
+    zones: list[int],
+    swap_costs: list[tuple[int, int]],
+) -> int:
+    """Calculate metric estimating cost of moving one qubit from each of a
+     list of zones to a specific gate zone
+
+    Prefers gate zones with low total distance
+    """
+    return sum([len(macro_arch.shortest_path(gate_zone, zone)) for zone in zones])
 
 
 def move_qubits_to_closest_available_spots(

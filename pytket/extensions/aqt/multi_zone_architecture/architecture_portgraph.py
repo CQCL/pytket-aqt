@@ -48,7 +48,7 @@ def port_path_to_zone_path(port_path: list[int]) -> list[int]:
 class MultiZonePortGraph:
     def __init__(self, spec: MultiZoneArchitectureSpec):
         # TODO: Get swap cost(s) from spec (possibly zone dependent)
-        self._swap_cost = [1] * spec.n_zones
+        self.swap_costs = [1] * spec.n_zones
 
         self.port_graph = Graph()
 
@@ -81,7 +81,7 @@ class MultiZonePortGraph:
     def update_zone_occupancy_weight(self, zone: int, zone_occupancy: int):
         port_id0 = zone_port_to_port_id(zone, 0)
         port_id1 = zone_port_to_port_id(zone, 1)
-        new_weight = zone_occupancy * self._swap_cost[zone]
+        new_weight = zone_occupancy * self.swap_costs[zone]
         self.port_graph.edges[port_id0, port_id1]["weight"] = new_weight
 
     def shortest_port_path_length(
