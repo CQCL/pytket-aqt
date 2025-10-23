@@ -27,6 +27,8 @@ from ..architecture import (
     MultiZoneArchitectureSpec,
     PortId,
 )
+from ..circuit_routing.routing_ops import PSwap, RoutingOp
+from ..circuit_routing.routing_ops import Shuttle as ShuttleOp
 from ..macro_architecture_graph import (
     MultiZoneArch,
     empty_macro_arch_from_architecture,
@@ -57,11 +59,11 @@ class VirtualZonePosition(Enum):
     VirtualRight = 1
 
 
-dz, se, te = symbols("destination_zone source_edge target_edge")
+sz, tz, se, te = symbols("source_zone target_zone source_edge target_edge")
 
 move_def_circ = Circuit(1)
 move_def_circ.add_barrier([0])
-move_gate = CustomGateDef("MOVE", move_def_circ, [dz])
+move_gate = CustomGateDef("MOVE", move_def_circ, [tz])
 """Custom `MOVE` Gate
 
 Added to the circuit during manual routing to indicate that the qubit
@@ -70,19 +72,8 @@ The compiler should reduce these gates to SHUTTLES and PSWAPS before
 submission to aqt.
 """
 
-shuttle_def_circ = Circuit(1)
-shuttle_gate = CustomGateDef("SHUTTLE", shuttle_def_circ, [dz, se, te])
-"""Custom `SHUTTLE` Gate
-
-Added to the circuit during routing to indicate that the qubit
-it acts on needs to be shuttled to the zone specified by the parameter.
-
-In contrast to a MOVE gate, for a SHUTTLE to be valid, the qubit it acts
-on must be at an edge that is directly connected to the destination zone.
-"""
-
 swap_def_circ = Circuit(2)
-swap_gate = CustomGateDef("PSWAP", swap_def_circ, [])
+swap_gate = CustomGateDef("PSWAP", swap_def_circ, [sz])
 """Custom `PSWAP` Gate
 
 Added to the circuit during routing to indicate that a physical swap
@@ -99,13 +90,14 @@ class SwapWithinZone:
 
     qubit_0: int
     qubit_1: int
+    zone: int
 
     def __str__(self) -> str:
         return f"{self.qubit_0}: {self.qubit_1}"
 
     def append_to_circuit(self, circuit: "MultiZoneCircuit") -> None:
         circuit.pytket_circuit.add_custom_gate(
-            swap_gate, [], [self.qubit_0, self.qubit_1]
+            swap_gate, [self.zone], [self.qubit_0, self.qubit_1]
         )
 
 
@@ -113,20 +105,23 @@ class SwapWithinZone:
 class Shuttle:
     """This class holds all information for defining a SHUTTLE operation"""
 
-    qubit: int
-    zone: int
+    qubits: list[int]
+    source_zone: int
+    target_zone: int
 
     source_port: int
     target_port: int
 
     def __str__(self) -> str:
-        return f"{self.qubit}: {self.zone}"
+        return f"{self.qubits}: {self.target_zone}"
 
     def append_to_circuit(self, circuit: "MultiZoneCircuit") -> None:
+        shuttle_def_circ = Circuit(len(self.qubits))
+        shuttle_gate = CustomGateDef("SHUTTLE", shuttle_def_circ, [sz, tz, se, te])
         circuit.pytket_circuit.add_custom_gate(
             shuttle_gate,
-            [self.zone, self.source_port, self.target_port],
-            [self.qubit],
+            [self.source_zone, self.target_zone, self.source_port, self.target_port],
+            self.qubits,
         )
 
 
@@ -140,19 +135,21 @@ MZAOperation = SwapWithinZone | Shuttle
 
 
 def _swap_left_to_right_through_list(
-    qubit: int, qubit_list: list[int]
+    qubit: int, qubit_list: list[int], zone: int
 ) -> list[MZAOperation]:
     """Generate a list of swap operations moving an ion from left to right
     through a zone"""
-    return [SwapWithinZone(qubit, swap_qubit) for swap_qubit in qubit_list]
+    return [SwapWithinZone(qubit, swap_qubit, zone) for swap_qubit in qubit_list]
 
 
 def _swap_right_to_left_through_list(
-    qubit: int, qubit_list: list[int]
+    qubit: int, qubit_list: list[int], zone: int
 ) -> list[MZAOperation]:
     """Generate a list of swap operations moving an ion from right to left
     through a zone"""
-    return [SwapWithinZone(swap_qubit, qubit) for swap_qubit in reversed(qubit_list)]
+    return [
+        SwapWithinZone(swap_qubit, qubit, zone) for swap_qubit in reversed(qubit_list)
+    ]
 
 
 def _move_from_zone_position_to_connected_zone_edge(  # noqa: PLR0913
@@ -161,6 +158,7 @@ def _move_from_zone_position_to_connected_zone_edge(  # noqa: PLR0913
     position_in_zone: int | VirtualZonePosition,
     move_source_edge_port: PortId,
     move_target_edge_port: PortId,
+    source_zone: int,
     target_zone: int,
 ) -> list[MZAOperation]:
     """Generate a list of swap and shuttle operations moving an ion from a
@@ -169,11 +167,11 @@ def _move_from_zone_position_to_connected_zone_edge(  # noqa: PLR0913
     match (move_source_edge_port, position_in_zone):
         case (PortId.p1, VirtualZonePosition.VirtualLeft):
             move_operations.extend(
-                _swap_left_to_right_through_list(qubit, zone_qubit_list)
+                _swap_left_to_right_through_list(qubit, zone_qubit_list, source_zone)
             )
         case (PortId.p0, VirtualZonePosition.VirtualRight):
             move_operations.extend(
-                _swap_right_to_left_through_list(qubit, zone_qubit_list)
+                _swap_right_to_left_through_list(qubit, zone_qubit_list, source_zone)
             )
         case (PortId.p1, VirtualZonePosition.VirtualRight):
             pass
@@ -181,15 +179,23 @@ def _move_from_zone_position_to_connected_zone_edge(  # noqa: PLR0913
             pass
         case (PortId.p1, position) if isinstance(position, int):
             move_operations.extend(
-                _swap_left_to_right_through_list(qubit, zone_qubit_list[position + 1 :])
+                _swap_left_to_right_through_list(
+                    qubit, zone_qubit_list[position + 1 :], source_zone
+                )
             )
         case (PortId.p0, position) if isinstance(position, int):
             move_operations.extend(
-                _swap_right_to_left_through_list(qubit, zone_qubit_list[:position])
+                _swap_right_to_left_through_list(
+                    qubit, zone_qubit_list[:position], source_zone
+                )
             )
     move_operations.append(
         Shuttle(
-            qubit, target_zone, move_source_edge_port.value, move_target_edge_port.value
+            [qubit],
+            source_zone,
+            target_zone,
+            move_source_edge_port.value,
+            move_target_edge_port.value,
         )
     )
     return move_operations
@@ -264,6 +270,7 @@ class MultiZoneCircuit:
             qubit: [] for qubit in range(multi_zone_arch.n_qubits_max)
         }
         self.all_qubit_list = list(range(len(self.pytket_circuit.qubits)))
+
         move_barrier_def_circ = Circuit(len(self.all_qubit_list))
         move_barrier_def_circ.add_barrier(self.all_qubit_list)
         self.move_barrier_gate = CustomGateDef(
@@ -276,7 +283,7 @@ class MultiZoneCircuit:
         """
         for zone, qubit_list in enumerate(self.initial_zone_to_qubits):
             init_def_circ = Circuit(len(qubit_list))
-            custom_init = CustomGateDef("INIT", init_def_circ, [dz])
+            custom_init = CustomGateDef("INIT", init_def_circ, [tz])
             """An `INIT` gate.
 
             A custom gate that represents the initialization of the qubits it acts on
@@ -309,7 +316,7 @@ class MultiZoneCircuit:
             self.move_barrier_gate, [], self.all_qubit_list
         )
 
-    def move_qubit(  # noqa: PLR0912
+    def move_qubit(
         self,
         qubit: int,
         new_zone: int,
@@ -395,6 +402,7 @@ class MultiZoneCircuit:
                     position_in_zone,
                     connected_ports[0],
                     connected_ports[1],
+                    source_zone,
                     target_zone,
                 )
             )
@@ -403,9 +411,8 @@ class MultiZoneCircuit:
             else:
                 position_in_zone = VirtualZonePosition.VirtualLeft
 
-        if not precompiled:
-            self.pytket_circuit.add_custom_gate(move_gate, [new_zone], [qubit])
-            self.add_move_barrier()
+        self.pytket_circuit.add_custom_gate(move_gate, [new_zone], [qubit])
+        self.add_move_barrier()
         old_zone_qubits.remove(qubit)
         if position_in_zone is VirtualZonePosition.VirtualLeft:
             self.zone_to_qubits[new_zone].insert(0, qubit)
@@ -413,17 +420,109 @@ class MultiZoneCircuit:
             self.zone_to_qubits[new_zone].append(qubit)
         self.qubit_to_zones[qubit].append(new_zone)
         self.multi_zone_operations[qubit].append(move_operations)
-        if precompiled:
-            barrier_qubits = [qubit for qubit in range(self.pytket_circuit.n_qubits)]  # noqa: C416
-            self.pytket_circuit.add_barrier(barrier_qubits)
-            for multi_op in move_operations:
-                if isinstance(multi_op, Shuttle):
-                    self._n_shuttles += 1
-                    multi_op.append_to_circuit(self)
-                if isinstance(multi_op, SwapWithinZone):
-                    self._n_pswaps += 1
-                    multi_op.append_to_circuit(self)
-            self.pytket_circuit.add_barrier(barrier_qubits)
+
+    def move_qubit_precompiled(
+        self,
+        qubit: int,
+        new_zone: int,
+        path: list[int],
+    ) -> None:
+        """Move a qubit from its current zone to new_zone along the given path
+
+        Calculates the needs "PSWAP" and "SHUTTLE" operations to implement move.
+        Adds custom gates to underlying Circuit to signify move and prevent optimisation
+        through the move.
+        Raises error if move is not possible
+
+        :param qubit: qubit to move
+        :param new_zone: zone to move it too
+         :param path: Path to take for move
+        """
+        old_zone = self.qubit_to_zones[qubit][-1]
+        old_zone_qubits = self.zone_to_qubits[old_zone]
+
+        move_operations = []
+        position_in_zone: int | VirtualZonePosition = old_zone_qubits.index(qubit)
+
+        new_zone_limit = self.architecture.get_zone_max_ions_transport(new_zone)
+        for source_zone, target_zone in itertools.pairwise(path):
+            n_qubits_in_target_zone = len(self.zone_to_qubits[target_zone])
+            if target_zone == new_zone and n_qubits_in_target_zone >= new_zone_limit:
+                raise MoveError(
+                    f"Cannot move ion to zone {target_zone},"
+                    f" maximum ion capacity already reached"
+                )
+            if n_qubits_in_target_zone >= self.architecture.get_zone_max_ions_transport(
+                target_zone
+            ):
+                raise MoveError(
+                    f"Move requires shuttling ion through zone {target_zone},"
+                    f" but this zone is at maximum capacity"
+                )
+
+            connected_ports = self.macro_arch.get_connected_ports(
+                source_zone, target_zone
+            )
+            source_zone_qubits = self.zone_to_qubits[source_zone]
+            move_operations.extend(
+                _move_from_zone_position_to_connected_zone_edge(
+                    qubit,
+                    source_zone_qubits,
+                    position_in_zone,
+                    connected_ports[0],
+                    connected_ports[1],
+                    source_zone,
+                    target_zone,
+                )
+            )
+            if connected_ports[1] == PortId.p1:
+                position_in_zone = VirtualZonePosition.VirtualRight
+            else:
+                position_in_zone = VirtualZonePosition.VirtualLeft
+
+        old_zone_qubits.remove(qubit)
+        if position_in_zone is VirtualZonePosition.VirtualLeft:
+            self.zone_to_qubits[new_zone].insert(0, qubit)
+        else:
+            self.zone_to_qubits[new_zone].append(qubit)
+        self.qubit_to_zones[qubit].append(new_zone)
+        barrier_qubits = [qubit for qubit in range(self.pytket_circuit.n_qubits)]  # noqa: C416
+        self.pytket_circuit.add_barrier(barrier_qubits)
+        for multi_op in move_operations:
+            if isinstance(multi_op, Shuttle):
+                self._n_shuttles += 1
+                multi_op.append_to_circuit(self)
+            if isinstance(multi_op, SwapWithinZone):
+                self._n_pswaps += 1
+                multi_op.append_to_circuit(self)
+        self.pytket_circuit.add_barrier(barrier_qubits)
+
+    def add_routing_ops(self, ops: list[RoutingOp]):
+        barrier_qubits = [qubit for qubit in range(self.pytket_circuit.n_qubits)]  # noqa: C416
+        self.pytket_circuit.add_barrier(barrier_qubits)
+        for op in ops:
+            if isinstance(op, PSwap):
+                self._n_pswaps += 1
+                SwapWithinZone(op.qubit0, op.qubit1, op.zone_nr).append_to_circuit(self)
+            if isinstance(op, ShuttleOp):
+                src_zone_qubits = self.zone_to_qubits[op.src_zone]
+                trg_zone_qubits = self.zone_to_qubits[op.targ_zone]
+                self._n_shuttles += 1
+                shuttle_barrier_qubits = src_zone_qubits + trg_zone_qubits
+                self.pytket_circuit.add_barrier(shuttle_barrier_qubits)
+                Shuttle(
+                    op.qubits,
+                    op.src_zone,
+                    op.targ_zone,
+                    op.src_port.value,
+                    op.targ_port.value,
+                ).append_to_circuit(self)
+                self.pytket_circuit.add_barrier(shuttle_barrier_qubits)
+                for qubit in op.qubits:
+                    src_zone_qubits.remove(qubit)
+                    trg_zone_qubits.append(qubit)
+
+        self.pytket_circuit.add_barrier(barrier_qubits)
 
     def add_gate(
         self,
@@ -547,6 +646,7 @@ class MultiZoneCircuit:
                 pass
             elif "PSWAP" in op_string:
                 # check swap
+                zone_spec = op.params[0]
                 qubit_1 = cmd.args[0].index[0]
                 qubit_2 = cmd.args[1].index[0]
                 zone = current_qubit_to_zone[qubit_1]
@@ -556,6 +656,8 @@ class MultiZoneCircuit:
                         f" to swap {[qubit_1, qubit_2]} "
                         f" are not located in the same zone"
                     )
+                if zone_spec != zone:
+                    raise ValidationError("Faulty zone spec")
                 index1 = current_placement[zone].index(qubit_1)
                 index2 = current_placement[zone].index(qubit_2)
                 if abs(index1 - index2) > 1:
@@ -568,42 +670,75 @@ class MultiZoneCircuit:
                 current_placement[zone][index1] = qubit_2
                 current_placement[zone][index2] = qubit_1
             elif "SHUTTLE" in op_string:
-                qubit = cmd.args[0].index[0]
-                target_zone = int(op.params[0])
-                origin_zone = current_qubit_to_zone[qubit]
+                qubits = [arg.index[0] for arg in cmd.args]
+                source_zone, target_zone, src_port, trg_port = (
+                    int(param) for param in op.params
+                )
+                origin_zones = [current_qubit_to_zone[qubit] for qubit in qubits]
+                if not all(i == j for i, j in itertools.pairwise(origin_zones)):
+                    raise ValidationError(
+                        "Multi-Shuttle contains qubits not in the same zone"
+                    )
+                origin_zone = origin_zones[0]
+                if not source_zone == origin_zone:
+                    raise ValidationError("Qubits not in specified source zone")
                 # check zones connected
                 if target_zone not in self.macro_arch.zone_connections[origin_zone]:
                     raise ValidationError(
                         f"Invalid SHUTTLE, current zone {origin_zone} "
                         f"and target zone {target_zone} of "
-                        f"qubit {qubit} are not connected."
+                        f"qubits {qubits} are not connected."
                     )
                 connected_ports = self.macro_arch.get_connected_ports(
                     origin_zone, target_zone
                 )
+                if connected_ports[0].value != src_port:
+                    raise ValidationError("Faulty source port spec")
+                if connected_ports[1].value != trg_port:
+                    raise ValidationError("Faulty target port spec")
+                if not all(
+                    current_placement[origin_zone].index(q1) + 1
+                    == current_placement[origin_zone].index(q2)
+                    for q1, q2 in itertools.pairwise(qubits)
+                ):
+                    raise ValidationError("Invalid SHUTTLE, qubits not contiguous")
                 # check connection exists and perform shuttle
                 if connected_ports[0] == PortId.p0:
-                    if not current_placement[origin_zone].index(qubit) == 0:
+                    if not current_placement[origin_zone].index(qubits[0]) == 0:
                         raise ValidationError(
-                            "Invalid SHUTTLE, qubit not at necessary port"
+                            f"Invalid SHUTTLE, qubits {qubits} not at necessary port 0 of zone {origin_zone} with occupancy {current_placement[origin_zone]}. "
                         )
-                    current_placement[origin_zone].pop(0)
+                    for ind in range(len(qubits) - 1, -1, -1):
+                        current_placement[origin_zone].pop(ind)
                 else:
                     expected_position = len(current_placement[origin_zone]) - 1
                     if (
-                        not current_placement[origin_zone].index(qubit)
+                        not current_placement[origin_zone].index(qubits[-1])
                         == expected_position
                     ):
                         raise ValidationError(
-                            "Invalid SHUTTLE, qubit not at necessary port"
+                            f"Invalid SHUTTLE, qubits{qubits} not at necessary port 1 of zone {origin_zone} with occupancy {current_placement[origin_zone]}. "
                         )
-                    current_placement[origin_zone].pop()
-                if connected_ports[1] == PortId.p0:
-                    current_placement[target_zone].insert(0, qubit)
-                else:
-                    current_placement[target_zone].append(qubit)
+                    for _ in range(len(qubits)):
+                        current_placement[origin_zone].pop()
 
-                current_qubit_to_zone[qubit] = target_zone
+                # ordering in the zones is always from port 0 to port 1
+                # so order in the target zone is dependent on if the connected ports
+                # if port values are the same the ordering must be flipped
+                ordered_qubits = (
+                    list(reversed(qubits))
+                    if connected_ports[0] == connected_ports[1]
+                    else qubits.copy()
+                )
+
+                if connected_ports[1] == PortId.p0:
+                    ordered_qubits.extend(current_placement[target_zone])
+                    current_placement[target_zone] = ordered_qubits
+                else:
+                    current_placement[target_zone].extend(ordered_qubits)
+
+                for qubit in qubits:
+                    current_qubit_to_zone[qubit] = target_zone
                 check_transport_limit(
                     target_zone,
                     f"Transport into zone {target_zone} violates max allowed qubits",

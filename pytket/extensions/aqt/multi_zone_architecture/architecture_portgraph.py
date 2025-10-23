@@ -16,6 +16,7 @@ from networkx import (  # type: ignore
     Graph,
     single_source_dijkstra,
 )
+from networkx.exception import NetworkXNoPath
 
 from .architecture import MultiZoneArchitectureSpec
 
@@ -62,9 +63,11 @@ class MultiZonePortGraph:
             self.port_graph.add_edge(
                 zone_port0_id,
                 zone_port1_id,
-                gate_capacity=zone.max_ions_gate_op,
-                transport_capacity=zone.max_ions_transport_op,
-                weight=0,
+                max_cap_transport=zone.max_ions_transport_op,
+                transport_capacity=0,
+                occupancy=0,
+                transport_cost=0,
+                is_shuttle_edge=False,
             )
 
         # Add "shuttle" edges between connected zones.
@@ -76,20 +79,33 @@ class MultiZonePortGraph:
             port1 = connection.zone_port_spec1.port_id
             portid1 = zone_port_to_port_id(zone1, port1.value)
             # TODO: update arch spec to include connection shuttle cost and use that as weight
-            self.port_graph.add_edge(portid0, portid1, weight=1)
+            self.port_graph.add_edge(
+                portid0, portid1, transport_cost=1, is_shuttle_edge=True
+            )
 
     def update_zone_occupancy_weight(self, zone: int, zone_occupancy: int):
-        port_id0 = zone_port_to_port_id(zone, 0)
-        port_id1 = zone_port_to_port_id(zone, 1)
-        new_weight = zone_occupancy * self.swap_costs[zone]
-        self.port_graph.edges[port_id0, port_id1]["weight"] = new_weight
+        edge_dict = self.port_graph.edges[
+            zone_port_to_port_id(zone, 0), zone_port_to_port_id(zone, 1)
+        ]
+        edge_dict["occupancy"] = zone_occupancy
+        # transport capacity (from port to port of a zone) is set to the amount of free space in the zone
+        edge_dict["transport_capacity"] = (
+            edge_dict["max_cap_transport"] - zone_occupancy
+        )
+        edge_dict["transport_cost"] = zone_occupancy * self.swap_costs[zone]
 
     def shortest_port_path_length(
-        self, start_zone: int, start_port: int, targ_zone: int
-    ) -> tuple[list[int], int, int]:
+        self, start_zone: int, start_port: int, targ_zone: int, n_move: int = 1
+    ) -> tuple[list[int], int, int] | tuple[None, None, None]:
         """Return the shortest path length for going from starting (zone, port) "closest" port of a target zone
 
-        The return value is a tuple. The first value is the shortest zone path
+        :param start_zone: The zone we are moving out of
+        :param start_port: The port of the start zone we are starting at
+        :param targ_zone: The zone we want to move to
+        :param n_move: The number of qubits we want to move simultaneously
+
+        :returns: None if there is no path that can move the desired number of qubits. Otherwise,
+        the return value is a tuple. The first value is the shortest zone path
         from the starting (zone, port) to the closest port of the target zone. The second
         is the calculated port path length. The third is the corresponding closest port of the
         target zone.
@@ -97,14 +113,54 @@ class MultiZonePortGraph:
         port_id_start = zone_port_to_port_id(start_zone, start_port)
         port_idt0 = zone_port_to_port_id(targ_zone, 0)
         port_idt1 = zone_port_to_port_id(targ_zone, 1)
-        length_s0t0, path_s0t0 = single_source_dijkstra(
-            self.port_graph, port_id_start, port_idt0, weight="weight"
-        )
-        length_s0t1, path_s0t1 = single_source_dijkstra(
-            self.port_graph, port_id_start, port_idt1, weight="weight"
-        )
-        return (
-            (port_path_to_zone_path(path_s0t0), length_s0t0, 0)
-            if length_s0t0 <= length_s0t1
-            else (port_path_to_zone_path(path_s0t1), length_s0t1, 1)
-        )
+
+        def move_weight(u: int, v: int, d: dict[str, int]) -> float | int:
+            if d["is_shuttle_edge"]:
+                return d["transport_cost"]
+            return (
+                d["transport_cost"] * n_move
+                if d["transport_capacity"] >= n_move
+                else None
+            )
+
+        if n_move == 1:
+            length_s0t0, path_s0t0 = single_source_dijkstra(
+                self.port_graph, port_id_start, port_idt0, weight="transport_cost"
+            )
+            length_s0t1, path_s0t1 = single_source_dijkstra(
+                self.port_graph, port_id_start, port_idt1, weight="transport_cost"
+            )
+            return (
+                (port_path_to_zone_path(path_s0t0), length_s0t0, 0)
+                if length_s0t0 <= length_s0t1
+                else (port_path_to_zone_path(path_s0t1), length_s0t1, 1)
+            )
+        path_exists0 = True
+        path_exists1 = True
+        try:
+            length_s0t0, path_s0t0 = single_source_dijkstra(
+                self.port_graph, port_id_start, port_idt0, weight=move_weight
+            )
+        except NetworkXNoPath:
+            length_s0t0, path_s0t0 = 0, []
+            path_exists0 = False
+        try:
+            length_s0t1, path_s0t1 = single_source_dijkstra(
+                self.port_graph, port_id_start, port_idt1, weight=move_weight
+            )
+        except NetworkXNoPath:
+            length_s0t1, path_s0t1 = 0, []
+            path_exists1 = False
+        match (path_exists0, path_exists1):
+            case (True, True):
+                return (
+                    (port_path_to_zone_path(path_s0t0), length_s0t0, 0)
+                    if length_s0t0 <= length_s0t1
+                    else (port_path_to_zone_path(path_s0t1), length_s0t1, 1)
+                )
+            case (True, False):
+                return port_path_to_zone_path(path_s0t0), length_s0t0, 0
+            case (False, True):
+                return port_path_to_zone_path(path_s0t1), length_s0t1, 1
+            case _:
+                return None, None, None

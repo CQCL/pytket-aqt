@@ -13,6 +13,8 @@
 # limitations under the License.
 from dataclasses import dataclass
 
+from ...multi_zone_architecture.architecture import PortId
+
 
 class RoutingOp:
     pass
@@ -21,21 +23,21 @@ class RoutingOp:
 @dataclass
 class PSwap(RoutingOp):
     zone_nr: int
-    swap_qubits: tuple[int, int]
-    zone_config: list[int]
+    qubit0: int
+    qubit1: int
 
 
 @dataclass
 class LSwap(RoutingOp):
     zone_nr: int
-    swap_qubits: tuple[int, int]
-    zone_config: list[int]
+    qubit0: int
+    qubit1: int
 
 
 @dataclass
 class Shuttle(RoutingOp):
-    qubit: int
+    qubits: list[int]
     src_zone: int
     targ_zone: int
-    src_zone_config: list[int]
-    targ_zone_config: list[int]
+    src_port: PortId
+    targ_port: PortId

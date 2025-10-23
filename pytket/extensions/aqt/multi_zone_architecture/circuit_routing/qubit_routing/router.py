@@ -14,9 +14,10 @@
 from typing import Protocol
 
 from ...circuit.helpers import TrapConfiguration, ZonePlacement
+from ..routing_ops import RoutingOp
 
 
 class Router(Protocol):
     def route_source_to_target_config(
         self, source: TrapConfiguration, target: ZonePlacement
-    ) -> TrapConfiguration: ...
+    ) -> tuple[list[RoutingOp], TrapConfiguration]: ...

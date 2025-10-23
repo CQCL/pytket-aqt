@@ -279,8 +279,10 @@ def _is_valid_zop(zop: list, zone_list: list[int]) -> bool:
             len(zop) == 3,
             zop[0] in zone_list,
             zop[1] > 0,
-            zop[2] >= 0,
-            zop[2] < zop[1],
+            zop[2] >= 0 if isinstance(zop[2], int) else all(val >= 0 for val in zop[2]),
+            zop[2] < zop[1]
+            if isinstance(zop[2], int)
+            else all(val < zop[1] for val in zop[2]),
         ]
     )
 

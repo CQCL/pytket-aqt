@@ -84,9 +84,12 @@ def route_circuit(
     while commands:
         target_config = gate_selector.next_config(current_config, commands)
         # Add operations needed move from the source to target configuration
-        current_config = router.route_source_to_target_config(
+        route_ops, current_config = router.route_source_to_target_config(
             current_config, target_config
         )
+        # Add routing operations to circuit
+        mz_circuit.add_routing_ops(route_ops)
+
         # Add implementable gates from new config
         implementable, commands = filter_implementable_commands(
             current_config, macro_arch.gate_zones, commands

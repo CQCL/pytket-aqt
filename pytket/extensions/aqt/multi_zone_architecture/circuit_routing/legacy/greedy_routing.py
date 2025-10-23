@@ -139,9 +139,8 @@ def _move_qubit(
     mz_circ: MultiZoneCircuit,
     qubit_tracker: QubitTracker,
 ) -> None:
-    mz_circ.move_qubit(
-        qubit_to_move, target_zone, precompiled=True, use_transport_limit=True
-    )
+    shortest_path = mz_circ.macro_arch.shortest_path(starting_zone, target_zone)
+    mz_circ.move_qubit_precompiled(qubit_to_move, target_zone, shortest_path)
     qubit_tracker.move_qubit(qubit_to_move, starting_zone, target_zone)
 
 

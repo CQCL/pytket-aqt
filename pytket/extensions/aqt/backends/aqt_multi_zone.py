@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import itertools
 import json
 from collections.abc import Sequence
 from copy import deepcopy
@@ -490,53 +491,86 @@ def _translate_aqt(circ: Circuit) -> tuple[list[list], str]:  # noqa: PLR0912, P
                 gates.append(["PSWAP", [zop(qubit_1), zop(qubit_2)]])
                 swap_position(qubit_1, qubit_2)
             elif "SHUTTLE" in op_string:
-                qubit = cmd.args[0].index[0]
-                (source_zone, source_position) = qubit_to_zone_position[qubit]
+                qubits = [q.index[0] for q in cmd.args]
+                n_shuttle = len(qubits)
+                qubit_zones_positions = [
+                    qubit_to_zone_position[qubit] for qubit in qubits
+                ]
+                if not all(
+                    i[0] == j[0] and i[1] == j[1] - 1
+                    for i, j in itertools.pairwise(qubit_zones_positions)
+                ):
+                    raise Exception(
+                        "Multi-Shuttle only possible for adjacent qubits in same zone"
+                    )
+                source_zone = qubit_zones_positions[0][0]
                 (source_occupancy, source_offset) = zone_to_occupancy_offset[
                     source_zone
                 ]
-                target_zone = int(op.params[0])
+                source_zone_spec = int(op.params[0])
+                if source_zone != source_zone_spec:
+                    raise Exception("Faulty source zone spec")
+                target_zone = int(op.params[1])
                 (target_occupancy, target_offset) = zone_to_occupancy_offset[
                     target_zone
                 ]
-                source_edge_encoding = round(op.params[1])
-                target_edge_encoding = round(op.params[2])
+                source_edge_encoding = round(op.params[2])
+                target_edge_encoding = round(op.params[3])
                 if source_edge_encoding == 0:
                     zone_to_occupancy_offset[source_zone] = (
-                        source_occupancy - 1,
-                        source_offset + 1,
+                        source_occupancy - n_shuttle,
+                        source_offset + n_shuttle,
                     )
                 elif source_edge_encoding == 1:
                     zone_to_occupancy_offset[source_zone] = (
-                        source_occupancy - 1,
+                        source_occupancy - n_shuttle,
                         source_offset,
                     )
                 else:
                     raise Exception("Error in Shuttle command source port")
                 if target_edge_encoding == 0:
                     zone_to_occupancy_offset[target_zone] = (
-                        target_occupancy + 1,
-                        target_offset - 1,
+                        target_occupancy + n_shuttle,
+                        target_offset - n_shuttle,
                     )
-                    qubit_to_zone_position[qubit] = (target_zone, target_offset - 1)
+                    for i, qubit in enumerate(qubits):
+                        qubit_to_zone_position[qubit] = (
+                            target_zone,
+                            target_offset - n_shuttle + i,
+                        )
                 elif target_edge_encoding == 1:
                     zone_to_occupancy_offset[target_zone] = (
-                        target_occupancy + 1,
+                        target_occupancy + n_shuttle,
                         target_offset,
                     )
-                    qubit_to_zone_position[qubit] = (
-                        target_zone,
-                        target_occupancy + target_offset,
-                    )
+                    for i, qubit in enumerate(qubits):
+                        qubit_to_zone_position[qubit] = (
+                            target_zone,
+                            target_occupancy + target_offset + i,
+                        )
                 else:
                     raise Exception("Error in Shuttle command target port")
 
-                zop_source = [
+                zops_source = [
                     source_zone,
                     source_occupancy,
-                    source_position - source_offset,
+                    [
+                        source_position - source_offset
+                        for _, source_position in qubit_zones_positions
+                    ],
                 ]
-                gates.append(["SHUTTLE", 1, [zop_source, zop(qubit)]])
+                zops_target_l = [zop(qubit) for qubit in qubits]
+                if not all(
+                    i[0] == j[0] and i[1] == j[1] and i[2] == j[2] - 1
+                    for i, j in itertools.pairwise(zops_target_l)
+                ):
+                    raise Exception("Error in target definition")
+                zops_target = [
+                    zops_target_l[0][0],
+                    zops_target_l[0][1],
+                    [zops_target_l[i][2] for i, _ in enumerate(qubits)],
+                ]
+                gates.append(["SHUTTLE", 1, [zops_source, zops_target]])
 
         elif optype == OpType.Measure:
             # predicate has already checked format is correct, so
