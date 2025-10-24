@@ -37,7 +37,7 @@ class GeneralRouter(Router):
         self._port_graph = MultiZonePortGraph(self._arch)
         self._settings = settings
 
-    def route_source_to_target_config(  # noqa: PLR0912, PLR0915
+    def route_source_to_target_config(  # noqa: PLR0912
         self,
         source: TrapConfiguration,
         target: ZonePlacement,
@@ -75,8 +75,6 @@ class GeneralRouter(Router):
                 )
 
         move_ops: list[RoutingOp] = [RoutingBarrier()]
-        qubits_to_move2 = deepcopy(qubits_to_move)
-        current_placement_copy = deepcopy(current_placement)
 
         def free_space_in_zone(zone_loc: int):
             # use the transport limit - 1 >= gate limit as the base capacity,
@@ -85,17 +83,15 @@ class GeneralRouter(Router):
             return (
                 self._mz_circ.architecture.get_zone_max_ions_transport(zone_loc)
                 - 1
-                - len(current_placement_copy[zone_loc])
+                - len(current_placement[zone_loc])
             )
 
         soft_locked = False  # soft locked means only
         transport_blocked_zone = None
-        while qubits_to_move2:
+        while qubits_to_move:
             grouped = defaultdict(list)
-            for qubit, src, trg in qubits_to_move2:
-                grouped[(src, trg)].append(
-                    (qubit, current_placement_copy[src].index(qubit))
-                )
+            for qubit, src, trg in qubits_to_move:
+                grouped[(src, trg)].append((qubit, current_placement[src].index(qubit)))
             move_groups = (
                 [
                     MoveGroup(grouped_qbts, src, trg, free_space_in_zone(trg))
@@ -128,7 +124,7 @@ class GeneralRouter(Router):
             chosen_move_group = None
             chosen_qubit_indices = []
             for move_group in move_groups:
-                edge_pos_src = len(current_placement_copy[move_group.source]) - 1
+                edge_pos_src = len(current_placement[move_group.source]) - 1
                 for n_move in range(
                     min(len(move_group.qubit_src_index), move_group.target_free_space),
                     0,
@@ -151,7 +147,7 @@ class GeneralRouter(Router):
                     chosen_qubit_indices,
                     chosen_move_group.source,
                     chosen_move_group.target,
-                    current_placement_copy,
+                    current_placement,
                     chosen_path,
                 )
             )
@@ -167,49 +163,15 @@ class GeneralRouter(Router):
             # update port graph weights
             for zone in [chosen_move_group.source, chosen_move_group.target]:
                 self._port_graph.update_zone_occupancy_weight(
-                    zone, len(current_placement_copy[zone])
+                    zone, len(current_placement[zone])
                 )
             # remove moves that were made
             for q, _ in chosen_qubit_indices:
-                qubits_to_move2.remove(
+                qubits_to_move.remove(
                     (q, chosen_move_group.source, chosen_move_group.target)
                 )
 
-        # # sort based on ascending number of free places in the target zone (at beginning)
-        # qubits_to_move.sort(
-        #     key=lambda x: free_space(x[2])
-        # )
-
-        # while qubits_to_move:
-        #     qubit, start, targ = qubits_to_move[-1]
-        #     free_space_target_zone = self._mz_circ.architecture.get_zone_max_ions_gates(
-        #         targ
-        #     ) - len(current_placement[targ])
-        #     match free_space_target_zone:
-        #         case 0:
-        #             self._move_qubit(qubit, start, targ, current_placement)
-        #             # remove this move from list
-        #             qubits_to_move.pop()
-        #             # find a qubit in target zone that needs to move and put it at end
-        #             # of qubits_to_move, so it comes next
-        #             moves_with_start_equals_current_targ = [
-        #                 i
-        #                 for i, move_tup in enumerate(qubits_to_move)
-        #                 if move_tup[1] == targ
-        #             ]
-        #             if not moves_with_start_equals_current_targ:
-        #                 raise ValueError("This shouldn't happen")
-        #             next_move_index = moves_with_start_equals_current_targ[0]
-        #             next_move = qubits_to_move.pop(next_move_index)
-        #             qubits_to_move.append(next_move)
-        #         case a if a < 0:
-        #             raise ValueError("Should never be negative")
-        #         case _:
-        #             self._move_qubit(qubit, start, targ, current_placement)
-        #             # remove this move from list
-        #             qubits_to_move.pop()
-
-        return move_ops, TrapConfiguration(n_qubits, current_placement_copy)
+        return move_ops, TrapConfiguration(n_qubits, current_placement)
 
     def _calc_move_path_cost(
         self, move_group: MoveGroup, n_move: int, edge_pos_src: int
@@ -300,56 +262,6 @@ class GeneralRouter(Router):
                     None,
                 )
         return qubits_index, shortest_path, total_cost, src_port, target_port
-
-    def _move_qubit(
-        self,
-        qubit_to_move: int,
-        starting_zone: int,
-        target_zone: int,
-        current_placement: ZonePlacement,
-    ) -> None:
-        if not self._settings.ignore_swap_costs:
-            shortest_path_port0, path_length0, targ_port0 = (
-                self._port_graph.shortest_port_path_length(
-                    starting_zone, 0, target_zone
-                )
-            )
-            shortest_path_port1, path_length1, targ_port1 = (
-                self._port_graph.shortest_port_path_length(
-                    starting_zone, 1, target_zone
-                )
-            )
-            current_spot = current_placement[starting_zone].index(qubit_to_move)
-            swap_cost_start_zone = self._port_graph.swap_costs[starting_zone]
-            starting_zone_occupancy = len(current_placement[starting_zone])
-            initial_swap_costs0 = current_spot * swap_cost_start_zone
-            initial_swap_costs1 = (
-                starting_zone_occupancy - 1 - current_spot
-            ) * swap_cost_start_zone
-            shortest_path, target_port = (
-                (shortest_path_port0, targ_port0)
-                if path_length0 + initial_swap_costs0
-                <= path_length1 + initial_swap_costs1
-                else (shortest_path_port1, targ_port1)
-            )
-            self._port_graph.update_zone_occupancy_weight(
-                starting_zone, starting_zone_occupancy - 1
-            )
-            self._port_graph.update_zone_occupancy_weight(
-                target_zone, len(current_placement[target_zone]) + 1
-            )
-        else:
-            shortest_path = self._macro_arch.shortest_path(starting_zone, target_zone)
-            _, target_port = self._macro_arch.get_connected_ports(
-                shortest_path[-2], shortest_path[-1]
-            )
-
-        self._mz_circ.move_qubit_precompiled(qubit_to_move, target_zone, shortest_path)
-        current_placement[starting_zone].remove(qubit_to_move)
-        if target_port == 1:
-            current_placement[target_zone].append(qubit_to_move)
-        else:
-            current_placement[target_zone].insert(0, qubit_to_move)
 
     def move_qubits(  # noqa: PLR0912
         self,
