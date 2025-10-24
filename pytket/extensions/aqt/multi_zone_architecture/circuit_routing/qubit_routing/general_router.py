@@ -8,7 +8,7 @@ from ...architecture_portgraph import MultiZonePortGraph
 from ...circuit.helpers import TrapConfiguration, ZonePlacement, get_qubit_to_zone
 from ...circuit.multizone_circuit import MultiZoneCircuit
 from ...circuit_routing.settings import RoutingSettings
-from ..routing_ops import PSwap, RoutingOp, Shuttle
+from ..routing_ops import PSwap, RoutingBarrier, RoutingOp, Shuttle
 from .router import Router
 
 
@@ -37,7 +37,7 @@ class GeneralRouter(Router):
         self._port_graph = MultiZonePortGraph(self._arch)
         self._settings = settings
 
-    def route_source_to_target_config(  # noqa: PLR0912
+    def route_source_to_target_config(  # noqa: PLR0912, PLR0915
         self,
         source: TrapConfiguration,
         target: ZonePlacement,
@@ -74,7 +74,7 @@ class GeneralRouter(Router):
                     (qubit, qubit_to_zone_old[qubit], qubit_to_zone_new[qubit])
                 )
 
-        move_ops: list[RoutingOp] = []
+        move_ops: list[RoutingOp] = [RoutingBarrier()]
         qubits_to_move2 = deepcopy(qubits_to_move)
         current_placement_copy = deepcopy(current_placement)
 
@@ -88,20 +88,39 @@ class GeneralRouter(Router):
                 - len(current_placement_copy[zone_loc])
             )
 
+        soft_locked = False  # soft locked means only
+        transport_blocked_zone = None
         while qubits_to_move2:
             grouped = defaultdict(list)
             for qubit, src, trg in qubits_to_move2:
                 grouped[(src, trg)].append(
                     (qubit, current_placement_copy[src].index(qubit))
                 )
-            move_groups = [
-                MoveGroup(grouped_qbts, src, trg, free_space_in_zone(trg))
-                for (src, trg), grouped_qbts in grouped.items()
-            ]
-            if all(group.target_free_space == 0 for group in move_groups):
-                # This can happen if qubits need to swap between full zones
-                # To solve, use the full transport capacity for this round only
-                # The resulting move will free up space for further movement
+            move_groups = (
+                [
+                    MoveGroup(grouped_qbts, src, trg, free_space_in_zone(trg))
+                    for (src, trg), grouped_qbts in grouped.items()
+                ]
+                if transport_blocked_zone is None
+                else [
+                    # If a zone is transport blocked, only consider moves out of it, in order to unblock it
+                    # There must be one since the end state is not allowed to be transport blocked
+                    MoveGroup(grouped_qbts, src, trg, free_space_in_zone(trg))
+                    for (src, trg), grouped_qbts in grouped.items()
+                    if src == transport_blocked_zone
+                ]
+            )
+            if (
+                soft_locked
+                or sum(group.target_free_space for group in move_groups) == 0
+            ):
+                soft_locked = True
+                # This can happen if qubits need to swap between full zones or
+                # there is a cycle between full zones.
+                # To solve, use the full transport capacity for all following rounds
+                # The sum will remain zero once this point is reached since any movement
+                # from one zone to another will cause free_space calculation to give +1 and -1 for
+                # those zones.
                 for group in move_groups:
                     group.target_free_space += 1
             min_cost = 1000000
@@ -136,6 +155,15 @@ class GeneralRouter(Router):
                     chosen_path,
                 )
             )
+            move_ops.append(RoutingBarrier())
+
+            # When soft locked a move may cause a zone to become transport blocked
+            # resulting in its calculated free space taking the value -1
+            # This makes sure the next move will be out of this zone, unblocking it
+            if soft_locked and free_space_in_zone(chosen_move_group.target) == -1:
+                transport_blocked_zone = chosen_move_group.target
+            else:
+                transport_blocked_zone = None
             # update port graph weights
             for zone in [chosen_move_group.source, chosen_move_group.target]:
                 self._port_graph.update_zone_occupancy_weight(

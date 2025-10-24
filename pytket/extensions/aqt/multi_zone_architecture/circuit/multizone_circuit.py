@@ -27,7 +27,7 @@ from ..architecture import (
     MultiZoneArchitectureSpec,
     PortId,
 )
-from ..circuit_routing.routing_ops import PSwap, RoutingOp
+from ..circuit_routing.routing_ops import PSwap, RoutingBarrier, RoutingOp
 from ..circuit_routing.routing_ops import Shuttle as ShuttleOp
 from ..macro_architecture_graph import (
     MultiZoneArch,
@@ -498,9 +498,10 @@ class MultiZoneCircuit:
         self.pytket_circuit.add_barrier(barrier_qubits)
 
     def add_routing_ops(self, ops: list[RoutingOp]):
-        barrier_qubits = [qubit for qubit in range(self.pytket_circuit.n_qubits)]  # noqa: C416
-        self.pytket_circuit.add_barrier(barrier_qubits)
+        all_qubits = [qubit for qubit in range(self.pytket_circuit.n_qubits)]  # noqa: C416
         for op in ops:
+            if isinstance(op, RoutingBarrier):
+                self.pytket_circuit.add_barrier(all_qubits)
             if isinstance(op, PSwap):
                 self._n_pswaps += 1
                 SwapWithinZone(op.qubit0, op.qubit1, op.zone_nr).append_to_circuit(self)
@@ -508,8 +509,6 @@ class MultiZoneCircuit:
                 src_zone_qubits = self.zone_to_qubits[op.src_zone]
                 trg_zone_qubits = self.zone_to_qubits[op.targ_zone]
                 self._n_shuttles += 1
-                shuttle_barrier_qubits = src_zone_qubits + trg_zone_qubits
-                self.pytket_circuit.add_barrier(shuttle_barrier_qubits)
                 Shuttle(
                     op.qubits,
                     op.src_zone,
@@ -517,12 +516,9 @@ class MultiZoneCircuit:
                     op.src_port.value,
                     op.targ_port.value,
                 ).append_to_circuit(self)
-                self.pytket_circuit.add_barrier(shuttle_barrier_qubits)
                 for qubit in op.qubits:
                     src_zone_qubits.remove(qubit)
                     trg_zone_qubits.append(qubit)
-
-        self.pytket_circuit.add_barrier(barrier_qubits)
 
     def add_gate(
         self,

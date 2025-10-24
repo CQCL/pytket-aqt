@@ -41,3 +41,15 @@ class Shuttle(RoutingOp):
     targ_zone: int
     src_port: PortId
     targ_port: PortId
+
+
+@dataclass
+class RoutingBarrier(RoutingOp):
+    # This is used to mark where a barrier over all qubits should be placed
+    # This should generally be done at the beginning of routing and at the end
+    # of each "move group"
+    # Technically the barrier between move groups could be replaced by a lock on
+    # movement through the zones that the group moves through. Move groups that go
+    # through only other zones could be done in different order or in parallel. This
+    # is not currently possible to express within the pytket circuit object
+    pass

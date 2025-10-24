@@ -99,6 +99,10 @@ class MultiZonePortGraph:
     ) -> tuple[list[int], int, int] | tuple[None, None, None]:
         """Return the shortest path length for going from starting (zone, port) "closest" port of a target zone
 
+        This algorithm assumes that transport of at least 1 qubit is possible between start and target
+        zones, i.e. that none of the zones in between are transport blocked. Only the
+        start zone may be transport blocked.
+
         :param start_zone: The zone we are moving out of
         :param start_port: The port of the start zone we are starting at
         :param targ_zone: The zone we want to move to
