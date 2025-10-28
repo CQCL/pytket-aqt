@@ -56,7 +56,6 @@ order_init = InitialPlacementSettings(
 )
 graph_routing = RoutingSettings(
     algorithm=RoutingAlg.graph_partition,
-    debug_level=0,
 )
 graph_compilation_settings = CompilationSettings(
     pytket_optimisation_level=1,
@@ -66,7 +65,6 @@ graph_compilation_settings = CompilationSettings(
 
 greedy_routing = RoutingSettings(
     algorithm=RoutingAlg.greedy,
-    debug_level=0,
 )
 greedy_compilation_settings = CompilationSettings(
     pytket_optimisation_level=1,

@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 import math
 
 from pytket.circuit import Command
@@ -32,6 +33,15 @@ from .greedy_gate_selection import (
     handle_unused_qubits,
 )
 from .qubit_tracker import QubitTracker
+
+logger = logging.getLogger(__name__)
+
+
+def log_depth_list(depth_list):
+    logger.debug("--- Depth List ---")
+    for i in range(min(4, len(depth_list))):
+        msg = f"{depth_list[i]}"
+        logger.debug(msg)
 
 
 class PartitionGateSelector(ConfigSelector):
@@ -90,11 +100,8 @@ class PartitionGateSelector(ConfigSelector):
         shuttle_graph_data = self.get_circuit_shuttle_graph_data(
             current_configuration, depth_list
         )
-        partitioner = MtKahyparPartitioner(log_level=self._settings.debug_level)
-        if self._settings.debug_level > 0:
-            print("Depth List:")  # noqa: T201
-            for i in range(min(4, len(depth_list))):
-                print(depth_list[i])  # noqa: T201
+        partitioner = MtKahyparPartitioner()
+        log_depth_list(depth_list)
         vertex_to_part = partitioner.partition_graph(shuttle_graph_data, num_zones)
         new_placement: ZonePlacement = [[] for _ in range(num_zones)]
         part_to_zone = [-1] * num_zones

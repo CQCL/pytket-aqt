@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 from copy import deepcopy
 
 from pytket import OpType
@@ -27,7 +28,10 @@ from ..macro_architecture_graph import MultiZoneArch
 from .gate_selection.config_selector_protocol import ConfigSelector
 from .gate_selection.greedy_gate_selection import GreedyGateSelector
 from .qubit_routing.general_router import GeneralRouter
+from .qubit_routing.router import RoutingInput
 from .settings import RoutingAlg, RoutingSettings
+
+logger = logging.getLogger(__name__)
 
 if MT_KAHYPAR_INSTALLED:
     from .gate_selection.graph_partition_gate_selection import PartitionGateSelector
@@ -81,21 +85,31 @@ def route_circuit(
         current_config, macro_arch.gate_zones, commands
     )
     [mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params) for cmd in implementable]
+    routing_step = 0
     while commands:
         target_config = gate_selector.next_config(current_config, commands)
         # Add operations needed move from the source to target configuration
-        route_ops, current_config = router.route_source_to_target_config(
-            current_config, target_config
+        routing_result = router.route_source_to_target_config(
+            RoutingInput(current_config, target_config)
         )
+        log_movement(
+            routing_step,
+            current_config.zone_placement,
+            routing_result.resulting_config.zone_placement,
+        )
+        # update config
+        current_config = routing_result.resulting_config
         # Add routing operations to circuit
-        mz_circuit.add_routing_ops(route_ops)
-
+        mz_circuit.add_routing_ops(routing_result.routing_ops)
         # Add implementable gates from new config
         implementable, commands = filter_implementable_commands(
             current_config, macro_arch.gate_zones, commands
         )
         for cmd in implementable:
             mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
+
+        # increment routing step
+        routing_step += 1
     return mz_circuit
 
 
@@ -147,3 +161,19 @@ def filter_implementable_commands(
             # at this point no more gates can be performed in this config
             break
     return implementable, leftovers + commands[last_cmd_index + 1 :]
+
+
+def log_movement(
+    routing_step: int, old_placement: ZonePlacement, new_placement: ZonePlacement
+) -> None:
+    title_line = f"--- Configuration change {routing_step} ---"
+    logger.debug(title_line)
+    for zone, old_occupants in enumerate(old_placement):
+        changes_str = ", ".join(
+            [f"+{i}" for i in set(new_placement[zone]).difference(old_occupants)]
+            + [f"-{i}" for i in set(old_occupants).difference(new_placement[zone])]
+        )
+        logging_string = (
+            f"Z{zone}: {old_occupants} -> {new_placement[zone]} -- ({changes_str})"
+        )
+        logger.debug(logging_string)

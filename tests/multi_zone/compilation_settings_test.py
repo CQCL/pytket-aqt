@@ -64,7 +64,7 @@ ordered_placement = InitialPlacementSettings(
     algorithm=InitialPlacementAlg.qubit_order, zone_free_space=2
 )
 
-graph_routing = RoutingSettings(algorithm=RoutingAlg.graph_partition, debug_level=0)
+graph_routing = RoutingSettings(algorithm=RoutingAlg.graph_partition)
 
 greedy_routing = RoutingSettings(algorithm=RoutingAlg.greedy)
 

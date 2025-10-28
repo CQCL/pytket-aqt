@@ -1,5 +1,6 @@
 import itertools
 from collections import defaultdict
+from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass
 
@@ -9,7 +10,7 @@ from ...circuit.helpers import TrapConfiguration, ZonePlacement, get_qubit_to_zo
 from ...circuit.multizone_circuit import MultiZoneCircuit
 from ...circuit_routing.settings import RoutingSettings
 from ..routing_ops import PSwap, RoutingBarrier, RoutingOp, Shuttle
-from .router import Router
+from .router import Router, RoutingInput, RoutingResult
 
 
 @dataclass
@@ -37,92 +38,49 @@ class GeneralRouter(Router):
         self._port_graph = MultiZonePortGraph(self._arch)
         self._settings = settings
 
-    def route_source_to_target_config(  # noqa: PLR0912
+    def route_source_to_target_config(
         self,
-        source: TrapConfiguration,
-        target: ZonePlacement,
-    ) -> tuple[list[RoutingOp], TrapConfiguration]:
-        n_qubits = source.n_qubits
-        new_place = target
-        old_place = source.zone_placement
-        if self._settings.debug_level > 0:
-            print("-------")  # noqa: T201
-            for zone in range(self._arch.n_zones):
-                changes_str = ", ".join(
-                    [f"+{i}" for i in set(new_place[zone]).difference(old_place[zone])]
-                    + [
-                        f"-{i}"
-                        for i in set(old_place[zone]).difference(new_place[zone])
-                    ]
-                )
-                print(  # noqa: T201
-                    f"Z{zone}: {old_place[zone]} ->"
-                    f" {new_place[zone]} -- ({changes_str})"
-                )
-        qubit_to_zone_old = get_qubit_to_zone(n_qubits, old_place)
-        qubit_to_zone_new = get_qubit_to_zone(n_qubits, new_place)
-        qubits_to_move: list[tuple[int, int, int]] = []
-        current_placement = deepcopy(old_place)
+        routing_input: RoutingInput,
+    ) -> RoutingResult:
+        source, target = routing_input.source, routing_input.target
+        qubits_to_move = get_needed_movements(
+            source.n_qubits, source.zone_placement, target
+        )
+        current_placement = deepcopy(source.zone_placement)
+
+        def free_space_in_zone_func(zon: int):
+            # use the transport limit - 1 >= gate limit as the base capacity,
+            # The -1 ensures that the implementation of a move group doesn't
+            # leave the target zone in a blocked state
+            return (
+                self._mz_circ.architecture.get_zone_max_ions_transport(zon)
+                - 1
+                - len(current_placement[zon])
+            )
+
         if not self._settings.ignore_swap_costs:
             for zone, occupants in enumerate(current_placement):
                 self._port_graph.update_zone_occupancy_weight(zone, len(occupants))
-        for qubit in range(n_qubits):
-            old_zone = qubit_to_zone_old[qubit]
-            new_zone = qubit_to_zone_new[qubit]
-            if old_zone != new_zone:
-                qubits_to_move.append(
-                    (qubit, qubit_to_zone_old[qubit], qubit_to_zone_new[qubit])
-                )
 
+        total_cost = 0
         move_ops: list[RoutingOp] = [RoutingBarrier()]
-
-        def free_space_in_zone(zone_loc: int):
-            # use the transport limit - 1 >= gate limit as the base capacity,
-            # otherwise the implementation of a move group may leave the target zone
-            # in a blocked state
-            return (
-                self._mz_circ.architecture.get_zone_max_ions_transport(zone_loc)
-                - 1
-                - len(current_placement[zone_loc])
-            )
-
         soft_locked = False  # soft locked means only
         transport_blocked_zone = None
         while qubits_to_move:
-            grouped = defaultdict(list)
-            for qubit, src, trg in qubits_to_move:
-                grouped[(src, trg)].append((qubit, current_placement[src].index(qubit)))
-            move_groups = (
-                [
-                    MoveGroup(grouped_qbts, src, trg, free_space_in_zone(trg))
-                    for (src, trg), grouped_qbts in grouped.items()
-                ]
-                if transport_blocked_zone is None
-                else [
-                    # If a zone is transport blocked, only consider moves out of it, in order to unblock it
-                    # There must be one since the end state is not allowed to be transport blocked
-                    MoveGroup(grouped_qbts, src, trg, free_space_in_zone(trg))
-                    for (src, trg), grouped_qbts in grouped.items()
-                    if src == transport_blocked_zone
-                ]
+            move_groups = get_move_groups(
+                qubits_to_move,
+                current_placement,
+                transport_blocked_zone,
+                free_space_in_zone_func,
             )
-            if (
-                soft_locked
-                or sum(group.target_free_space for group in move_groups) == 0
-            ):
-                soft_locked = True
-                # This can happen if qubits need to swap between full zones or
-                # there is a cycle between full zones.
-                # To solve, use the full transport capacity for all following rounds
-                # The sum will remain zero once this point is reached since any movement
-                # from one zone to another will cause free_space calculation to give +1 and -1 for
-                # those zones.
-                for group in move_groups:
-                    group.target_free_space += 1
+            soft_locked = check_and_handle_soft_locked(soft_locked, move_groups)
+
             min_cost = 1000000
             chosen_path = []
             chosen_move_group = None
             chosen_qubit_indices = []
+            final_move_cost = 0
+
             for move_group in move_groups:
                 edge_pos_src = len(current_placement[move_group.source]) - 1
                 for n_move in range(
@@ -137,6 +95,7 @@ class GeneralRouter(Router):
                         cost_per_qubit = cost / n_move
                         if cost_per_qubit < min_cost:
                             min_cost = cost_per_qubit
+                            final_move_cost = cost
                             chosen_path = path
                             chosen_move_group = move_group
                             chosen_qubit_indices = qubit_indices
@@ -151,15 +110,12 @@ class GeneralRouter(Router):
                     chosen_path,
                 )
             )
+            total_cost += final_move_cost
             move_ops.append(RoutingBarrier())
+            transport_blocked_zone = check_if_transport_blocked(
+                soft_locked, chosen_move_group.target, free_space_in_zone_func
+            )
 
-            # When soft locked a move may cause a zone to become transport blocked
-            # resulting in its calculated free space taking the value -1
-            # This makes sure the next move will be out of this zone, unblocking it
-            if soft_locked and free_space_in_zone(chosen_move_group.target) == -1:
-                transport_blocked_zone = chosen_move_group.target
-            else:
-                transport_blocked_zone = None
             # update port graph weights
             for zone in [chosen_move_group.source, chosen_move_group.target]:
                 self._port_graph.update_zone_occupancy_weight(
@@ -171,7 +127,9 @@ class GeneralRouter(Router):
                     (q, chosen_move_group.source, chosen_move_group.target)
                 )
 
-        return move_ops, TrapConfiguration(n_qubits, current_placement)
+        return RoutingResult(
+            total_cost, TrapConfiguration(source.n_qubits, current_placement), move_ops
+        )
 
     def _calc_move_path_cost(
         self, move_group: MoveGroup, n_move: int, edge_pos_src: int
@@ -358,3 +316,72 @@ class GeneralRouter(Router):
         else:
             current_placement[target_zone].extend(all_qubits)
         return ops
+
+
+def get_needed_movements(
+    n_qubits: int, old_placement: ZonePlacement, new_placement: ZonePlacement
+) -> list[tuple[int, int, int]]:
+    qubit_to_zone_old = get_qubit_to_zone(n_qubits, old_placement)
+    qubit_to_zone_new = get_qubit_to_zone(n_qubits, new_placement)
+    return [
+        (qubit, qubit_to_zone_old[qubit], qubit_to_zone_new[qubit])
+        for qubit in range(n_qubits)
+        if qubit_to_zone_old[qubit] != qubit_to_zone_new[qubit]
+    ]
+
+
+def get_move_groups(
+    qubits_to_move: list[tuple[int, int, int]],
+    current_placement: ZonePlacement,
+    transport_blocked_zone: int | None,
+    free_space_in_zone_func: Callable[[int], int],
+) -> list[MoveGroup]:
+    grouped = defaultdict(list)
+    for qubit, src, trg in qubits_to_move:
+        grouped[(src, trg)].append((qubit, current_placement[src].index(qubit)))
+    return (
+        [
+            MoveGroup(grouped_qbts, src, trg, free_space_in_zone_func(trg))
+            for (src, trg), grouped_qbts in grouped.items()
+        ]
+        if transport_blocked_zone is None
+        else [
+            # If a zone is transport blocked, only consider moves out of it, in order to unblock it
+            # There must be one since the end state is not allowed to be transport blocked
+            MoveGroup(grouped_qbts, src, trg, free_space_in_zone_func(trg))
+            for (src, trg), grouped_qbts in grouped.items()
+            if src == transport_blocked_zone
+        ]
+    )
+
+
+def check_and_handle_soft_locked(
+    already_soft_locked: bool, move_groups: list[MoveGroup]
+) -> bool:
+    if (
+        already_soft_locked
+        or sum(group.target_free_space for group in move_groups) == 0
+    ):
+        # This can happen if qubits need to swap between full zones or
+        # there is a cycle between full zones.
+        # To solve, use the full transport capacity for all following rounds
+        # The sum will remain zero once this point is reached since any movement
+        # from one zone to another will cause free_space calculation to give +1 and -1 for
+        # those zones.
+        for group in move_groups:
+            group.target_free_space += 1
+        return True
+    return False
+
+
+def check_if_transport_blocked(
+    soft_locked: bool,
+    potentially_blocked_zone: int,
+    free_space_func: Callable[[int], int],
+) -> int | None:
+    # When soft locked a move may cause a zone to become transport blocked
+    # resulting in its calculated free space taking the value -1
+    # This makes sure the next move will be out of this zone, unblocking it
+    if soft_locked and free_space_func(potentially_blocked_zone) == -1:
+        return potentially_blocked_zone
+    return None
