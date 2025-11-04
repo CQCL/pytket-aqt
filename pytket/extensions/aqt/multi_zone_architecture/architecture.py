@@ -14,6 +14,7 @@
 
 import os
 from enum import Enum
+from typing import Self
 
 from pydantic import BaseModel, model_validator
 
@@ -65,9 +66,10 @@ class Zone(BaseModel):
     max_ions_gate_op: int
     max_ions_transport_op: int | None = None
     memory_only: bool = False
+    swap_cost: int = 1
 
     @model_validator(mode="after")
-    def set_and_validate(self):
+    def set_and_validate(self) -> Self:
         if self.max_ions_transport_op is None:
             self.max_ions_transport_op = self.max_ions_gate_op + 1
         if self.max_ions_transport_op <= self.max_ions_gate_op:

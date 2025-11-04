@@ -19,6 +19,7 @@ from networkx import (  # type: ignore
 from networkx.exception import NetworkXNoPath
 
 from .architecture import MultiZoneArchitectureSpec
+from .circuit.helpers import TrapConfiguration
 
 
 def zone_port_to_port_id(zone: int, port: int) -> int:
@@ -47,26 +48,32 @@ def port_path_to_zone_path(port_path: list[int]) -> list[int]:
 
 
 class MultiZonePortGraph:
-    def __init__(self, spec: MultiZoneArchitectureSpec):
+    def __init__(
+        self, spec: MultiZoneArchitectureSpec, start_config: TrapConfiguration
+    ):
         # TODO: Get swap cost(s) from spec (possibly zone dependent)
-        self.swap_costs = [1] * spec.n_zones
+        self.swap_costs = [zone.swap_cost for zone in spec.zones]
 
         self.port_graph = Graph()
+        placement = start_config.zone_placement
 
         # Add "capacity" edges between the two ports of a single zone.
         # weight = occupancy = 0 for now but later will be dynamically set to current occupancy
         for zone_id, zone in enumerate(spec.zones):
             zone_port0_id = zone_port_to_port_id(zone_id, 0)
             zone_port1_id = zone_port_to_port_id(zone_id, 1)
+            occupancy = len(placement)
+            transport_max_cap = zone.max_ions_transport_op
+            transport_capacity = transport_max_cap - occupancy
             self.port_graph.add_node(zone_port0_id)
             self.port_graph.add_node(zone_port1_id)
             self.port_graph.add_edge(
                 zone_port0_id,
                 zone_port1_id,
-                max_cap_transport=zone.max_ions_transport_op,
-                transport_capacity=0,
-                occupancy=0,
-                transport_cost=0,
+                max_cap_transport=transport_max_cap,
+                transport_capacity=transport_capacity,
+                occupancy=occupancy,
+                transport_cost=occupancy * zone.swap_cost,
                 is_shuttle_edge=False,
             )
 
@@ -83,6 +90,11 @@ class MultiZonePortGraph:
                 portid0, portid1, transport_cost=1, is_shuttle_edge=True
             )
 
+        self._path_cache: dict[
+            tuple[int, int, int, int],
+            tuple[list[int], int, int] | tuple[None, None, None],
+        ] = {}
+
     def update_zone_occupancy_weight(self, zone: int, zone_occupancy: int):
         edge_dict = self.port_graph.edges[
             zone_port_to_port_id(zone, 0), zone_port_to_port_id(zone, 1)
@@ -93,6 +105,7 @@ class MultiZonePortGraph:
             edge_dict["max_cap_transport"] - zone_occupancy
         )
         edge_dict["transport_cost"] = zone_occupancy * self.swap_costs[zone]
+        self._path_cache.clear()
 
     def shortest_port_path_length(
         self, start_zone: int, start_port: int, targ_zone: int, n_move: int = 1
@@ -114,6 +127,38 @@ class MultiZonePortGraph:
         is the calculated port path length. The third is the corresponding closest port of the
         target zone.
         """
+        cache_result = self._path_cache.get(
+            (start_zone, start_port, targ_zone, n_move), None
+        )
+        if cache_result:
+            return cache_result
+        result = self.uncached_shortest_port_path_length(
+            start_zone, start_port, targ_zone, n_move
+        )
+        self._path_cache[(start_zone, start_port, targ_zone, n_move)] = result
+        return result
+
+    def uncached_shortest_port_path_length(
+        self, start_zone: int, start_port: int, targ_zone: int, n_move: int = 1
+    ) -> tuple[list[int], int, int] | tuple[None, None, None]:
+        """Return the shortest path length for going from starting (zone, port) "closest" port of a target zone
+
+        This algorithm assumes that transport of at least 1 qubit is possible between start and target
+        zones, i.e. that none of the zones in between are transport blocked. Only the
+        start zone may be transport blocked.
+
+        :param start_zone: The zone we are moving out of
+        :param start_port: The port of the start zone we are starting at
+        :param targ_zone: The zone we want to move to
+        :param n_move: The number of qubits we want to move simultaneously
+
+        :returns: None if there is no path that can move the desired number of qubits. Otherwise,
+        the return value is a tuple. The first value is the shortest zone path
+        from the starting (zone, port) to the closest port of the target zone. The second
+        is the calculated port path length. The third is the corresponding closest port of the
+        target zone.
+        """
+
         port_id_start = zone_port_to_port_id(start_zone, start_port)
         port_idt0 = zone_port_to_port_id(targ_zone, 0)
         port_idt1 = zone_port_to_port_id(targ_zone, 1)

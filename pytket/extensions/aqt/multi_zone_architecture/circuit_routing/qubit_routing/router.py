@@ -11,24 +11,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from dataclasses import dataclass, field
-from typing import Any, Protocol
+from dataclasses import dataclass
+from typing import Protocol
 
-from ...circuit.helpers import TrapConfiguration, ZonePlacement
+from ...circuit.helpers import ZonePlacement
+from ...cost_model import DynamicArch
 from ..routing_ops import RoutingOp
 
 
 @dataclass
 class RoutingInput:
-    source: TrapConfiguration
-    target: ZonePlacement
-    extras: dict[str, Any] = field(default_factory=dict)
+    dynamic_arch: DynamicArch
+    target_placement: ZonePlacement
 
 
 @dataclass
 class RoutingResult:
     cost_estimate: float
-    resulting_config: TrapConfiguration
     routing_ops: list[RoutingOp]
 
 

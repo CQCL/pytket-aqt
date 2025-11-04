@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
-from copy import deepcopy
 
 from pytket import OpType
 from pytket.circuit import Circuit, Command
@@ -20,11 +19,16 @@ from pytket.circuit import Circuit, Command
 from ..architecture import MultiZoneArchitectureSpec
 from ..circuit.helpers import TrapConfiguration, ZonePlacement, get_qubit_to_zone
 from ..circuit.multizone_circuit import MultiZoneCircuit
+from ..cost_model import (
+    DynamicArch,
+    RoutingCostModel,
+    ShuttleOnlyCostModel,
+    ShuttlePSwapCostModel,
+)
 from ..graph_algs.mt_kahypar_check import (
     MT_KAHYPAR_INSTALLED,
     MissingMtKahyparInstallError,
 )
-from ..macro_architecture_graph import MultiZoneArch
 from .gate_selection.config_selector_protocol import ConfigSelector
 from .gate_selection.greedy_gate_selection import GreedyGateSelector
 from .qubit_routing.general_router import GeneralRouter
@@ -38,15 +42,15 @@ if MT_KAHYPAR_INSTALLED:
 
 
 def config_selector_from_settings(
-    arch: MultiZoneArchitectureSpec, settings: RoutingSettings
+    cost_model: RoutingCostModel, settings: RoutingSettings
 ) -> ConfigSelector:
     match settings.algorithm:
         case RoutingAlg.graph_partition:
             if MT_KAHYPAR_INSTALLED:
-                return PartitionGateSelector(arch, settings)
+                return PartitionGateSelector(cost_model, settings)
             raise MissingMtKahyparInstallError()  # noqa: RSE102
         case RoutingAlg.greedy:
-            return GreedyGateSelector(arch, settings)
+            return GreedyGateSelector(cost_model, settings)
         case _:
             raise ValueError("Unknown gate selection algorithm")
 
@@ -71,40 +75,48 @@ def route_circuit(
      zones to lists of qubits
     """
 
-    gate_selector = config_selector_from_settings(arch, settings)
+    dynamic_arch = DynamicArch(
+        arch, TrapConfiguration(circuit.n_qubits, initial_placement)
+    )
+
     mz_circuit = MultiZoneCircuit(
         arch, initial_placement, circuit.n_qubits, circuit.n_bits
     )
-    router = GeneralRouter(mz_circuit, settings)
-    macro_arch = MultiZoneArch(arch)
+
+    cost_model = (
+        ShuttleOnlyCostModel()
+        if settings.ignore_swap_costs
+        else ShuttlePSwapCostModel()
+    )
+
+    gate_selector = config_selector_from_settings(cost_model, settings)
+    router = GeneralRouter(cost_model, settings)
 
     commands = circuit.get_commands().copy()
-    current_config = TrapConfiguration(circuit.n_qubits, deepcopy(initial_placement))
+
     # Add implementable gates from initial config
-    implementable, commands = filter_implementable_commands(
-        current_config, macro_arch.gate_zones, commands
-    )
+    implementable, commands = filter_implementable_commands(dynamic_arch, commands)
+
     [mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params) for cmd in implementable]
+
     routing_step = 0
     while commands:
-        target_config = gate_selector.next_config(current_config, commands)
+        target_config = gate_selector.next_config(dynamic_arch, commands)
         # Add operations needed move from the source to target configuration
+
+        old_placement = dynamic_arch.trap_configuration.zone_placement
         routing_result = router.route_source_to_target_config(
-            RoutingInput(current_config, target_config)
+            RoutingInput(dynamic_arch, target_config)
         )
         log_movement(
             routing_step,
-            current_config.zone_placement,
-            routing_result.resulting_config.zone_placement,
+            old_placement,
+            dynamic_arch.trap_configuration.zone_placement,
         )
-        # update config
-        current_config = routing_result.resulting_config
         # Add routing operations to circuit
         mz_circuit.add_routing_ops(routing_result.routing_ops)
         # Add implementable gates from new config
-        implementable, commands = filter_implementable_commands(
-            current_config, macro_arch.gate_zones, commands
-        )
+        implementable, commands = filter_implementable_commands(dynamic_arch, commands)
         for cmd in implementable:
             mz_circuit.add_gate(cmd.op.type, cmd.args, cmd.op.params)
 
@@ -114,8 +126,7 @@ def route_circuit(
 
 
 def filter_implementable_commands(
-    current_config: TrapConfiguration,
-    gate_zones: list[int],
+    dynamic_arch: DynamicArch,
     commands: list[Command],
 ) -> tuple[list[Command], list[Command]]:
     """Split gates into currently implementable and those that require a new config"""
@@ -124,7 +135,8 @@ def filter_implementable_commands(
     # stragglers are qubits with pending 2 qubit gates that cannot
     # be performed in the current config
     # they have to wait for the next iteration
-    n_qubits = current_config.n_qubits
+    current_config = dynamic_arch.trap_configuration
+    gate_zones = dynamic_arch.gate_zones
     stragglers: set[int] = set()
     qubit_to_zone_old = get_qubit_to_zone(
         current_config.n_qubits, current_config.zone_placement
@@ -157,7 +169,7 @@ def filter_implementable_commands(
             else:
                 leftovers.append(cmd)
                 stragglers.update([qubit0, qubit1])
-        if len(stragglers) >= n_qubits:
+        if len(stragglers) >= current_config.n_qubits:
             # at this point no more gates can be performed in this config
             break
     return implementable, leftovers + commands[last_cmd_index + 1 :]

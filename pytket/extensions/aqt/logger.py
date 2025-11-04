@@ -18,7 +18,7 @@ import sys
 
 
 class ShortNameFormatter(logging.Formatter):
-    def format(self, record):
+    def format(self, record: logging.LogRecord) -> str:
         num_parts_desired = 2
         parts = record.name.split(".")
         record.shortname = (

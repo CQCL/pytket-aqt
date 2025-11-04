@@ -1,66 +1,61 @@
 import itertools
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from copy import deepcopy
 from dataclasses import dataclass
 
 from ...architecture import PortId
-from ...architecture_portgraph import MultiZonePortGraph
-from ...circuit.helpers import TrapConfiguration, ZonePlacement, get_qubit_to_zone
-from ...circuit.multizone_circuit import MultiZoneCircuit
+from ...circuit.helpers import ZonePlacement, get_qubit_to_zone
 from ...circuit_routing.settings import RoutingSettings
+from ...cost_model import DynamicArch, RoutingCostModel
 from ..routing_ops import PSwap, RoutingBarrier, RoutingOp, Shuttle
 from .router import Router, RoutingInput, RoutingResult
 
 
 @dataclass
 class MoveGroup:
-    # tuples where first int is qubit and second is its place in source zone
-    qubit_src_index: list[tuple[int, int]]
+    qubits: list[int]
     source: int
     target: int
     target_free_space: int
 
-    def __post_init__(self):
-        # sort qubits_srcspots based on their srcspots
-        self.qubit_src_index.sort(key=lambda x: x[1])
+
+@dataclass
+class MoveGroupPath:
+    chosen_move_group: MoveGroup
+    n_move: int
+    qubits: list[int]
+    path: list[int]
+    cost: int
 
 
 class GeneralRouter(Router):
     def __init__(
         self,
-        circuit: MultiZoneCircuit,
+        cost_model: RoutingCostModel,
         settings: RoutingSettings,
     ):
-        self._mz_circ = circuit
-        self._arch = circuit.architecture
-        self._macro_arch = circuit.macro_arch
-        self._port_graph = MultiZonePortGraph(self._arch)
         self._settings = settings
+        self._cost_model = cost_model
 
     def route_source_to_target_config(
         self,
         routing_input: RoutingInput,
     ) -> RoutingResult:
-        source, target = routing_input.source, routing_input.target
-        qubits_to_move = get_needed_movements(
-            source.n_qubits, source.zone_placement, target
+        dyn_arch = routing_input.dynamic_arch
+        starting_config, target_placement = (
+            dyn_arch.trap_configuration,
+            routing_input.target_placement,
         )
-        current_placement = deepcopy(source.zone_placement)
+        qubits_to_move = get_needed_movements(
+            starting_config.n_qubits, starting_config.zone_placement, target_placement
+        )
 
         def free_space_in_zone_func(zon: int):
             # use the transport limit - 1 >= gate limit as the base capacity,
             # The -1 ensures that the implementation of a move group doesn't
             # leave the target zone in a blocked state
-            return (
-                self._mz_circ.architecture.get_zone_max_ions_transport(zon)
-                - 1
-                - len(current_placement[zon])
-            )
-
-        if not self._settings.ignore_swap_costs:
-            for zone, occupants in enumerate(current_placement):
-                self._port_graph.update_zone_occupancy_weight(zone, len(occupants))
+            return dyn_arch.transport_free_space[zon] - 1
 
         total_cost = 0
         move_ops: list[RoutingOp] = [RoutingBarrier()]
@@ -69,253 +64,236 @@ class GeneralRouter(Router):
         while qubits_to_move:
             move_groups = get_move_groups(
                 qubits_to_move,
-                current_placement,
                 transport_blocked_zone,
                 free_space_in_zone_func,
             )
             soft_locked = check_and_handle_soft_locked(soft_locked, move_groups)
 
-            min_cost = 1000000
-            chosen_path = []
-            chosen_move_group = None
-            chosen_qubit_indices = []
-            final_move_cost = 0
+            optimal_move_group_result = self.select_move_group(dyn_arch, move_groups)
+            chosen_move_group = optimal_move_group_result.chosen_move_group
 
-            for move_group in move_groups:
-                edge_pos_src = len(current_placement[move_group.source]) - 1
-                for n_move in range(
-                    min(len(move_group.qubit_src_index), move_group.target_free_space),
-                    0,
-                    -1,
-                ):
-                    qubit_indices, path, cost, _, _ = self._calc_move_path_cost(
-                        move_group, n_move, edge_pos_src
-                    )
-                    if cost:
-                        cost_per_qubit = cost / n_move
-                        if cost_per_qubit < min_cost:
-                            min_cost = cost_per_qubit
-                            final_move_cost = cost
-                            chosen_path = path
-                            chosen_move_group = move_group
-                            chosen_qubit_indices = qubit_indices
-
-            # Do move/ update placement
+            # Add ops for optimal move and update dyn_arch internals
             move_ops.extend(
-                self.move_qubits(
-                    chosen_qubit_indices,
-                    chosen_move_group.source,
-                    chosen_move_group.target,
-                    current_placement,
-                    chosen_path,
-                )
+                implement_move_group_result(dyn_arch, optimal_move_group_result)
             )
-            total_cost += final_move_cost
+
+            total_cost += optimal_move_group_result.cost
             move_ops.append(RoutingBarrier())
+
             transport_blocked_zone = check_if_transport_blocked(
                 soft_locked, chosen_move_group.target, free_space_in_zone_func
             )
 
-            # update port graph weights
-            for zone in [chosen_move_group.source, chosen_move_group.target]:
-                self._port_graph.update_zone_occupancy_weight(
-                    zone, len(current_placement[zone])
-                )
             # remove moves that were made
-            for q, _ in chosen_qubit_indices:
+            for q in optimal_move_group_result.qubits:
                 qubits_to_move.remove(
                     (q, chosen_move_group.source, chosen_move_group.target)
                 )
 
-        return RoutingResult(
-            total_cost, TrapConfiguration(source.n_qubits, current_placement), move_ops
+        return RoutingResult(total_cost, move_ops)
+
+    def select_move_group(
+        self, dyn_arch: DynamicArch, move_groups: list[MoveGroup]
+    ) -> MoveGroupPath:
+        def path_cost_per_qubit_selector(mgp: MoveGroupPath) -> float:
+            return mgp.cost / mgp.n_move
+
+        return min(
+            self.move_group_selection_generator(dyn_arch, move_groups),
+            key=path_cost_per_qubit_selector,
         )
 
-    def _calc_move_path_cost(
-        self, move_group: MoveGroup, n_move: int, edge_pos_src: int
-    ) -> (
-        tuple[list[tuple[int, int]], int, int, int, int] | tuple[None, None, None, None]
-    ):
+    def move_group_selection_generator(
+        self, dyn_arch: DynamicArch, move_groups: list[MoveGroup]
+    ) -> Iterator[MoveGroupPath]:
+        for move_group in move_groups:
+            max_n_move = min(len(move_group.qubits), move_group.target_free_space)
+            for n_move in range(max_n_move, 0, -1):
+                result = self.get_move_path_cost(dyn_arch, move_group, n_move)
+                if result:
+                    yield MoveGroupPath(
+                        move_group, n_move, result[0], result[1], result[2]
+                    )
+
+    def get_move_path_cost(
+        self, dyn_arch: DynamicArch, move_group: MoveGroup, n_move: int
+    ) -> tuple[list[int], list[int], int] | None:
         src = move_group.source
         trg = move_group.target
-        shortest_path_port0, path_length0, targ_port0 = (
-            self._port_graph.shortest_port_path_length(src, 0, trg, n_move)
-        )
-        shortest_path_port1, path_length1, targ_port1 = (
-            self._port_graph.shortest_port_path_length(src, 1, trg, n_move)
-        )
-        swap_cost_src_zone = self._port_graph.swap_costs[move_group.source]
-        qubits_indx_0 = move_group.qubit_src_index[:n_move]
-        qubits_indx_1 = move_group.qubit_src_index[-n_move:]
-        if shortest_path_port0 is not None:
-            # Cost of moving all qubits to port 0 (-i is because the ith qubit only needs to go to the
-            # position to the right of the 0...i-1 qubits already moved, not all the way to the edge)
-            swap_costs_0 = (
-                sum(
-                    [
-                        pos - i
-                        for i, (_, pos) in enumerate(
-                            move_group.qubit_src_index[:n_move]
-                        )
-                    ]
-                )
-                * swap_cost_src_zone
-            )
-            total_cost_0 = path_length0 + swap_costs_0
-        else:
-            total_cost_0 = 0
-        if shortest_path_port1 is not None:
-            # Cost of moving all qubits to port 1 (-i is because the ith qubit only needs to go to the
-            # position to the right of the 0...i-1 qubits already moved, not all the way to the edge)
-            swap_costs_1 = (
-                sum(
-                    [
-                        edge_pos_src - pos - i
-                        for i, (_, pos) in enumerate(
-                            move_group.qubit_src_index[-n_move:]
-                        )
-                    ]
-                )
-                * swap_cost_src_zone
-            )
-            total_cost_1 = path_length1 + swap_costs_1
-        else:
-            total_cost_1 = 0
+        # Make sure qubits are ordered the same as in src zone
+        move_group.qubits.sort(key=lambda x: dyn_arch.qubit_to_zone_pos[x][1])
 
-        match (shortest_path_port0 is not None, shortest_path_port1 is not None):
+        qubits_indx_0 = move_group.qubits[:n_move]
+        qubits_indx_1 = move_group.qubits[-n_move:]
+
+        move_result_0 = self._cost_model.move_cost_src_port_0(
+            dyn_arch, qubits_indx_0, src, trg
+        )
+        move_result_1 = self._cost_model.move_cost_src_port_1(
+            dyn_arch, qubits_indx_1, src, trg
+        )
+
+        match (move_result_0 is not None, move_result_1 is not None):
             case (True, True):
-                qubits_index, shortest_path, total_cost, src_port, target_port = (
-                    (qubits_indx_0, shortest_path_port0, total_cost_0, 0, targ_port0)
-                    if total_cost_0 <= total_cost_1
-                    else (
-                        qubits_indx_1,
-                        shortest_path_port1,
-                        total_cost_1,
-                        1,
-                        targ_port1,
+                if move_result_0.path_cost <= move_result_1.path_cost:
+                    return (
+                        qubits_indx_0,
+                        move_result_0.optimal_path,
+                        move_result_0.path_cost,
                     )
+                return (
+                    qubits_indx_1,
+                    move_result_1.optimal_path,
+                    move_result_1.path_cost,
                 )
             case (True, False):
-                qubits_index, shortest_path, total_cost, src_port, target_port = (
+                return (
                     qubits_indx_0,
-                    shortest_path_port0,
-                    total_cost_0,
-                    0,
-                    targ_port0,
+                    move_result_0.optimal_path,
+                    move_result_0.path_cost,
                 )
             case (False, True):
-                qubits_index, shortest_path, total_cost, src_port, target_port = (
+                return (
                     qubits_indx_1,
-                    shortest_path_port1,
-                    total_cost_1,
-                    1,
-                    targ_port1,
+                    move_result_1.optimal_path,
+                    move_result_1.path_cost,
                 )
-            case _:
-                qubits_index, shortest_path, total_cost, src_port, target_port = (
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                )
-        return qubits_index, shortest_path, total_cost, src_port, target_port
 
-    def move_qubits(  # noqa: PLR0912
-        self,
-        qubits_index_to_move: list[tuple[int, int]],
-        starting_zone: int,
-        target_zone: int,
-        current_placement: ZonePlacement,
-        path: list[int],
-    ) -> list[RoutingOp]:
-        """Create a list of RoutingOp's that move the qubits (with src zone index, ordered by ascending index)
-        from source zone to target port
 
-        Modifies the input current placement to reflect the movement
-        """
-        ops: list[RoutingOp] = []
+def implement_move_group_result(
+    dyn_arch: DynamicArch,
+    mgp: MoveGroupPath,
+) -> list[RoutingOp]:
+    """Create a list of RoutingOp's that move the qubits (with src zone index, ordered by ascending index)
+    from source zone to target port
 
-        # first get qubits to src zone edge and shuttle to first zone in path
-        src_port, trg_port = self._macro_arch.get_connected_ports(path[0], path[1])
-        # all_qubits should be kept in "logical order", i.e. the order they have
-        # in their current zone when viewed from port 0 to port 1. To do this,
-        # anytime they are shuttled from a 0 port to a 0 port (or 1 port to 1 port)
-        # their order should be reversed
-        all_qubits = [qubit for qubit, _ in qubits_index_to_move]
+    Modifies the input current placement to reflect the movement
+    """
+    ops: list[RoutingOp] = []
+    path = mgp.path
+    starting_zone = mgp.chosen_move_group.source
+    target_zone = mgp.chosen_move_group.target
+    all_qubits = mgp.qubits
+    # all_qubits should be kept in "logical order", i.e. the order they have
+    # in their current zone when viewed from port 0 to port 1. To do this,
+    # anytime they are shuttled from a 0 port to a 0 port (or 1 port to 1 port)
+    # their order should be reversed
 
-        if src_port == PortId.p0:
-            qubits_zone = list(reversed(current_placement[starting_zone]))
-            last_indx = len(current_placement[starting_zone]) - 1
-            # update indices to reflect reversed ordering
-            qubit_src_iter = [(q, last_indx - indx) for q, indx in qubits_index_to_move]
-        else:
-            # reversing makes logic same for moving to port 1 instead of port 0
-            qubit_src_iter = reversed(qubits_index_to_move)
-            qubits_zone = deepcopy(current_placement[starting_zone])
-
-        for qubit, index in qubit_src_iter:
-            ops.extend(
-                [
-                    PSwap(starting_zone, left_qubit, qubit)
-                    for left_qubit in qubits_zone[index + 1 :]
-                ]
-            )
-            qubits_zone.pop(index)
-
-        ops.append(
-            Shuttle(all_qubits.copy(), starting_zone, path[1], src_port, trg_port)
+    # For the initial move along the path, the qubits are not necessarily at
+    # an edge, but can be anywhere in the starting zone
+    # so add swaps, taking this into account and shuttle
+    src_port, trg_port = dyn_arch.connection_ports(path[0], path[1])
+    current_placement = dyn_arch.trap_configuration.zone_placement
+    ops.extend(
+        swap_through_zone_and_shuttle_internal_qubits(
+            dyn_arch,
+            all_qubits,
+            (path[0], path[1]),
+            (src_port, trg_port),
+            current_placement[path[0]],
         )
+    )
+    # maintain logical ordering
+    if src_port == trg_port:
+        all_qubits.reverse()
 
-        # remove from starting zone (in backwards order so index is stable)
-        for _, index in reversed(qubits_index_to_move):
-            current_placement[starting_zone].pop(index)
-
+    # For any remaining moves qubits are already necessarily at an edge and
+    # the "current_placement" doesn't reflect their temporary position
+    current_port = trg_port
+    for current_zone, next_zone in itertools.pairwise(path[1:]):
+        src_port, trg_port = dyn_arch.connection_ports(current_zone, next_zone)
+        if src_port == current_port:
+            raise ValueError("Invalid internal shuttle sequence")
+        current_zone_occupants = current_placement[current_zone]
+        ops.extend(
+            swap_through_zone_and_shuttle_edge_qubits(
+                all_qubits,
+                (current_zone, next_zone),
+                (src_port, trg_port),
+                current_zone_occupants,
+            )
+        )
+        current_port = trg_port
         # maintain logical ordering
         if src_port == trg_port:
             all_qubits.reverse()
 
-        # for any remaining moves, swap to other port if necessary and shuttle
-        current_port = trg_port
-        for current_zone, next_zone in itertools.pairwise(path[1:]):
-            src_port, trg_port = self._macro_arch.get_connected_ports(
-                current_zone, next_zone
-            )
-            current_zone_occupants = current_placement[current_zone]
-            if src_port != current_port:  # otherwise no swaps needed
-                # 01 -> move qubits
-                # abc -> occupants
-                if src_port == PortId.p1:
-                    move_qubits_iter = reversed(all_qubits)
-                    current_zone_iter = current_zone_occupants
-                    # [01abc] -> [0a1bc] -> [0ab1c] -> [0abc1] -> [a0bc1] -> [ab0c1] -> [abc01]
-                else:
-                    move_qubits_iter = all_qubits
-                    current_zone_iter = list(reversed(current_zone_occupants))
-                    # [abc01] -> [ab0c1] -> [a0bc1] -> [0abc1] -> [0ab1c] -> [0a1bc] -> [01abc]
-                for move_qubit in move_qubits_iter:
-                    ops.extend(
-                        [
-                            PSwap(current_zone, stay_qubit, move_qubit)
-                            for stay_qubit in current_zone_iter
-                        ]
-                    )
+    # Update dyn_arch
+    dyn_arch.move_qubits(all_qubits, starting_zone, target_zone, trg_port)
+    return ops
 
-            ops.append(
-                Shuttle(all_qubits.copy(), current_zone, next_zone, src_port, trg_port)
-            )
-            # update current port
-            current_port = trg_port
-            # maintain logical ordering
-            if src_port == trg_port:
-                all_qubits.reverse()
 
-        if trg_port == PortId.p0:
-            all_qubits.extend(current_placement[target_zone])
-            current_placement[target_zone] = all_qubits
-        else:
-            current_placement[target_zone].extend(all_qubits)
-        return ops
+def swap_through_zone_and_shuttle_internal_qubits(
+    dyn_arch: DynamicArch,
+    all_qubits: list[int],
+    zones: tuple[int, int],
+    ports: tuple[int, int],
+    zone_qubits: list[int],
+):
+    ops: list[RoutingOp] = []
+    qubits_index_to_move = [(q, dyn_arch.qubit_to_zone_pos[q, 1]) for q in all_qubits]
+    if ports[0] == 0:
+        qubits_zone = list(reversed(zone_qubits))
+        last_indx = len(zone_qubits) - 1
+        # update indices to reflect reversed ordering
+        qubit_src_iter = [(q, last_indx - indx) for q, indx in qubits_index_to_move]
+    else:
+        # reversing makes logic same for moving to port 1 instead of port 0
+        qubit_src_iter = reversed(qubits_index_to_move)
+        qubits_zone = deepcopy(zone_qubits)
+
+    for qubit, index in qubit_src_iter:
+        ops.extend(
+            [
+                PSwap(zones[0], left_qubit, qubit)
+                for left_qubit in qubits_zone[index + 1 :]
+            ]
+        )
+        qubits_zone.pop(index)
+
+    ops.append(
+        Shuttle(
+            all_qubits.copy(),
+            zones[0],
+            zones[1],
+            PortId(ports[0]),
+            PortId(ports[1]),
+        )
+    )
+    return ops
+
+
+def swap_through_zone_and_shuttle_edge_qubits(
+    move_qubits: list[int],
+    zones: tuple[int, int],
+    ports: tuple[int, int],
+    zone_qubits: list[int],
+):
+    ops: list[RoutingOp] = []
+
+    # 01 -> move qubits
+    # abc -> occupants
+    if ports[0] == 0:
+        move_qubits_iter = move_qubits
+        current_zone_iter = list(reversed(zone_qubits))
+        # [abc01] -> [ab0c1] -> [a0bc1] -> [0abc1] -> [0ab1c] -> [0a1bc] -> [01abc]
+    else:
+        move_qubits_iter = reversed(move_qubits)
+        current_zone_iter = zone_qubits
+        # [01abc] -> [0a1bc] -> [0ab1c] -> [0abc1] -> [a0bc1] -> [ab0c1] -> [abc01]
+    ops.extend(
+        [
+            PSwap(zones[0], stay_qubit, move_qubit)
+            for move_qubit in move_qubits_iter
+            for stay_qubit in current_zone_iter
+        ]
+    )
+    ops.append(
+        Shuttle(
+            move_qubits.copy(), zones[0], zones[1], PortId(ports[0]), PortId(ports[1])
+        )
+    )
+    return ops
 
 
 def get_needed_movements(
@@ -324,7 +302,7 @@ def get_needed_movements(
     qubit_to_zone_old = get_qubit_to_zone(n_qubits, old_placement)
     qubit_to_zone_new = get_qubit_to_zone(n_qubits, new_placement)
     return [
-        (qubit, qubit_to_zone_old[qubit], qubit_to_zone_new[qubit])
+        (qubit, int(qubit_to_zone_old[qubit]), int(qubit_to_zone_new[qubit]))
         for qubit in range(n_qubits)
         if qubit_to_zone_old[qubit] != qubit_to_zone_new[qubit]
     ]
@@ -332,13 +310,12 @@ def get_needed_movements(
 
 def get_move_groups(
     qubits_to_move: list[tuple[int, int, int]],
-    current_placement: ZonePlacement,
     transport_blocked_zone: int | None,
     free_space_in_zone_func: Callable[[int], int],
 ) -> list[MoveGroup]:
     grouped = defaultdict(list)
     for qubit, src, trg in qubits_to_move:
-        grouped[(src, trg)].append((qubit, current_placement[src].index(qubit)))
+        grouped[(src, trg)].append(qubit)
     return (
         [
             MoveGroup(grouped_qbts, src, trg, free_space_in_zone_func(trg))

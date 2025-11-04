@@ -17,7 +17,7 @@ from typing import cast
 
 from networkx import (  # type: ignore
     Graph,
-    shortest_path,
+    single_source_dijkstra,
 )
 
 from .architecture import MultiZoneArchitectureSpec, PortId
@@ -37,7 +37,7 @@ class MacroZoneData:
 class MultiZoneArch:
     def __init__(self, spec: MultiZoneArchitectureSpec):
         self.zone_graph = Graph()
-        self.shortest_paths: dict[tuple[int, int], list[int] | None] = {}
+        self.shortest_paths: dict[tuple[int, int], tuple[int, list[int]] | None] = {}
         self.zone_connections: list[list[int]] = [[]] * spec.n_zones
         self.connection_ports: dict[tuple[int, int], tuple[PortId, PortId]] = {}
         self.memory_zones: list[int] = []
@@ -72,16 +72,27 @@ class MultiZoneArch:
                     f"Two connections between zones {zone0} and {zone1}"
                     f" specified, but only 1 connection between two zones is allowed"
                 )
-            self.zone_graph.add_edge(int(zone0), int(zone1))
+            self.zone_graph.add_edge(int(zone0), int(zone1), transport_cost=1)
 
     def shortest_path(self, zone_1: int, zone_2: int) -> list[int]:
-        cached_path = self.shortest_paths.get((zone_1, zone_2))
-        if cached_path:
-            return cached_path
-        path = cast("list[int]", shortest_path(self.zone_graph, zone_1, zone_2))
-        self.shortest_paths[(zone_1, zone_2)] = path
-        self.shortest_paths[(zone_2, zone_1)] = path[::-1]
+        length, path = self.shortest_path_with_length(zone_1, zone_2)
         return path
+
+    def shortest_path_with_length(
+        self, zone_1: int, zone_2: int
+    ) -> tuple[int, list[int]]:
+        cached_length_path = self.shortest_paths.get((zone_1, zone_2))
+        if cached_length_path:
+            return cached_length_path
+        length_path = cast(
+            "tuple[int, list[int]]",
+            single_source_dijkstra(
+                self.zone_graph, zone_1, zone_2, weight="transport_cost"
+            ),
+        )
+        self.shortest_paths[(zone_1, zone_2)] = length_path
+        self.shortest_paths[(zone_2, zone_1)] = (length_path[0], length_path[1][::-1])
+        return length_path
 
     def get_connected_ports(
         self, source_zone: int, target_zone: int

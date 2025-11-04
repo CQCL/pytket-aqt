@@ -11,21 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from collections.abc import Callable
 from copy import deepcopy
-
-from networkx import bfs_layers  # type: ignore[import-untyped]
 
 from pytket.circuit import Command, OpType
 
-from ...architecture import MultiZoneArchitectureSpec
-from ...architecture_portgraph import MultiZonePortGraph
-from ...circuit.helpers import TrapConfiguration, ZonePlacement
+from ...circuit.helpers import ZonePlacement
+from ...cost_model import DynamicArch, RoutingCostModel, unwrap_move_cost_result
 from ...depth_list.depth_list import depth_list_from_command_list
-from ...macro_architecture_graph import MultiZoneArch
 from ..settings import RoutingSettings
 from .config_selector_protocol import ConfigSelector
 from .qubit_tracker import QubitTracker
@@ -36,23 +29,21 @@ class GreedyGateSelector(ConfigSelector):
 
     The routed circuit can be directly run on the given Architecture
 
-    :param arch: The architecture to route to
+    :param cost_model: Cost model for determining movement costs
     :param settings: The settings used for routing
     """
 
     def __init__(
         self,
-        arch: MultiZoneArchitectureSpec,
+        cost_model: RoutingCostModel,
         settings: RoutingSettings,
     ):
-        self._arch = arch
-        self._macro_arch = MultiZoneArch(arch)
-        self._port_graph = MultiZonePortGraph(arch)
         self._settings = settings
+        self._cost_model = cost_model
 
     def next_config(
         self,
-        current_configuration: TrapConfiguration,
+        dyn_arch: DynamicArch,
         remaining_commands: list[Command],
     ) -> ZonePlacement:
         """Generates a new TrapConfiguration to implement the next gates
@@ -82,40 +73,38 @@ class GreedyGateSelector(ConfigSelector):
            in gates before termination will be placed in the "nearest" zones with available
            capacity
 
-        :param current_configuration: The starting configuration of ions in ion trap zones
+        :param dyn_arch: The dynamic architecture containing the current configuration of ions in ion trap zones
         :param remaining_commands: The list of gate commands used to determine the next ion placement.
         """
-        n_qubits = current_configuration.n_qubits
-        qubit_tracker = QubitTracker(n_qubits, current_configuration.zone_placement)
-        # Update occupancy of port graph to current configuration
-        if not self._settings.ignore_swap_costs:
-            for zone, occupants in enumerate(current_configuration.zone_placement):
-                self._port_graph.update_zone_occupancy_weight(zone, len(occupants))
+        n_qubits = dyn_arch.n_qubits
+        qubit_tracker = QubitTracker(
+            n_qubits, dyn_arch.trap_configuration.zone_placement
+        )
+
         two_qubit_gate_depth_list = depth_list_from_command_list(
             n_qubits, remaining_commands
         )
 
         if two_qubit_gate_depth_list:
-            self.handle_depth_list(n_qubits, two_qubit_gate_depth_list, qubit_tracker)
+            self.handle_depth_list(dyn_arch, two_qubit_gate_depth_list, qubit_tracker)
         else:
             handle_only_single_qubits_remaining(
+                dyn_arch,
+                self._cost_model,
                 remaining_commands,
                 qubit_tracker,
-                self._arch,
-                self._macro_arch,
-                self._port_graph,
-                self._settings.ignore_swap_costs,
             )
         # Now move any unused qubits to vacant spots in new config
-        handle_unused_qubits(self._arch, self._macro_arch, qubit_tracker)
+        handle_unused_qubits(dyn_arch, self._cost_model, qubit_tracker)
         return qubit_tracker.new_placement()
 
     def handle_depth_list(
         self,
-        n_qubits: int,
+        dyn_arch: DynamicArch,
         depth_list: list[list[tuple[int, int]]],
         qubit_tracker: QubitTracker,
     ):
+        n_qubits = dyn_arch.n_qubits
         # locked qubits have already been assigned a zone in the new config and should therefore not move again
         locked_qubits = []
         # must wait qubits have had a 2 qubit gate that could not be implemented in the new config
@@ -126,9 +115,9 @@ class GreedyGateSelector(ConfigSelector):
                 # If all qubits must wait or no more spots are available in gate zones, we can stop
                 max_gate_zone_free_space = max(
                     [
-                        self._arch.get_zone_max_ions_gates(gz)
+                        dyn_arch.zone_max_gate_cap[gz]
                         - qubit_tracker.n_zone_new_occupants(gz)
-                        for gz in self._macro_arch.gate_zones
+                        for gz in dyn_arch.gate_zones
                     ]
                 )
                 if len(must_wait_qubits) == n_qubits or max_gate_zone_free_space == 0:
@@ -161,7 +150,7 @@ class GreedyGateSelector(ConfigSelector):
                         (qubit0, qubit1) if is_locked_0 else (qubit1, qubit0)
                     )
                     implementable = handle_one_locked_qubit(
-                        locked_q, other_q, qubit_tracker, self._arch
+                        dyn_arch, locked_q, other_q, qubit_tracker
                     )
                     if implementable:
                         locked_qubits.append(other_q)
@@ -173,15 +162,15 @@ class GreedyGateSelector(ConfigSelector):
 
                 zone0 = qubit_tracker.current_zone(qubit0)
                 zone1 = qubit_tracker.current_zone(qubit1)
-                is_gate_zone0 = not self._arch.zones[zone0].memory_only
-                is_gate_zone1 = not self._arch.zones[zone1].memory_only
+                is_gate_zone0 = dyn_arch.is_gate_zone(zone0)
+                is_gate_zone1 = dyn_arch.is_gate_zone(zone1)
 
-                free_space_zone_0 = self._arch.get_zone_max_ions_gates(
+                free_space_zone_0 = dyn_arch.zone_max_gate_cap[
                     zone0
-                ) - qubit_tracker.n_zone_new_occupants(zone0)
-                free_space_zone_1 = self._arch.get_zone_max_ions_gates(
+                ] - qubit_tracker.n_zone_new_occupants(zone0)
+                free_space_zone_1 = dyn_arch.zone_max_gate_cap[
                     zone1
-                ) - qubit_tracker.n_zone_new_occupants(zone1)
+                ] - qubit_tracker.n_zone_new_occupants(zone1)
 
                 # Need to find a gate zone with 2 spots available to put the qubits, since
                 # neither has been placed in the new config yet
@@ -204,12 +193,10 @@ class GreedyGateSelector(ConfigSelector):
 
                 # try to find the closest gate zone with two available spots
                 closest_zone = find_best_gate_zone_to_move_to(
-                    self._arch,
-                    self._macro_arch,
-                    self._port_graph,
+                    dyn_arch,
+                    self._cost_model,
                     [(qubit0, zone0), (qubit1, zone1)],
                     qubit_tracker,
-                    self._settings.ignore_swap_costs,
                 )
                 if closest_zone is not None:
                     qubit_tracker.lock_qubit(qubit0, zone0, closest_zone)
@@ -224,13 +211,11 @@ class GreedyGateSelector(ConfigSelector):
                 # left could still be implemented, so continue loop
 
 
-def handle_only_single_qubits_remaining(  # noqa: PLR0913
+def handle_only_single_qubits_remaining(
+    dyn_arch: DynamicArch,
+    cost_model: RoutingCostModel,
     remaining_commands: list[Command],
     qubit_tracker: QubitTracker,
-    arch: MultiZoneArchitectureSpec,
-    macro_arch: MultiZoneArch,
-    port_graph: MultiZonePortGraph,
-    ignore_swap_costs: bool,
 ) -> None:
     # locked qubits have already been assigned a zone in the new config and should therefore not move again
     locked_qubits = []
@@ -242,10 +227,10 @@ def handle_only_single_qubits_remaining(  # noqa: PLR0913
         if is_locked_0:
             continue
         zone0 = qubit_tracker.current_zone(qubit0)
-        is_gate_zone0 = not arch.zones[zone0].memory_only
-        free_space_zone_0 = arch.get_zone_max_ions_gates(
+        is_gate_zone0 = dyn_arch.is_gate_zone(zone0)
+        free_space_zone_0 = dyn_arch.zone_max_gate_cap[
             zone0
-        ) - qubit_tracker.n_zone_new_occupants(zone0)
+        ] - qubit_tracker.n_zone_new_occupants(zone0)
         if is_gate_zone0 and free_space_zone_0 >= 1:
             qubit_tracker.lock_qubit(qubit0, zone0, zone0)
             locked_qubits.append(qubit0)
@@ -253,12 +238,10 @@ def handle_only_single_qubits_remaining(  # noqa: PLR0913
 
         # try to find the closest gate zone with two available spots
         closest_zone = find_best_gate_zone_to_move_to(
-            arch,
-            macro_arch,
-            port_graph,
+            dyn_arch,
+            cost_model,
             [(qubit0, zone0)],
             qubit_tracker,
-            ignore_swap_costs,
         )
         if closest_zone is not None:
             qubit_tracker.lock_qubit(qubit0, zone0, closest_zone)
@@ -281,10 +264,10 @@ def handle_must_wait(qubit0: int, qubit1: int, must_wait_qubits: list[int]) -> b
 
 
 def handle_one_locked_qubit(
+    dyn_arch: DynamicArch,
     locked_qubit: int,
     other_qubit: int,
     qubit_tracker: QubitTracker,
-    arch: MultiZoneArchitectureSpec,
 ) -> bool:
     """Handle the case were one qubit is locked and one isn't
 
@@ -295,9 +278,9 @@ def handle_one_locked_qubit(
     wait (return False).
     """
     lq_zone = qubit_tracker.current_zone(locked_qubit)
-    free_space_lq_zone = arch.get_zone_max_ions_gates(
+    free_space_lq_zone = dyn_arch.zone_max_gate_cap[
         lq_zone
-    ) - qubit_tracker.n_zone_new_occupants(lq_zone)
+    ] - qubit_tracker.n_zone_new_occupants(lq_zone)
     if free_space_lq_zone >= 1:
         oq_zone = qubit_tracker.current_zone(other_qubit)
         qubit_tracker.lock_qubit(other_qubit, oq_zone, lq_zone)
@@ -305,13 +288,11 @@ def handle_one_locked_qubit(
     return False
 
 
-def find_best_gate_zone_to_move_to(  # noqa: PLR0913
-    arch: MultiZoneArchitectureSpec,
-    macro_arch: MultiZoneArch,
-    port_graph: MultiZonePortGraph,
+def find_best_gate_zone_to_move_to(
+    dyn_arch: DynamicArch,
+    cost_model: RoutingCostModel,
     qubit_zones: list[tuple[int, int]],
     qubit_tracker: QubitTracker,
-    ignore_swap_costs: bool,
 ) -> int | None:
     """Determines which gate zone to move to
 
@@ -320,31 +301,16 @@ def find_best_gate_zone_to_move_to(  # noqa: PLR0913
 
     Return gate zone id or None if no gate zone available with two spots
     """
-    min_metric = arch.n_zones * 100  # this is strictly larger than the largest possible
+    min_metric = (
+        dyn_arch.n_zones * 100
+    )  # this is strictly larger than the largest possible
     best_gate_zone = -1
-    zones = [zone for _, zone in qubit_zones]
-    metric_func: Callable[
-        [MultiZoneArch, MultiZonePortGraph, int, list[int], list[tuple[int, int]]], int
-    ]
-    if not ignore_swap_costs:
-        zone_occupants = [
-            qubit_tracker.old_zone_occupants(zone) for _, zone in qubit_zones
-        ]
-        initial_swap_costs = get_initial_swap_costs(
-            port_graph, zone_occupants, qubit_zones
-        )
-        metric_func = gate_zone_metric_with_swap_costs
-    else:
-        initial_swap_costs = [[0, 0]]
-        metric_func = gate_zone_metric_ignore_swap_costs
-    for gate_zone in macro_arch.gate_zones:
-        free_space = arch.get_zone_max_ions_gates(
+    for gate_zone in dyn_arch.gate_zones:
+        free_space = dyn_arch.zone_max_gate_cap[
             gate_zone
-        ) - qubit_tracker.n_zone_new_occupants(gate_zone)
+        ] - qubit_tracker.n_zone_new_occupants(gate_zone)
         if free_space >= len(qubit_zones):
-            metric = metric_func(
-                macro_arch, port_graph, gate_zone, zones, initial_swap_costs
-            )
+            metric = gate_zone_metric(dyn_arch, cost_model, gate_zone, qubit_zones)
             if metric < min_metric:
                 min_metric = metric
                 best_gate_zone = gate_zone
@@ -354,31 +320,11 @@ def find_best_gate_zone_to_move_to(  # noqa: PLR0913
     return best_gate_zone
 
 
-def get_initial_swap_costs(
-    port_graph: MultiZonePortGraph,
-    zone_occupants: list[list[int]],
-    qubit_zones: list[tuple[int, int]],
-):
-    spots_occupancies_swap_costs = [
-        (
-            zone_occupants[i].index(qubit),
-            len(zone_occupants[i]),
-            port_graph.swap_costs[zone],
-        )
-        for i, (qubit, zone) in enumerate(qubit_zones)
-    ]
-    return [
-        (sos[0] * sos[2], (sos[1] - 1 - sos[0]) * sos[2])
-        for sos in spots_occupancies_swap_costs
-    ]
-
-
-def gate_zone_metric_with_swap_costs(
-    macro_arch: MultiZoneArch,
-    port_graph: MultiZonePortGraph,
+def gate_zone_metric(
+    dyn_arch: DynamicArch,
+    cost_model: RoutingCostModel,
     gate_zone: int,
-    zones: list[int],
-    swap_costs: list[tuple[int, int]],
+    qubit_zones: list[tuple[int, int]],
 ) -> int:
     """Calculate metric estimating cost of moving one qubit from each of a
      list of zones to a specific gate zone
@@ -386,36 +332,16 @@ def gate_zone_metric_with_swap_costs(
     Prefers gate zones with low total distance
     """
     return sum(
-        [
-            min(
-                port_graph.shortest_port_path_length(zone, 0, gate_zone)[1]
-                + swap_costs[i][0],
-                port_graph.shortest_port_path_length(zone, 1, gate_zone)[1]
-                + swap_costs[i][1],
-            )
-            for i, zone in enumerate(zones)
-        ]
+        unwrap_move_cost_result(
+            cost_model.move_cost(dyn_arch, [qubit], zone, gate_zone)
+        ).path_cost
+        for qubit, zone in qubit_zones
     )
 
 
-def gate_zone_metric_ignore_swap_costs(
-    macro_arch: MultiZoneArch,
-    port_graph: MultiZonePortGraph,
-    gate_zone: int,
-    zones: list[int],
-    swap_costs: list[tuple[int, int]],
-) -> int:
-    """Calculate metric estimating cost of moving one qubit from each of a
-     list of zones to a specific gate zone
-
-    Prefers gate zones with low total distance
-    """
-    return sum([len(macro_arch.shortest_path(gate_zone, zone)) for zone in zones])
-
-
 def move_qubits_to_closest_available_spots(
-    arch: MultiZoneArchitectureSpec,
-    macro_arch: MultiZoneArch,
+    dyn_arch: DynamicArch,
+    cost_model: RoutingCostModel,
     zone_qubits: list[int],
     starting_zone: int,
     qubit_tracker: QubitTracker,
@@ -430,40 +356,39 @@ def move_qubits_to_closest_available_spots(
     Return gate zone id or None if no gate zone available with two spots
     """
     qubits = deepcopy(zone_qubits)
-    for layer in bfs_layers(macro_arch.zone_graph, starting_zone):
-        for zone in layer:
-            if zone == starting_zone:
-                continue
-            zone_occupancy = qubit_tracker.n_zone_new_occupants(zone)
-            max_zone_occupancy = arch.get_zone_max_ions_gates(zone)
-            zone_free_space = max_zone_occupancy - zone_occupancy
-            while zone_free_space > 0 and qubits:
-                qubit_tracker.lock_qubit(qubits.pop(), starting_zone, zone)
-                zone_free_space -= 1
+    # just use the position of the first qubit as approximation instead of getting
+    # "closest zones" for each qubit separately
+    for zone in cost_model.closest_zones(dyn_arch, qubits[0], starting_zone):
+        zone_occupancy = qubit_tracker.n_zone_new_occupants(zone)
+        max_zone_occupancy = dyn_arch.zone_max_gate_cap[zone]
+        zone_free_space = max_zone_occupancy - zone_occupancy
+        while zone_free_space > 0 and qubits:
+            qubit_tracker.lock_qubit(qubits.pop(), starting_zone, zone)
+            zone_free_space -= 1
         if not qubits:
             break
 
 
 def handle_unused_qubits(
-    arch: MultiZoneArchitectureSpec,
-    macro_arch: MultiZoneArch,
+    dyn_arch: DynamicArch,
+    cost_model: RoutingCostModel,
     qubit_tracker: QubitTracker,
 ) -> None:
     # Take care of qubits that don't actually need to move (free space available in their old zone)
-    for zone in range(arch.n_zones):
+    for zone in range(dyn_arch.n_zones):
         zone_leftovers = qubit_tracker.old_zone_occupants(zone).copy()
-        free_space_zone = arch.get_zone_max_ions_gates(
+        free_space_zone = dyn_arch.zone_max_gate_cap[
             zone
-        ) - qubit_tracker.n_zone_new_occupants(zone)
+        ] - qubit_tracker.n_zone_new_occupants(zone)
         for qubit in zone_leftovers:
             if free_space_zone == 0:
                 break
             qubit_tracker.lock_qubit(qubit, zone, zone)
             free_space_zone -= 1
     # Take care of qubits that need to move to a new zone (no more free space in their old zone)
-    for zone in range(arch.n_zones):
+    for zone in range(dyn_arch.n_zones):
         zone_leftovers = qubit_tracker.old_zone_occupants(zone)
         if zone_leftovers:
             move_qubits_to_closest_available_spots(
-                arch, macro_arch, zone_leftovers, zone, qubit_tracker
+                dyn_arch, cost_model, zone_leftovers, zone, qubit_tracker
             )

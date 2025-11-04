@@ -15,14 +15,15 @@ from typing import Protocol
 
 from pytket.circuit import Command
 
-from ...circuit.helpers import TrapConfiguration, ZonePlacement
+from ...circuit.helpers import ZonePlacement
+from ...cost_model import DynamicArch
 
 
 class ConfigSelector(Protocol):
     """A class for calculating the optimal placement of ions in zones to implement upcoming gates"""
 
     def next_config(
-        self, current_placement: TrapConfiguration, remaining_circuit: list[Command]
+        self, dyn_arch: DynamicArch, remaining_circuit: list[Command]
     ) -> ZonePlacement: ...
 
     """Returns the optimal placement of qubits in zones (no ordering within zones)"""

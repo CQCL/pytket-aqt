@@ -48,7 +48,7 @@ def configure_mtkahypar(
 class MtKahyparPartitioner:
     """Class that performs graph partitioning using mt-kahypar"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.mtk = configure_mtkahypar(MtKahyparConfig(), warn_configured=False)
         self.context = self.mtk.context_from_preset(mtkahypar.PresetType.DEFAULT)
         self.context.logging = False

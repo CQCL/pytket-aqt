@@ -177,7 +177,7 @@ adv_precomp2 = racetrack_4_gatezones_backend.precompile_circuit(
 )
 def test_quantum_advantage_racetrack_4_gate_zone(
     compilation_settings: CompilationSettings, use_legacy: bool
-):
+) -> None:
     racetrack_4_gatezones_backend.route_precompiled(
         adv_precomp2, compilation_settings, use_legacy_routing=use_legacy
     )

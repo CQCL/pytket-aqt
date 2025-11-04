@@ -31,7 +31,6 @@ from ..circuit_routing.routing_ops import PSwap, RoutingBarrier, RoutingOp
 from ..circuit_routing.routing_ops import Shuttle as ShuttleOp
 from ..macro_architecture_graph import (
     MultiZoneArch,
-    empty_macro_arch_from_architecture,
 )
 from .helpers import get_qubit_to_zone
 
@@ -229,7 +228,7 @@ class MultiZoneCircuit:
         **kwargs: str,
     ):
         self.architecture = multi_zone_arch
-        self.macro_arch = empty_macro_arch_from_architecture(multi_zone_arch)
+        self.macro_arch = MultiZoneArch(multi_zone_arch)
         self.pytket_circuit = Circuit(*args, **kwargs)
         if isinstance(initial_zone_to_qubits, list):
             self.initial_zone_to_qubits = deepcopy(initial_zone_to_qubits)

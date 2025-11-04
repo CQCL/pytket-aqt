@@ -16,16 +16,14 @@ import math
 
 from pytket.circuit import Command
 
-from ...architecture import MultiZoneArchitectureSpec
-from ...architecture_portgraph import MultiZonePortGraph
-from ...circuit.helpers import TrapConfiguration, ZonePlacement, ZoneRoutingError
+from ...circuit.helpers import ZonePlacement
+from ...cost_model import DynamicArch, RoutingCostModel
 from ...depth_list.depth_list import (
     DepthList,
     depth_list_from_command_list,
 )
 from ...graph_algs.graph import GraphData
 from ...graph_algs.mt_kahypar import MtKahyparPartitioner
-from ...macro_architecture_graph import empty_macro_arch_from_architecture
 from ..settings import RoutingSettings
 from .config_selector_protocol import ConfigSelector
 from .greedy_gate_selection import (
@@ -49,23 +47,21 @@ class PartitionGateSelector(ConfigSelector):
 
     The routed circuit can be directly run on the given Architecture
 
-    :param arch: The architecture to route to
+    :param cost_model: Cost model for determining movement costs
     :param settings: The settings used for routing
     """
 
     def __init__(
         self,
-        arch: MultiZoneArchitectureSpec,
+        cost_model: RoutingCostModel,
         settings: RoutingSettings,
     ):
-        self._arch = arch
-        self._macro_arch = empty_macro_arch_from_architecture(arch)
-        self._port_graph = MultiZonePortGraph(self._arch)
         self._settings = settings
+        self._cost_model = cost_model
 
     def next_config(
         self,
-        current_configuration: TrapConfiguration,
+        dyn_arch: DynamicArch,
         remaining_commands: list[Command],
     ) -> ZonePlacement:
         """Generates a new qubit placement in zones to implement the next gates
@@ -75,31 +71,26 @@ class PartitionGateSelector(ConfigSelector):
         the depth list. The ordering of the qubits within the zones is arbitrary. The correct
         ordering will be determined at the qubit routing stage.
 
-        :param current_configuration: The starting configuration of ions in ion trap zones
+        :param dyn_arch: The dynamic architecture containing current configuration of ions in ion trap zones
         :param remaining_commands: The list of gate commands used to determine the next ion placement.
         """
+        current_configuration = dyn_arch.trap_configuration
         n_qubits = current_configuration.n_qubits
         depth_list = depth_list_from_command_list(n_qubits, remaining_commands)
-        if not self._settings.ignore_swap_costs:
-            # Update occupancy of port graph to current configuration
-            for zone, occupants in enumerate(current_configuration.zone_placement):
-                self._port_graph.update_zone_occupancy_weight(zone, len(occupants))
         if depth_list:
-            return self.handle_depth_list(current_configuration, depth_list)
+            return self.handle_depth_list(dyn_arch, depth_list)
         return self.handle_only_single_qubit_gates_remaining(
-            current_configuration, remaining_commands
+            dyn_arch, remaining_commands
         )
 
     def handle_depth_list(
         self,
-        current_configuration: TrapConfiguration,
+        dyn_arch: DynamicArch,
         depth_list: list[list[tuple[int, int]]],
     ) -> ZonePlacement:
-        num_zones = self._arch.n_zones
-        n_qubits = current_configuration.n_qubits
-        shuttle_graph_data = self.get_circuit_shuttle_graph_data(
-            current_configuration, depth_list
-        )
+        num_zones = dyn_arch.n_zones
+        n_qubits = dyn_arch.n_qubits
+        shuttle_graph_data = self.get_circuit_shuttle_graph_data(dyn_arch, depth_list)
         partitioner = MtKahyparPartitioner()
         log_depth_list(depth_list)
         vertex_to_part = partitioner.partition_graph(shuttle_graph_data, num_zones)
@@ -113,35 +104,29 @@ class PartitionGateSelector(ConfigSelector):
 
     def handle_only_single_qubit_gates_remaining(
         self,
-        current_configuration: TrapConfiguration,
+        dyn_arch: DynamicArch,
         remaining_commands: list[Command],
     ) -> ZonePlacement:
         qubit_tracker = QubitTracker(
-            current_configuration.n_qubits, current_configuration.zone_placement
+            dyn_arch.n_qubits, dyn_arch.trap_configuration.zone_placement
         )
         handle_only_single_qubits_remaining(
-            remaining_commands,
-            qubit_tracker,
-            self._arch,
-            self._macro_arch,
-            self._port_graph,
-            self._settings.ignore_swap_costs,
+            dyn_arch, self._cost_model, remaining_commands, qubit_tracker
         )
         # Now move any unused qubits to vacant spots in new config
-        handle_unused_qubits(self._arch, self._macro_arch, qubit_tracker)
+        handle_unused_qubits(dyn_arch, self._cost_model, qubit_tracker)
         return qubit_tracker.new_placement()
 
     def get_circuit_shuttle_graph_data(
-        self, starting_config: TrapConfiguration, depth_list: DepthList
+        self, dyn_arch: DynamicArch, depth_list: DepthList
     ) -> GraphData:
         """Calculate graph data for qubit-zone graph to be partitioned"""
-        n_qubits = starting_config.n_qubits
-        num_zones = self._arch.n_zones
+        n_qubits = dyn_arch.n_qubits
+        num_zones = dyn_arch.n_zones
         places_per_zone = [
-            self._arch.get_zone_max_ions_gates(i) + 1
-            for i, _ in enumerate(
-                self._arch.zones
-            )  # +1 is for the fixed vertex for each zone itself
+            dyn_arch.zone_max_gate_cap[i]
+            + 1  # +1 is for the fixed vertex for each zone itself
+            for i in range(num_zones)
         ]
         num_spots = sum(places_per_zone)
         edges: list[tuple[int, int]] = []
@@ -158,15 +143,15 @@ class PartitionGateSelector(ConfigSelector):
             edge_weights.extend([weight] * len(pairs))
 
         # "assign" depth 0 qubits to gate zones
-        if self._macro_arch.has_memory_zones:
+        if dyn_arch.has_memory_zones:
             edge_pair_pairs = [
                 (pair[i], zone + n_qubits)
                 for i in [0, 1]
                 for pair in depth_list[0]
-                for zone in self._macro_arch.gate_zones
+                for zone in dyn_arch.gate_zones
             ]
             edge_pair_weights = (
-                [max_weight] * len(depth_list[0]) * 2 * len(self._macro_arch.gate_zones)
+                [max_weight] * len(depth_list[0]) * 2 * len(dyn_arch.gate_zones)
             )
             edges.extend(edge_pair_pairs)
             edge_weights.extend(edge_pair_weights)
@@ -174,22 +159,14 @@ class PartitionGateSelector(ConfigSelector):
         # add shuttling penalty (just distance between zones for now,
         # should later be dependent on shuttling cost)
         max_shuttle_weight = math.ceil(max_weight / 2)
-        for zone, qubits in enumerate(starting_config.zone_placement):
-            zone_occupancy = len(qubits)
-            swap_cost_start_zone = self._port_graph.swap_costs[zone]
-            for current_spot, qubit in enumerate(qubits):
-                initial_swap_costs = (
-                    current_spot * swap_cost_start_zone,
-                    (zone_occupancy - 1 - current_spot) * swap_cost_start_zone,
-                )
+        for zone, qubits in enumerate(dyn_arch.trap_configuration.zone_placement):
+            for qubit in qubits:
                 for other_zone in range(num_zones):
                     # disregard initial swap costs for now
                     weight = math.ceil(
                         math.exp(
                             -0.8
-                            * self.shuttling_penalty(
-                                zone, other_zone, initial_swap_costs
-                            )
+                            * self.shuttling_penalty(dyn_arch, qubit, zone, other_zone)
                         )
                         * max_shuttle_weight
                     )
@@ -217,24 +194,27 @@ class PartitionGateSelector(ConfigSelector):
         )
 
     def shuttling_penalty(
-        self, zone1: int, other_zone1: int, initial_swap_costs: tuple[int, int]
+        self,
+        dyn_arch: DynamicArch,
+        qubit: int,
+        src_zone: int,
+        trg_zone: int,
     ) -> int:
         """Calculate penalty for shuttling from one zone to another"""
-        if not self._settings.ignore_swap_costs:
-            shortest_path_port0, path_length0, target_port_0 = (
-                self._port_graph.shortest_port_path_length(zone1, 0, other_zone1)
-            )
-            shortest_path_port1, path_length1, target_port_1 = (
-                self._port_graph.shortest_port_path_length(zone1, 1, other_zone1)
-            )
-            return min(
-                path_length0 + initial_swap_costs[0],
-                path_length1 + initial_swap_costs[1],
-            )
-        shortest_path = self._macro_arch.shortest_path(int(zone1), int(other_zone1))
-        if shortest_path:
-            return len(shortest_path) - 1
-        raise ZoneRoutingError(
-            f"Shortest path could not be calculated"
-            f" between zones {zone1} and {other_zone1}"
+        move_result_0 = self._cost_model.move_cost_src_port_0(
+            dyn_arch, [qubit], src_zone, trg_zone
         )
+        move_result_1 = self._cost_model.move_cost_src_port_1(
+            dyn_arch, [qubit], src_zone, trg_zone
+        )
+        match (move_result_0 is not None, move_result_1 is not None):
+            case (True, True):
+                return min(
+                    move_result_0.path_cost,
+                    move_result_1.path_cost,
+                )
+            case (True, False):
+                return move_result_0.path_cost
+            case (False, True):
+                return move_result_1.path_cost
+        raise ValueError("Could note determine path")
