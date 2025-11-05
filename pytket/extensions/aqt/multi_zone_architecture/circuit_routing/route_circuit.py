@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
+from copy import deepcopy
 
 from pytket import OpType
 from pytket.circuit import Circuit, Command
@@ -104,7 +105,7 @@ def route_circuit(
         target_config = gate_selector.next_config(dynamic_arch, commands)
         # Add operations needed move from the source to target configuration
 
-        old_placement = dynamic_arch.trap_configuration.zone_placement
+        old_placement = deepcopy(dynamic_arch.trap_configuration.zone_placement)
         routing_result = router.route_source_to_target_config(
             RoutingInput(dynamic_arch, target_config)
         )
