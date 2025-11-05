@@ -20,12 +20,6 @@ from ..routing_ops import RoutingOp
 
 
 @dataclass
-class RoutingInput:
-    dynamic_arch: DynamicArch
-    target_placement: ZonePlacement
-
-
-@dataclass
 class RoutingResult:
     cost_estimate: float
     routing_ops: list[RoutingOp]
@@ -33,5 +27,5 @@ class RoutingResult:
 
 class Router(Protocol):
     def route_source_to_target_config(
-        self, routing_input: RoutingInput
+        self, dyn_arch: DynamicArch, target_placement: ZonePlacement
     ) -> RoutingResult: ...

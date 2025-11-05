@@ -10,7 +10,7 @@ from ...trap_architecture.architecture import PortId
 from ...trap_architecture.cost_model import RoutingCostModel
 from ...trap_architecture.dynamic_architecture import DynamicArch
 from ..routing_ops import PSwap, RoutingBarrier, RoutingOp, Shuttle
-from .router import Router, RoutingInput, RoutingResult
+from .router import Router, RoutingResult
 
 
 @dataclass
@@ -41,13 +41,10 @@ class GeneralRouter(Router):
 
     def route_source_to_target_config(
         self,
-        routing_input: RoutingInput,
+        dyn_arch: DynamicArch,
+        target_placement: ZonePlacement,
     ) -> RoutingResult:
-        dyn_arch = routing_input.dynamic_arch
-        starting_config, target_placement = (
-            dyn_arch.trap_configuration,
-            routing_input.target_placement,
-        )
+        starting_config = dyn_arch.trap_configuration
         qubits_to_move = get_needed_movements(
             starting_config.n_qubits, starting_config.zone_placement, target_placement
         )

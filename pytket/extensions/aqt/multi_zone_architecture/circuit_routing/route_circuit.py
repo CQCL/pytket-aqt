@@ -33,7 +33,6 @@ from ..trap_architecture.dynamic_architecture import DynamicArch
 from .gate_selection.config_selector_protocol import ConfigSelector
 from .gate_selection.greedy_gate_selection import GreedyGateSelector
 from .qubit_routing.general_router import GeneralRouter
-from .qubit_routing.router import RoutingInput
 from .settings import RoutingAlg, RoutingSettings
 
 logger = logging.getLogger(__name__)
@@ -107,7 +106,7 @@ def route_circuit(
 
         old_placement = deepcopy(dynamic_arch.trap_configuration.zone_placement)
         routing_result = router.route_source_to_target_config(
-            RoutingInput(dynamic_arch, target_config)
+            dynamic_arch, target_config
         )
         log_movement(
             routing_step,
