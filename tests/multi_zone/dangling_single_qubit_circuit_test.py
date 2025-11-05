@@ -20,7 +20,7 @@ from pytket.extensions.aqt.multi_zone_architecture.initial_placement.settings im
     InitialPlacementAlg,
     InitialPlacementSettings,
 )
-from pytket.extensions.aqt.multi_zone_architecture.named_architectures import (
+from pytket.extensions.aqt.multi_zone_architecture.trap_architecture.named_architectures import (
     four_zones_in_a_line,
 )
 

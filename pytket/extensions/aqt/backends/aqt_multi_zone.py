@@ -23,6 +23,9 @@ from pytket.backends.backendinfo import BackendInfo, fully_connected_backendinfo
 from pytket.backends.backendresult import BackendResult
 from pytket.backends.resulthandle import _ResultIdTuple
 from pytket.circuit import Circuit, OpType, Qubit
+from pytket.extensions.aqt.multi_zone_architecture.trap_architecture.architecture import (
+    MultiZoneArchitectureSpec,
+)
 from pytket.passes import (
     AutoRebase,
     BasePass,
@@ -46,7 +49,6 @@ from pytket.predicates import (
 
 from ..backends.config import AQTConfig
 from ..extension_version import __extension_version__
-from ..multi_zone_architecture.architecture import MultiZoneArchitectureSpec
 from ..multi_zone_architecture.circuit.multizone_circuit import (
     MultiZoneCircuit,
 )

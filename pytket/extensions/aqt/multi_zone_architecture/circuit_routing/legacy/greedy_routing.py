@@ -16,9 +16,6 @@ from copy import deepcopy
 from networkx import bfs_layers  # type: ignore[import-untyped]
 
 from pytket.circuit import Circuit, Command, OpType, Qubit
-from pytket.extensions.aqt.multi_zone_architecture.architecture import (
-    MultiZoneArchitectureSpec,
-)
 from pytket.extensions.aqt.multi_zone_architecture.circuit.helpers import (
     ZonePlacement,
     ZoneRoutingError,
@@ -29,6 +26,9 @@ from pytket.extensions.aqt.multi_zone_architecture.circuit.multizone_circuit imp
 )
 from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.settings import (
     RoutingSettings,
+)
+from pytket.extensions.aqt.multi_zone_architecture.trap_architecture.architecture import (
+    MultiZoneArchitectureSpec,
 )
 
 

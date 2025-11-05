@@ -18,7 +18,6 @@ from typing import Protocol
 
 from pytket.circuit import Circuit
 
-from ..architecture import MultiZoneArchitectureSpec
 from ..circuit.helpers import ZonePlacement
 from ..depth_list.depth_list import DepthList, get_initial_depth_list
 from ..graph_algs.graph import GraphData
@@ -26,6 +25,7 @@ from ..graph_algs.mt_kahypar_check import (
     MT_KAHYPAR_INSTALLED,
     MissingMtKahyparInstallError,
 )
+from ..trap_architecture.architecture import MultiZoneArchitectureSpec
 from .settings import InitialPlacementAlg, InitialPlacementSettings
 
 logger = getLogger("initial_placement_logger")

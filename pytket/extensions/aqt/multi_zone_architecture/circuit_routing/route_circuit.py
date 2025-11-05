@@ -16,19 +16,19 @@ import logging
 from pytket import OpType
 from pytket.circuit import Circuit, Command
 
-from ..architecture import MultiZoneArchitectureSpec
 from ..circuit.helpers import TrapConfiguration, ZonePlacement, get_qubit_to_zone
 from ..circuit.multizone_circuit import MultiZoneCircuit
-from ..cost_model import (
-    DynamicArch,
-    RoutingCostModel,
-    ShuttleOnlyCostModel,
-    ShuttlePSwapCostModel,
-)
 from ..graph_algs.mt_kahypar_check import (
     MT_KAHYPAR_INSTALLED,
     MissingMtKahyparInstallError,
 )
+from ..trap_architecture.architecture import MultiZoneArchitectureSpec
+from ..trap_architecture.cost_model import (
+    RoutingCostModel,
+    ShuttleOnlyCostModel,
+    ShuttlePSwapCostModel,
+)
+from ..trap_architecture.dynamic_architecture import DynamicArch
 from .gate_selection.config_selector_protocol import ConfigSelector
 from .gate_selection.greedy_gate_selection import GreedyGateSelector
 from .qubit_routing.general_router import GeneralRouter

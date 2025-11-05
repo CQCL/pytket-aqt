@@ -17,8 +17,9 @@ from copy import deepcopy
 from pytket.circuit import Command, OpType
 
 from ...circuit.helpers import ZonePlacement
-from ...cost_model import DynamicArch, RoutingCostModel, unwrap_move_cost_result
 from ...depth_list.depth_list import depth_list_from_command_list
+from ...trap_architecture.cost_model import RoutingCostModel, unwrap_move_cost_result
+from ...trap_architecture.dynamic_architecture import DynamicArch
 from ..settings import RoutingSettings
 from .config_selector_protocol import ConfigSelector
 from .qubit_tracker import QubitTracker

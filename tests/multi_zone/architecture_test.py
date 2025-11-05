@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pytket.extensions.aqt.multi_zone_architecture.named_architectures import (
+from pytket.extensions.aqt.multi_zone_architecture.trap_architecture.named_architectures import (
     four_zones_in_a_line,
 )
 

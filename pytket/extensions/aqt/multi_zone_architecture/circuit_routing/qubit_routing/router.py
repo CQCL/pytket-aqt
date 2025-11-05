@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from ...circuit.helpers import ZonePlacement
-from ...cost_model import DynamicArch
+from ...trap_architecture.dynamic_architecture import DynamicArch
 from ..routing_ops import RoutingOp
 
 

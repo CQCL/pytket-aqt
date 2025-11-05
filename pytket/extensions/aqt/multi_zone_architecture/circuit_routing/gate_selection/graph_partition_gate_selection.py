@@ -17,13 +17,14 @@ import math
 from pytket.circuit import Command
 
 from ...circuit.helpers import ZonePlacement
-from ...cost_model import DynamicArch, RoutingCostModel
 from ...depth_list.depth_list import (
     DepthList,
     depth_list_from_command_list,
 )
 from ...graph_algs.graph import GraphData
 from ...graph_algs.mt_kahypar import MtKahyparPartitioner
+from ...trap_architecture.cost_model import RoutingCostModel
+from ...trap_architecture.dynamic_architecture import DynamicArch
 from ..settings import RoutingSettings
 from .config_selector_protocol import ConfigSelector
 from .greedy_gate_selection import (

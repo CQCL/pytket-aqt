@@ -16,7 +16,7 @@ from typing import Protocol
 from pytket.circuit import Command
 
 from ...circuit.helpers import ZonePlacement
-from ...cost_model import DynamicArch
+from ...trap_architecture.dynamic_architecture import DynamicArch
 
 
 class ConfigSelector(Protocol):

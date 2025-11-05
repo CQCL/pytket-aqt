@@ -18,8 +18,8 @@ from networkx import (  # type: ignore
 )
 from networkx.exception import NetworkXNoPath
 
+from ..circuit.helpers import TrapConfiguration
 from .architecture import MultiZoneArchitectureSpec
-from .circuit.helpers import TrapConfiguration
 
 
 def zone_port_to_port_id(zone: int, port: int) -> int:

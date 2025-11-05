@@ -13,9 +13,9 @@
 # limitations under the License.
 from pytket.circuit import Circuit
 
-from ...architecture import MultiZoneArchitectureSpec
 from ...circuit.helpers import ZonePlacement
 from ...circuit.multizone_circuit import MultiZoneCircuit
+from ...trap_architecture.architecture import MultiZoneArchitectureSpec
 from ..settings import RoutingAlg, RoutingSettings
 from .greedy_routing import GreedyCircuitRouter
 

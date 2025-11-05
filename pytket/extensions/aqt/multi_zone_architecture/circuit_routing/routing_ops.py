@@ -13,7 +13,7 @@
 # limitations under the License.
 from dataclasses import dataclass
 
-from ...multi_zone_architecture.architecture import PortId
+from ..trap_architecture.architecture import PortId
 
 
 class RoutingOp:

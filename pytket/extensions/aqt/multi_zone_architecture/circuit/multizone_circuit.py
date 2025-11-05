@@ -23,15 +23,10 @@ from sympy import Expr, symbols
 
 from pytket.circuit import Circuit, CustomGateDef, OpType, UnitID
 
-from ..architecture import (
-    MultiZoneArchitectureSpec,
-    PortId,
-)
 from ..circuit_routing.routing_ops import PSwap, RoutingBarrier, RoutingOp
 from ..circuit_routing.routing_ops import Shuttle as ShuttleOp
-from ..macro_architecture_graph import (
-    MultiZoneArch,
-)
+from ..trap_architecture.architecture import MultiZoneArchitectureSpec, PortId
+from ..trap_architecture.macro_architecture_graph import MultiZoneArch
 from .helpers import get_qubit_to_zone
 
 ParamType: TypeAlias = Expr | float  # noqa: UP040

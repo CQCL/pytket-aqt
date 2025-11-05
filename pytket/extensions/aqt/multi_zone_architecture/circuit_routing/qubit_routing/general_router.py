@@ -4,10 +4,11 @@ from collections.abc import Callable, Iterator
 from copy import deepcopy
 from dataclasses import dataclass
 
-from ...architecture import PortId
 from ...circuit.helpers import ZonePlacement, get_qubit_to_zone
 from ...circuit_routing.settings import RoutingSettings
-from ...cost_model import DynamicArch, RoutingCostModel
+from ...trap_architecture.architecture import PortId
+from ...trap_architecture.cost_model import RoutingCostModel
+from ...trap_architecture.dynamic_architecture import DynamicArch
 from ..routing_ops import PSwap, RoutingBarrier, RoutingOp, Shuttle
 from .router import Router, RoutingInput, RoutingResult
 
