@@ -98,7 +98,7 @@ def test_compilation_settings_linearch(
         initial_placement=initial_pl_settings,
         routing=routing_settings,
     )
-    compiled = backend.compile_circuit_with_routing(ghz_circuit, compilation_settings)
+    compiled = backend.compile_and_route_circuit(ghz_circuit, compilation_settings)
     print("Shuttles: ", compiled.get_n_shuttles())  # noqa: T201
 
 
@@ -129,7 +129,7 @@ def test_throws_mtkahypar_missing_if_graph_partition_without_mtkahypar(
         routing=routing_settings,
     )
     with pytest.raises(MissingMtKahyparInstallError):
-        backend.compile_circuit_with_routing(ghz_circuit, compilation_settings)
+        backend.compile_and_route_circuit(ghz_circuit, compilation_settings)
 
 
 manual_placement_grid = InitialPlacementSettings(
@@ -168,5 +168,5 @@ def test_compilation_settings_gridarch(
         initial_placement=initial_pl_settings,
         routing=routing_settings,
     )
-    compiled = backend.compile_circuit_with_routing(ghz_circuit, compilation_settings)
+    compiled = backend.compile_and_route_circuit(ghz_circuit, compilation_settings)
     print("Shuttles: ", compiled.get_n_shuttles())  # noqa: T201

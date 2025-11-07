@@ -247,7 +247,7 @@ class AQTMultiZoneBackend(Backend):
         """
         raise NotImplementedError
 
-    def precompile_circuit(
+    def compile_circuit(
         self,
         circuit: Circuit,
         compilation_settings: CompilationSettings = CompilationSettings.default(),  # noqa: B008
@@ -272,9 +272,9 @@ class AQTMultiZoneBackend(Backend):
         compiled.rename_units(qubit_map)
         return compiled
 
-    def route_precompiled(
+    def route_compiled(
         self,
-        precompiled: Circuit,
+        compiled_circuit: Circuit,
         compilation_settings: CompilationSettings = CompilationSettings.default(),  # noqa: B008
         *,
         use_legacy_routing: bool = False,
@@ -287,19 +287,19 @@ class AQTMultiZoneBackend(Backend):
 
         """
         initial_placement = get_initial_placement(
-            compilation_settings.initial_placement, precompiled, self._architecture
+            compilation_settings.initial_placement, compiled_circuit, self._architecture
         )
         if use_legacy_routing:
             routed = legacy_route_circuit(
                 compilation_settings.routing,
-                precompiled,
+                compiled_circuit,
                 self._architecture,
                 initial_placement,
             )
         else:
             routed = route_circuit(
                 compilation_settings.routing,
-                precompiled,
+                compiled_circuit,
                 self._architecture,
                 initial_placement,
             )
@@ -308,7 +308,7 @@ class AQTMultiZoneBackend(Backend):
         routed.validate()
         return routed
 
-    def compile_circuit_with_routing(
+    def compile_and_route_circuit(
         self,
         circuit: Circuit,
         compilation_settings: CompilationSettings = CompilationSettings.default(),  # noqa: B008
@@ -333,7 +333,7 @@ class AQTMultiZoneBackend(Backend):
         }
         compiled.rename_units(qubit_map)
 
-        return self.route_precompiled(
+        return self.route_compiled(
             compiled, compilation_settings, use_legacy_routing=use_legacy_routing
         )
 

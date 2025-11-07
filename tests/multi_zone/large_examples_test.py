@@ -125,7 +125,7 @@ greedy_compilation_settings = CompilationSettings(
 )
 
 
-adv_precomp = racetrack_backend.precompile_circuit(
+adv_precomp = racetrack_backend.compile_circuit(
     advantage_circuit_56, graph_compilation_settings
 )
 
@@ -149,12 +149,12 @@ adv_precomp = racetrack_backend.precompile_circuit(
 def test_quantum_advantage_racetrack_all_gate_zone(
     compilation_settings: CompilationSettings, use_legacy: bool
 ):
-    racetrack_backend.route_precompiled(
+    racetrack_backend.route_compiled(
         adv_precomp, compilation_settings, use_legacy_routing=use_legacy
     )
 
 
-adv_precomp2 = racetrack_4_gatezones_backend.precompile_circuit(
+adv_precomp2 = racetrack_4_gatezones_backend.compile_circuit(
     advantage_circuit_56, graph_compilation_settings
 )
 
@@ -178,12 +178,12 @@ adv_precomp2 = racetrack_4_gatezones_backend.precompile_circuit(
 def test_quantum_advantage_racetrack_4_gate_zone(
     compilation_settings: CompilationSettings, use_legacy: bool
 ) -> None:
-    racetrack_4_gatezones_backend.route_precompiled(
+    racetrack_4_gatezones_backend.route_compiled(
         adv_precomp2, compilation_settings, use_legacy_routing=use_legacy
     )
 
 
-adv_precomp3 = grid_backend.precompile_circuit(
+adv_precomp3 = grid_backend.compile_circuit(
     advantage_circuit_30, graph_compilation_settings
 )
 
@@ -207,12 +207,12 @@ adv_precomp3 = grid_backend.precompile_circuit(
 def test_quantum_advantage_grid_12_gate_zone(
     compilation_settings: CompilationSettings, use_legacy: bool
 ):
-    grid_backend.route_precompiled(
+    grid_backend.route_compiled(
         adv_precomp3, compilation_settings, use_legacy_routing=use_legacy
     )
 
 
-adv_precomp4 = grid_mod_backend.precompile_circuit(
+adv_precomp4 = grid_mod_backend.compile_circuit(
     advantage_circuit_30, graph_compilation_settings
 )
 
@@ -236,6 +236,6 @@ adv_precomp4 = grid_mod_backend.precompile_circuit(
 def test_quantum_advantage_grid_4_gate_zone(
     compilation_settings: CompilationSettings, use_legacy: bool
 ):
-    grid_mod_backend.route_precompiled(
+    grid_mod_backend.route_compiled(
         adv_precomp4, compilation_settings, use_legacy_routing=use_legacy
     )

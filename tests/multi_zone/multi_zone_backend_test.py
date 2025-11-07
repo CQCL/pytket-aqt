@@ -97,7 +97,7 @@ def test_circuit_compiles(backend: AQTMultiZoneBackend) -> None:
     circuit.CX(0, 1).CX(2, 3).CX(4, 5).CX(6, 7)
     circuit.CX(1, 2).CX(3, 4).CX(5, 6).CX(7, 0)
     circuit.measure_all()
-    backend.compile_circuit_with_routing(circuit)
+    backend.compile_and_route_circuit(circuit)
 
 
 def test_invalid_circuit_does_not_compile(backend: AQTMultiZoneBackend) -> None:
@@ -219,7 +219,7 @@ def test_automatically_routed_circuit_has_correct_syntax(  # noqa: PLR0915
     compilation_settings = CompilationSettings(
         initial_placement=init_pl_settings, routing=routing_settings
     )
-    mz_circuit = backend.compile_circuit_with_routing(circuit, compilation_settings)
+    mz_circuit = backend.compile_and_route_circuit(circuit, compilation_settings)
 
     n_shuttles = mz_circuit.get_n_shuttles()
     n_pswaps = mz_circuit.get_n_pswaps()

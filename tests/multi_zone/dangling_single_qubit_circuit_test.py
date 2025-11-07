@@ -72,7 +72,7 @@ greedy_compilation_settings = CompilationSettings(
     routing=greedy_routing,
 )
 
-qft_precompiled = line_backend.precompile_circuit(test_circ, graph_compilation_settings)
+qft_precompiled = line_backend.compile_circuit(test_circ, graph_compilation_settings)
 
 graph_skipif = pytest.mark.skipif(
     not MT_KAHYPAR_INSTALLED, reason="mtkahypar required for testing graph partitioning"
@@ -90,6 +90,6 @@ graph_skipif = pytest.mark.skipif(
 def test_circuit_with_dangling_single_qubit_gates(
     compilation_settings: CompilationSettings, use_legacy: bool
 ) -> None:
-    line_backend.route_precompiled(
+    line_backend.route_compiled(
         qft_precompiled, compilation_settings, use_legacy_routing=use_legacy
     )
