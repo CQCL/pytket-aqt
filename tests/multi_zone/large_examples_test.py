@@ -4,9 +4,11 @@ import pytest
 
 from pytket import Circuit
 from pytket.extensions.aqt.backends.aqt_multi_zone import AQTMultiZoneBackend
-from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.settings import (
-    RoutingAlg,
-    RoutingSettings,
+from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.gate_selection.graph_partition_gate_selection import (
+    PartitionGateSelector,
+)
+from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.routing_config import (
+    RoutingConfig,
 )
 from pytket.extensions.aqt.multi_zone_architecture.compilation_settings import (
     CompilationSettings,
@@ -105,9 +107,8 @@ order_init = InitialPlacementSettings(
     zone_free_space=2,
     max_depth=200,
 )
-graph_routing = RoutingSettings(
-    algorithm=RoutingAlg.graph_partition,
-    ignore_swap_costs=False,
+graph_routing = RoutingConfig(
+    gate_selector=PartitionGateSelector(),
 )
 graph_compilation_settings = CompilationSettings(
     pytket_optimisation_level=1,
@@ -115,13 +116,19 @@ graph_compilation_settings = CompilationSettings(
     routing=graph_routing,
 )
 
-greedy_routing = RoutingSettings(
-    algorithm=RoutingAlg.greedy,
-)
+greedy_routing = RoutingConfig()
 greedy_compilation_settings = CompilationSettings(
     pytket_optimisation_level=1,
     initial_placement=order_init,
     routing=greedy_routing,
+)
+
+legacy_routing = RoutingConfig(use_legacy_greedy_method=True)
+greedy_routing = RoutingConfig()
+legacy_compilation_settings = CompilationSettings(
+    pytket_optimisation_level=1,
+    initial_placement=order_init,
+    routing=legacy_routing,
 )
 
 
@@ -131,27 +138,20 @@ adv_precomp = racetrack_backend.compile_circuit(
 
 
 @pytest.mark.parametrize(
-    "compilation_settings, use_legacy",
+    "compilation_settings",
     [
-        pytest.param(
-            greedy_compilation_settings, True, marks=skip_if_no_run_long_tests
-        ),
-        pytest.param(
-            greedy_compilation_settings, False, marks=skip_if_no_run_long_tests
-        ),
+        pytest.param(legacy_compilation_settings, marks=skip_if_no_run_long_tests),
+        pytest.param(greedy_compilation_settings, marks=skip_if_no_run_long_tests),
         pytest.param(
             graph_compilation_settings,
-            False,
             marks=[graph_skipif, skip_if_no_run_long_tests],
         ),
     ],
 )
 def test_quantum_advantage_racetrack_all_gate_zone(
-    compilation_settings: CompilationSettings, use_legacy: bool
+    compilation_settings: CompilationSettings,
 ):
-    racetrack_backend.route_compiled(
-        adv_precomp, compilation_settings, use_legacy_routing=use_legacy
-    )
+    racetrack_backend.route_compiled(adv_precomp, compilation_settings)
 
 
 adv_precomp2 = racetrack_4_gatezones_backend.compile_circuit(
@@ -160,26 +160,22 @@ adv_precomp2 = racetrack_4_gatezones_backend.compile_circuit(
 
 
 @pytest.mark.parametrize(
-    "compilation_settings, use_legacy",
+    "compilation_settings",
     [
-        pytest.param(
-            greedy_compilation_settings, True, marks=skip_if_no_run_long_tests
-        ),
-        pytest.param(
-            greedy_compilation_settings, False, marks=skip_if_no_run_long_tests
-        ),
+        pytest.param(legacy_compilation_settings, marks=skip_if_no_run_long_tests),
+        pytest.param(greedy_compilation_settings, marks=skip_if_no_run_long_tests),
         pytest.param(
             graph_compilation_settings,
-            False,
             marks=[skip_if_no_run_long_tests, graph_skipif],
         ),
     ],
 )
 def test_quantum_advantage_racetrack_4_gate_zone(
-    compilation_settings: CompilationSettings, use_legacy: bool
+    compilation_settings: CompilationSettings,
 ) -> None:
     racetrack_4_gatezones_backend.route_compiled(
-        adv_precomp2, compilation_settings, use_legacy_routing=use_legacy
+        adv_precomp2,
+        compilation_settings,
     )
 
 
@@ -189,26 +185,22 @@ adv_precomp3 = grid_backend.compile_circuit(
 
 
 @pytest.mark.parametrize(
-    "compilation_settings, use_legacy",
+    "compilation_settings",
     [
-        pytest.param(
-            greedy_compilation_settings, True, marks=skip_if_no_run_long_tests
-        ),
-        pytest.param(
-            greedy_compilation_settings, False, marks=skip_if_no_run_long_tests
-        ),
+        pytest.param(legacy_compilation_settings, marks=skip_if_no_run_long_tests),
+        pytest.param(greedy_compilation_settings, marks=skip_if_no_run_long_tests),
         pytest.param(
             graph_compilation_settings,
-            False,
             marks=[skip_if_no_run_long_tests, graph_skipif],
         ),
     ],
 )
 def test_quantum_advantage_grid_12_gate_zone(
-    compilation_settings: CompilationSettings, use_legacy: bool
+    compilation_settings: CompilationSettings,
 ):
     grid_backend.route_compiled(
-        adv_precomp3, compilation_settings, use_legacy_routing=use_legacy
+        adv_precomp3,
+        compilation_settings,
     )
 
 
@@ -218,24 +210,20 @@ adv_precomp4 = grid_mod_backend.compile_circuit(
 
 
 @pytest.mark.parametrize(
-    "compilation_settings, use_legacy",
+    "compilation_settings",
     [
-        pytest.param(
-            greedy_compilation_settings, True, marks=skip_if_no_run_long_tests
-        ),
-        pytest.param(
-            greedy_compilation_settings, False, marks=skip_if_no_run_long_tests
-        ),
+        pytest.param(legacy_compilation_settings, marks=skip_if_no_run_long_tests),
+        pytest.param(greedy_compilation_settings, marks=skip_if_no_run_long_tests),
         pytest.param(
             graph_compilation_settings,
-            False,
             marks=[skip_if_no_run_long_tests, graph_skipif],
         ),
     ],
 )
 def test_quantum_advantage_grid_4_gate_zone(
-    compilation_settings: CompilationSettings, use_legacy: bool
+    compilation_settings: CompilationSettings,
 ):
     grid_mod_backend.route_compiled(
-        adv_precomp4, compilation_settings, use_legacy_routing=use_legacy
+        adv_precomp4,
+        compilation_settings,
     )

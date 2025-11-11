@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Final
 
-from .circuit_routing.settings import RoutingSettings
+from .circuit_routing.routing_config import RoutingConfig
 from .initial_placement.settings import InitialPlacementSettings
 
 
@@ -33,14 +33,10 @@ class CompilationSettings:
     initial_placement: InitialPlacementSettings = field(
         default_factory=InitialPlacementSettings.default
     )
-    routing: RoutingSettings = field(default_factory=RoutingSettings.default)
+    routing: RoutingConfig = field(default_factory=RoutingConfig)
 
     def __post_init__(self) -> None:
         if self.pytket_optimisation_level not in PYTKET_OPTIMISATION_LEVELS:
             raise CompilationSettingsError(
                 f"pytket_optimisation_level must be one of {PYTKET_OPTIMISATION_LEVELS}"
             )
-
-    @classmethod
-    def default(cls) -> CompilationSettings:
-        return CompilationSettings()

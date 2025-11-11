@@ -13,31 +13,19 @@
 # limitations under the License.
 from __future__ import annotations
 
-from dataclasses import dataclass
-from enum import Enum
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
+from .gate_selection.greedy_gate_selection import GreedyGateSelector
+from .qubit_routing.general_router import GeneralRouter
 
-class RoutingSettingsError(Exception):
-    pass
-
-
-class RoutingAlg(Enum):
-    greedy = 0
-    graph_partition = 1
+if TYPE_CHECKING:
+    from .gate_selection.gate_selector_protocol import GateSelector
+    from .qubit_routing.router import Router
 
 
 @dataclass
-class RoutingSettings:
-    algorithm: RoutingAlg = RoutingAlg.greedy
-    max_depth: int = 50
-    ignore_swap_costs: bool = False
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.algorithm, RoutingAlg):
-            raise RoutingSettingsError(
-                f"{self.algorithm.__name__} must be of type {RoutingAlg.__name__}"
-            )
-
-    @classmethod
-    def default(cls) -> RoutingSettings:
-        return RoutingSettings()
+class RoutingConfig:
+    use_legacy_greedy_method: bool = False
+    router: Router = field(default=GeneralRouter())
+    gate_selector: GateSelector = field(default=GreedyGateSelector())

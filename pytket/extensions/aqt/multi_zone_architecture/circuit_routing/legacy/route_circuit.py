@@ -16,12 +16,10 @@ from pytket.circuit import Circuit
 from ...circuit.helpers import ZonePlacement
 from ...circuit.multizone_circuit import MultiZoneCircuit
 from ...trap_architecture.architecture import MultiZoneArchitectureSpec
-from ..settings import RoutingAlg, RoutingSettings
 from .greedy_routing import GreedyCircuitRouter
 
 
-def route_circuit(
-    settings: RoutingSettings,
+def route_circuit_legacy(
     circuit: Circuit,
     arch: MultiZoneArchitectureSpec,
     initial_placement: ZonePlacement,
@@ -33,18 +31,9 @@ def route_circuit(
     The Circuit provided cannot have more qubits than allowed by
      the architecture.
 
-    :param settings: Settings used to Route Circuit
     :param circuit: A pytket Circuit to be routed
     :param arch: MultiZoneArchitecture to route into
     :param initial_placement: The initial mapping of architecture
      zones to lists of qubits
     """
-    match settings.algorithm:
-        case RoutingAlg.graph_partition:
-            raise ValueError("No legacy version for RoutingAlg.graph_partition")
-        case RoutingAlg.greedy:
-            return GreedyCircuitRouter(
-                circuit, arch, initial_placement, settings
-            ).get_routed_circuit()
-        case _:
-            raise ValueError("Unknown routing algorithm")
+    return GreedyCircuitRouter(circuit, arch, initial_placement).get_routed_circuit()

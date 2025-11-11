@@ -23,9 +23,6 @@ from pytket.backends.backendinfo import BackendInfo, fully_connected_backendinfo
 from pytket.backends.backendresult import BackendResult
 from pytket.backends.resulthandle import _ResultIdTuple
 from pytket.circuit import Circuit, OpType, Qubit
-from pytket.extensions.aqt.multi_zone_architecture.trap_architecture.architecture import (
-    MultiZoneArchitectureSpec,
-)
 from pytket.passes import (
     AutoRebase,
     BasePass,
@@ -53,12 +50,15 @@ from ..multi_zone_architecture.circuit.multizone_circuit import (
     MultiZoneCircuit,
 )
 from ..multi_zone_architecture.circuit_routing.legacy.route_circuit import (
-    route_circuit as legacy_route_circuit,
+    route_circuit_legacy,
 )
 from ..multi_zone_architecture.circuit_routing.route_circuit import route_circuit
 from ..multi_zone_architecture.compilation_settings import CompilationSettings
 from ..multi_zone_architecture.initial_placement.initial_placement_generators import (
     get_initial_placement,
+)
+from ..multi_zone_architecture.trap_architecture.architecture import (
+    MultiZoneArchitectureSpec,
 )
 
 if TYPE_CHECKING:
@@ -85,6 +85,8 @@ _STATUS_MAP = {
     "error": StatusEnum.ERROR,
     "queued": StatusEnum.QUEUED,
 }
+
+_DEFAULT_COMPILATION_SETTINGS = CompilationSettings()
 
 
 class AqtAuthenticationError(Exception):
@@ -250,7 +252,7 @@ class AQTMultiZoneBackend(Backend):
     def compile_circuit(
         self,
         circuit: Circuit,
-        compilation_settings: CompilationSettings = CompilationSettings.default(),  # noqa: B008
+        compilation_settings: CompilationSettings = _DEFAULT_COMPILATION_SETTINGS,
     ) -> Circuit:
         """
         Compile a pytket Circuit assuming all to all connectivity
@@ -275,9 +277,7 @@ class AQTMultiZoneBackend(Backend):
     def route_compiled(
         self,
         compiled_circuit: Circuit,
-        compilation_settings: CompilationSettings = CompilationSettings.default(),  # noqa: B008
-        *,
-        use_legacy_routing: bool = False,
+        compilation_settings: CompilationSettings = _DEFAULT_COMPILATION_SETTINGS,
     ) -> MultiZoneCircuit:
         """
         Route a pytket Circuit to the backend architecture
@@ -289,19 +289,18 @@ class AQTMultiZoneBackend(Backend):
         initial_placement = get_initial_placement(
             compilation_settings.initial_placement, compiled_circuit, self._architecture
         )
-        if use_legacy_routing:
-            routed = legacy_route_circuit(
-                compilation_settings.routing,
+        if compilation_settings.routing.use_legacy_greedy_method:
+            routed = route_circuit_legacy(
                 compiled_circuit,
                 self._architecture,
                 initial_placement,
             )
         else:
             routed = route_circuit(
-                compilation_settings.routing,
                 compiled_circuit,
                 self._architecture,
                 initial_placement,
+                compilation_settings.routing,
             )
 
         routed.is_compiled = True
@@ -311,7 +310,7 @@ class AQTMultiZoneBackend(Backend):
     def compile_and_route_circuit(
         self,
         circuit: Circuit,
-        compilation_settings: CompilationSettings = CompilationSettings.default(),  # noqa: B008
+        compilation_settings: CompilationSettings = _DEFAULT_COMPILATION_SETTINGS,
         *,
         use_legacy_routing: bool = False,
     ) -> MultiZoneCircuit:
@@ -333,9 +332,7 @@ class AQTMultiZoneBackend(Backend):
         }
         compiled.rename_units(qubit_map)
 
-        return self.route_compiled(
-            compiled, compilation_settings, use_legacy_routing=use_legacy_routing
-        )
+        return self.route_compiled(compiled, compilation_settings)
 
     def compile_manually_routed_multi_zone_circuit(
         self,

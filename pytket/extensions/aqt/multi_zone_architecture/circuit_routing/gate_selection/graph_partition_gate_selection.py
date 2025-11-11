@@ -22,11 +22,19 @@ from ...depth_list.depth_list import (
     depth_list_from_command_list,
 )
 from ...graph_algs.graph import GraphData
-from ...graph_algs.mt_kahypar import MtKahyparPartitioner
-from ...trap_architecture.cost_model import RoutingCostModel
+from ...graph_algs.mt_kahypar_check import (
+    MT_KAHYPAR_INSTALLED,
+    MissingMtKahyparInstallError,
+)
+
+if MT_KAHYPAR_INSTALLED:
+    from ...graph_algs.mt_kahypar import MtKahyparPartitioner
+else:
+    raise MissingMtKahyparInstallError
+
+from ...trap_architecture.cost_model import RoutingCostModel, ShuttlePSwapCostModel
 from ...trap_architecture.dynamic_architecture import DynamicArch
-from ..settings import RoutingSettings
-from .config_selector_protocol import ConfigSelector
+from .gate_selector_protocol import GateSelector
 from .greedy_gate_selection import (
     handle_only_single_qubits_remaining,
     handle_unused_qubits,
@@ -43,22 +51,26 @@ def log_depth_list(depth_list):
         logger.debug(msg)
 
 
-class PartitionGateSelector(ConfigSelector):
+_DEFAULT_COST_MODEL = ShuttlePSwapCostModel()
+
+
+class PartitionGateSelector(GateSelector):
     """Uses graph partitioning to add shuttles and swaps to a circuit
 
     The routed circuit can be directly run on the given Architecture
 
-    :param cost_model: Cost model for determining movement costs
-    :param settings: The settings used for routing
+    :param cost_model: Cost model for estimating movement costs
+    :param max_depth: Maximum depth used for 2 qubit gate edges
+     in model graph
     """
 
     def __init__(
         self,
-        cost_model: RoutingCostModel,
-        settings: RoutingSettings,
+        cost_model: RoutingCostModel = _DEFAULT_COST_MODEL,
+        max_depth: int = 50,
     ):
-        self._settings = settings
         self._cost_model = cost_model
+        self._max_depth = max_depth
 
     def next_config(
         self,
@@ -134,7 +146,7 @@ class PartitionGateSelector(ConfigSelector):
         edge_weights: list[int] = []
 
         # add gate edges
-        max_considered_depth = min(self._settings.max_depth, len(depth_list))
+        max_considered_depth = min(self._max_depth, len(depth_list))
         max_weight = math.ceil(math.pow(2, 18))
         for depth, pairs in enumerate(depth_list):
             if depth > max_considered_depth:

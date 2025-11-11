@@ -15,9 +15,11 @@ import pytest
 
 from pytket.circuit import Circuit
 from pytket.extensions.aqt.backends.aqt_multi_zone import AQTMultiZoneBackend
-from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.settings import (
-    RoutingAlg,
-    RoutingSettings,
+from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.gate_selection.graph_partition_gate_selection import (
+    PartitionGateSelector,
+)
+from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.routing_config import (
+    RoutingConfig,
 )
 from pytket.extensions.aqt.multi_zone_architecture.compilation_settings import (
     CompilationSettings,
@@ -64,9 +66,9 @@ ordered_placement = InitialPlacementSettings(
     algorithm=InitialPlacementAlg.qubit_order, zone_free_space=2
 )
 
-graph_routing = RoutingSettings(algorithm=RoutingAlg.graph_partition)
+graph_routing = RoutingConfig(gate_selector=PartitionGateSelector())
 
-greedy_routing = RoutingSettings(algorithm=RoutingAlg.greedy)
+greedy_routing = RoutingConfig()
 
 graph_skipif = pytest.mark.skipif(
     not MT_KAHYPAR_INSTALLED, reason="mtkahypar required for testing graph partitioning"
@@ -87,7 +89,7 @@ graph_skipif = pytest.mark.skipif(
 def test_compilation_settings_linearch(
     opt_level: int,
     initial_pl_settings: InitialPlacementSettings,
-    routing_settings: RoutingSettings,
+    routing_settings: RoutingConfig,
     ghz_circuit: Circuit,
 ) -> None:
     backend = AQTMultiZoneBackend(
@@ -117,7 +119,7 @@ mtkahypar_skipif = pytest.mark.skipif(
 def test_throws_mtkahypar_missing_if_graph_partition_without_mtkahypar(
     opt_level: int,
     initial_pl_settings: InitialPlacementSettings,
-    routing_settings: RoutingSettings,
+    routing_settings: RoutingConfig,
     ghz_circuit: Circuit,
 ) -> None:
     backend = AQTMultiZoneBackend(
@@ -159,7 +161,7 @@ manual_placement_grid = InitialPlacementSettings(
 def test_compilation_settings_gridarch(
     opt_level: int,
     initial_pl_settings: InitialPlacementSettings,
-    routing_settings: RoutingSettings,
+    routing_settings: RoutingConfig,
     ghz_circuit: Circuit,
 ) -> None:
     backend = AQTMultiZoneBackend(architecture=grid12, access_token="invalid")

@@ -19,47 +19,18 @@ from pytket.circuit import Circuit, Command
 
 from ..circuit.helpers import TrapConfiguration, ZonePlacement, get_qubit_to_zone
 from ..circuit.multizone_circuit import MultiZoneCircuit
-from ..graph_algs.mt_kahypar_check import (
-    MT_KAHYPAR_INSTALLED,
-    MissingMtKahyparInstallError,
-)
 from ..trap_architecture.architecture import MultiZoneArchitectureSpec
-from ..trap_architecture.cost_model import (
-    RoutingCostModel,
-    ShuttleOnlyCostModel,
-    ShuttlePSwapCostModel,
-)
 from ..trap_architecture.dynamic_architecture import DynamicArch
-from .gate_selection.config_selector_protocol import ConfigSelector
-from .gate_selection.greedy_gate_selection import GreedyGateSelector
-from .qubit_routing.general_router import GeneralRouter
-from .settings import RoutingAlg, RoutingSettings
+from .routing_config import RoutingConfig
 
 logger = logging.getLogger(__name__)
 
-if MT_KAHYPAR_INSTALLED:
-    from .gate_selection.graph_partition_gate_selection import PartitionGateSelector
-
-
-def config_selector_from_settings(
-    cost_model: RoutingCostModel, settings: RoutingSettings
-) -> ConfigSelector:
-    match settings.algorithm:
-        case RoutingAlg.graph_partition:
-            if MT_KAHYPAR_INSTALLED:
-                return PartitionGateSelector(cost_model, settings)
-            raise MissingMtKahyparInstallError()  # noqa: RSE102
-        case RoutingAlg.greedy:
-            return GreedyGateSelector(cost_model, settings)
-        case _:
-            raise ValueError("Unknown gate selection algorithm")
-
 
 def route_circuit(
-    settings: RoutingSettings,
     circuit: Circuit,
     arch: MultiZoneArchitectureSpec,
     initial_placement: ZonePlacement,
+    routing_config: RoutingConfig,
 ) -> MultiZoneCircuit:
     """
     Route a Circuit to a given MultiZoneArchitecture by adding
@@ -68,11 +39,11 @@ def route_circuit(
     The Circuit provided cannot have more qubits than allowed by
      the architecture.
 
-    :param settings: Settings used to Route Circuit
     :param circuit: A pytket Circuit to be routed
     :param arch: MultiZoneArchitecture to route into
     :param initial_placement: The initial mapping of architecture
      zones to lists of qubits
+    :param routing_config: Configuration to control routing options
     """
 
     dynamic_arch = DynamicArch(
@@ -83,14 +54,8 @@ def route_circuit(
         arch, initial_placement, circuit.n_qubits, circuit.n_bits
     )
 
-    cost_model = (
-        ShuttleOnlyCostModel()
-        if settings.ignore_swap_costs
-        else ShuttlePSwapCostModel()
-    )
-
-    gate_selector = config_selector_from_settings(cost_model, settings)
-    router = GeneralRouter(cost_model, settings)
+    gate_selector = routing_config.gate_selector
+    router = routing_config.router
 
     commands = circuit.get_commands().copy()
 

@@ -2,9 +2,11 @@ import pytest
 
 from pytket import Circuit
 from pytket.extensions.aqt.backends.aqt_multi_zone import AQTMultiZoneBackend
-from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.settings import (
-    RoutingAlg,
-    RoutingSettings,
+from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.gate_selection.graph_partition_gate_selection import (
+    PartitionGateSelector,
+)
+from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.routing_config import (
+    RoutingConfig,
 )
 from pytket.extensions.aqt.multi_zone_architecture.compilation_settings import (
     CompilationSettings,
@@ -49,27 +51,29 @@ line_backend = AQTMultiZoneBackend(
 # for mt-kahypar. It is not required (then default will be used) and can only
 # be set once
 configure_mtkahypar(MtKahyparConfig(n_threads=1, random_seed=13))
+
 order_init = InitialPlacementSettings(
     algorithm=InitialPlacementAlg.qubit_order,
     zone_free_space=2,
     max_depth=200,
 )
-graph_routing = RoutingSettings(
-    algorithm=RoutingAlg.graph_partition,
-)
+
 graph_compilation_settings = CompilationSettings(
     pytket_optimisation_level=1,
     initial_placement=order_init,
-    routing=graph_routing,
+    routing=RoutingConfig(gate_selector=PartitionGateSelector()),
 )
 
-greedy_routing = RoutingSettings(
-    algorithm=RoutingAlg.greedy,
-)
 greedy_compilation_settings = CompilationSettings(
     pytket_optimisation_level=1,
     initial_placement=order_init,
-    routing=greedy_routing,
+    routing=RoutingConfig(),
+)
+
+legacy_compilation_settings = CompilationSettings(
+    pytket_optimisation_level=1,
+    initial_placement=order_init,
+    routing=RoutingConfig(use_legacy_greedy_method=True),
 )
 
 qft_precompiled = line_backend.compile_circuit(test_circ, graph_compilation_settings)
@@ -80,16 +84,17 @@ graph_skipif = pytest.mark.skipif(
 
 
 @pytest.mark.parametrize(
-    "compilation_settings, use_legacy",
+    "compilation_settings",
     [
-        pytest.param(greedy_compilation_settings, True),
-        pytest.param(greedy_compilation_settings, False),
-        pytest.param(graph_compilation_settings, False, marks=graph_skipif),
+        pytest.param(legacy_compilation_settings),
+        pytest.param(greedy_compilation_settings),
+        pytest.param(graph_compilation_settings, marks=graph_skipif),
     ],
 )
 def test_circuit_with_dangling_single_qubit_gates(
-    compilation_settings: CompilationSettings, use_legacy: bool
+    compilation_settings: CompilationSettings,
 ) -> None:
     line_backend.route_compiled(
-        qft_precompiled, compilation_settings, use_legacy_routing=use_legacy
+        qft_precompiled,
+        compilation_settings,
     )

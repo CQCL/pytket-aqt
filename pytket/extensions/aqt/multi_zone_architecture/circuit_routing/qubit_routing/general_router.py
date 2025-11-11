@@ -5,12 +5,13 @@ from copy import deepcopy
 from dataclasses import dataclass
 
 from ...circuit.helpers import ZonePlacement, get_qubit_to_zone
-from ...circuit_routing.settings import RoutingSettings
 from ...trap_architecture.architecture import PortId
-from ...trap_architecture.cost_model import RoutingCostModel
+from ...trap_architecture.cost_model import RoutingCostModel, ShuttlePSwapCostModel
 from ...trap_architecture.dynamic_architecture import DynamicArch
 from ..routing_ops import PSwap, RoutingBarrier, RoutingOp, Shuttle
 from .router import Router, RoutingResult
+
+_DEFAULT_COST_MODEL = ShuttlePSwapCostModel()
 
 
 @dataclass
@@ -31,12 +32,23 @@ class MoveGroupPath:
 
 
 class GeneralRouter(Router):
+    """Uses cost model to determine physical operations to add to get to target_placement
+
+    Does not respect the qubit order within the zones of the target placement, the order
+    results from the order of moves into the zones, which is determined by trying to minimize
+    cost
+
+    This router tries to perform full moves from a starting zone to a target zone. It supports
+    multi-qubit shuttles. It picks and implements moves in order of cost.
+
+    :param cost_model: Cost model used to estimate cost of moves
+
+    """
+
     def __init__(
         self,
-        cost_model: RoutingCostModel,
-        settings: RoutingSettings,
+        cost_model: RoutingCostModel = _DEFAULT_COST_MODEL,
     ):
-        self._settings = settings
         self._cost_model = cost_model
 
     def route_source_to_target_config(

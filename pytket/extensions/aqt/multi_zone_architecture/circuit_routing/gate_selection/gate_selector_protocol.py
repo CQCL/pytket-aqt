@@ -19,7 +19,7 @@ from ...circuit.helpers import ZonePlacement
 from ...trap_architecture.dynamic_architecture import DynamicArch
 
 
-class ConfigSelector(Protocol):
+class GateSelector(Protocol):
     """A class for calculating the optimal placement of ions in zones to implement upcoming gates"""
 
     def next_config(

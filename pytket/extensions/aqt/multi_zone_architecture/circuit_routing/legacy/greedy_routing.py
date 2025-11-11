@@ -16,18 +16,16 @@ from copy import deepcopy
 from networkx import bfs_layers  # type: ignore[import-untyped]
 
 from pytket.circuit import Circuit, Command, OpType, Qubit
-from pytket.extensions.aqt.multi_zone_architecture.circuit.helpers import (
+
+from ...circuit.helpers import (
     ZonePlacement,
     ZoneRoutingError,
     get_qubit_to_zone,
 )
-from pytket.extensions.aqt.multi_zone_architecture.circuit.multizone_circuit import (
+from ...circuit.multizone_circuit import (
     MultiZoneCircuit,
 )
-from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.settings import (
-    RoutingSettings,
-)
-from pytket.extensions.aqt.multi_zone_architecture.trap_architecture.architecture import (
+from ...trap_architecture.architecture import (
     MultiZoneArchitectureSpec,
 )
 
@@ -59,7 +57,6 @@ class GreedyCircuitRouter:
     :param circuit: The circuit to be routed
     :param arch: The architecture to route to
     :param initial_placement: The initial placement of ions in the ion trap zones
-    :param settings: The settings used for routing
     """
 
     def __init__(
@@ -67,12 +64,10 @@ class GreedyCircuitRouter:
         circuit: Circuit,
         arch: MultiZoneArchitectureSpec,
         initial_placement: ZonePlacement,
-        settings: RoutingSettings,
     ):
         self._circuit = circuit
         self._arch = arch
         self._initial_placement = initial_placement
-        self._settings = settings
 
     def get_routed_circuit(self) -> MultiZoneCircuit:  # noqa: PLR0912
         """Returns the routed MultiZoneCircuit"""

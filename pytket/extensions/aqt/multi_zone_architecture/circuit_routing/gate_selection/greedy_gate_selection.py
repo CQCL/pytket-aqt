@@ -18,28 +18,30 @@ from pytket.circuit import Command, OpType
 
 from ...circuit.helpers import ZonePlacement
 from ...depth_list.depth_list import depth_list_from_command_list
-from ...trap_architecture.cost_model import RoutingCostModel, unwrap_move_cost_result
+from ...trap_architecture.cost_model import (
+    RoutingCostModel,
+    ShuttlePSwapCostModel,
+    unwrap_move_cost_result,
+)
 from ...trap_architecture.dynamic_architecture import DynamicArch
-from ..settings import RoutingSettings
-from .config_selector_protocol import ConfigSelector
+from .gate_selector_protocol import GateSelector
 from .qubit_tracker import QubitTracker
 
+_DEFAULT_COST_MODEL = ShuttlePSwapCostModel()
 
-class GreedyGateSelector(ConfigSelector):
+
+class GreedyGateSelector(GateSelector):
     """Uses a simple greedy algorithm for gate selection
 
     The routed circuit can be directly run on the given Architecture
 
-    :param cost_model: Cost model for determining movement costs
-    :param settings: The settings used for routing
+    :param cost_model: Cost model for estimating movement costs
     """
 
     def __init__(
         self,
-        cost_model: RoutingCostModel,
-        settings: RoutingSettings,
+        cost_model: RoutingCostModel = _DEFAULT_COST_MODEL,
     ):
-        self._settings = settings
         self._cost_model = cost_model
 
     def next_config(
