@@ -25,11 +25,7 @@ def route_circuit_legacy(
     initial_placement: ZonePlacement,
 ) -> MultiZoneCircuit:
     """
-    Route a Circuit to a given MultiZoneArchitecture by adding
-     physical operations where needed
-
-    The Circuit provided cannot have more qubits than allowed by
-     the architecture.
+    Legacy routing method that uses the legacy greedy routing algorithm
 
     :param circuit: A pytket Circuit to be routed
     :param arch: MultiZoneArchitecture to route into

@@ -55,9 +55,8 @@ _DEFAULT_COST_MODEL = ShuttlePSwapCostModel()
 
 
 class PartitionGateSelector(GateSelector):
-    """Uses graph partitioning to add shuttles and swaps to a circuit
-
-    The routed circuit can be directly run on the given Architecture
+    """Uses graph partitioning to determine an optimal new placement of qubits
+    in zones
 
     :param cost_model: Cost model for estimating movement costs
     :param max_depth: Maximum depth used for 2 qubit gate edges

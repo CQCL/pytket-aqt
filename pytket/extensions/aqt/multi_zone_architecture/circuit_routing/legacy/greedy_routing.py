@@ -52,7 +52,8 @@ class QubitTracker:
 class GreedyCircuitRouter:
     """Uses a simple greedy algorithm to add shuttles and swaps to a circuit
 
-    The routed circuit can be directly run on the given Architecture
+    Any time an unimplementable gate is detected, the qubits involved are
+    immediately moved to a gate zone based on some simple move heuristics
 
     :param circuit: The circuit to be routed
     :param arch: The architecture to route to

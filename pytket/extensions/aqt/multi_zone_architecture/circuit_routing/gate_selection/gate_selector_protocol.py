@@ -20,7 +20,7 @@ from ...trap_architecture.dynamic_architecture import DynamicArch
 
 
 class GateSelector(Protocol):
-    """A class for calculating the optimal placement of ions in zones to implement upcoming gates"""
+    """A class protocol for calculating the optimal placement of ions in zones to implement upcoming gates"""
 
     def next_config(
         self, dyn_arch: DynamicArch, remaining_circuit: list[Command]

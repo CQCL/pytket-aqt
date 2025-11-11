@@ -25,6 +25,14 @@ from .macro_architecture_graph import MultiZoneArch
 
 
 class DynamicArch:
+    """Dynamic Architecture class
+
+    This class combines both static and dynamic architectures information
+    and can be considered a mutable snapshot of the current state
+    of the trap architecture including placement of qubits in zones
+
+    """
+
     def __init__(
         self, arch: MultiZoneArchitectureSpec, configuration: TrapConfiguration
     ):
