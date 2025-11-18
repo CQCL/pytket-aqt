@@ -75,7 +75,7 @@ class MultiZoneArch:
             self.zone_graph.add_edge(int(zone0), int(zone1), transport_cost=1)
 
     def shortest_path(self, zone_1: int, zone_2: int) -> list[int]:
-        length, path = self.shortest_path_with_length(zone_1, zone_2)
+        _, path = self.shortest_path_with_length(zone_1, zone_2)
         return path
 
     def shortest_path_with_length(
