@@ -10,10 +10,6 @@ from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.routing_confi
 from pytket.extensions.aqt.multi_zone_architecture.compilation_settings import (
     CompilationSettings,
 )
-from pytket.extensions.aqt.multi_zone_architecture.graph_algs.mt_kahypar import (
-    MtKahyparConfig,
-    configure_mtkahypar,
-)
 from pytket.extensions.aqt.multi_zone_architecture.graph_algs.mt_kahypar_check import (
     MT_KAHYPAR_INSTALLED,
 )
@@ -93,11 +89,6 @@ racetrack_4_gatezones_backend = AQTMultiZoneBackend(
 grid_backend = AQTMultiZoneBackend(architecture=grid12, access_token="invalid")
 
 grid_mod_backend = AQTMultiZoneBackend(architecture=grid12_mod, access_token="invalid")
-
-# This can be used to configure the number of threads used and random seed
-# for mt-kahypar. It is not required (then default will be used) and can only
-# be set once
-configure_mtkahypar(MtKahyparConfig(n_threads=1, random_seed=13))
 
 order_init = InitialPlacementSettings(
     algorithm=InitialPlacementAlg.qubit_order,
