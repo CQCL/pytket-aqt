@@ -15,7 +15,7 @@ from typing import TypeAlias
 
 from pytket.circuit import Circuit, Command, OpType, Qubit
 
-DepthList: TypeAlias = list[list[tuple[int, int]]]  # noqa: UP040
+DepthList: TypeAlias = list[list[tuple[int, int]]]
 
 
 def get_2q_gate_pairs_from_circuit(circuit: Circuit) -> list[tuple[int, int]]:

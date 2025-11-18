@@ -28,7 +28,7 @@ from ..trap_architecture.architecture import MultiZoneArchitectureSpec, PortId
 from ..trap_architecture.macro_architecture_graph import MultiZoneArch
 from .helpers import get_qubit_to_zone
 
-ParamType: TypeAlias = Expr | float  # noqa: UP040
+ParamType: TypeAlias = Expr | float
 
 
 class QubitPlacementError(Exception):

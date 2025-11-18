@@ -23,7 +23,6 @@ from pytket.extensions.aqt.multi_zone_architecture.compilation_settings import (
 )
 from pytket.extensions.aqt.multi_zone_architecture.graph_algs.mt_kahypar_check import (
     MT_KAHYPAR_INSTALLED,
-    MissingMtKahyparInstallError,
 )
 from pytket.extensions.aqt.multi_zone_architecture.initial_placement.settings import (
     InitialPlacementAlg,
@@ -106,36 +105,6 @@ def test_compilation_settings_linearch(
     )
     compiled = backend.compile_and_route_circuit(ghz_circuit, compilation_settings)
     print("Shuttles: ", compiled.get_n_shuttles())  # noqa: T201
-
-
-mtkahypar_skipif = pytest.mark.skipif(
-    MT_KAHYPAR_INSTALLED, reason="mtkahypar is installed, so won't raise"
-)
-
-
-@pytest.mark.parametrize(
-    "opt_level, initial_pl_settings, routing_settings",
-    [
-        pytest.param(0, ordered_placement, graph_routing, marks=mtkahypar_skipif),
-        pytest.param(0, graph_placement, greedy_routing, marks=mtkahypar_skipif),
-    ],
-)
-def test_throws_mtkahypar_missing_if_graph_partition_without_mtkahypar(
-    opt_level: int,
-    initial_pl_settings: InitialPlacementSettings,
-    routing_settings: RoutingConfig,
-    ghz_circuit: Circuit,
-) -> None:
-    backend = AQTMultiZoneBackend(
-        architecture=four_zones_in_a_line, access_token="invalid"
-    )
-    compilation_settings = CompilationSettings(
-        pytket_optimisation_level=opt_level,
-        initial_placement=initial_pl_settings,
-        routing=routing_settings,
-    )
-    with pytest.raises(MissingMtKahyparInstallError):
-        backend.compile_and_route_circuit(ghz_circuit, compilation_settings)
 
 
 manual_placement_grid = InitialPlacementSettings(

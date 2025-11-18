@@ -28,7 +28,12 @@ from ..graph_algs.mt_kahypar_check import (
 from ..trap_architecture.architecture import MultiZoneArchitectureSpec
 from .settings import InitialPlacementAlg, InitialPlacementSettings
 
-logger = getLogger("initial_placement_logger")
+if MT_KAHYPAR_INSTALLED:
+    from ..graph_algs.mt_kahypar import MtKahyparPartitioner
+else:
+    raise MissingMtKahyparInstallError
+
+logger = getLogger(__name__)
 
 
 class InitialPlacementError(Exception):
@@ -130,15 +135,6 @@ class GraphMapInitialPlacement(InitialPlacementGenerator):
         circuit: Circuit,
         arch: MultiZoneArchitectureSpec,
     ) -> ZonePlacement:
-        try:
-            from ..graph_algs.mt_kahypar import MtKahyparPartitioner
-        except ImportError as e:
-            logger.error(
-                "Using graph partitioning algorithms requires"
-                " the installation of mt-kahypar python bindings, "
-                "see installation instructions for details"
-            )
-            raise e
         _check_n_qubits(circuit, arch)
         n_parts = arch.n_zones
         n_qubits = circuit.n_qubits
