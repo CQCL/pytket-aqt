@@ -30,8 +30,6 @@ from .settings import InitialPlacementAlg, InitialPlacementSettings
 
 if MT_KAHYPAR_INSTALLED:
     from ..graph_algs.mt_kahypar import MtKahyparPartitioner
-else:
-    raise MissingMtKahyparInstallError
 
 logger = getLogger(__name__)
 
@@ -232,7 +230,6 @@ def get_initial_placement_generator(
         case InitialPlacementAlg.manual:
             assert settings.manual_placement is not None
             return ManualInitialPlacement(placement=settings.manual_placement)
-    raise ValueError("Unrecognized initial placement algorithm")
 
 
 def get_initial_placement(
