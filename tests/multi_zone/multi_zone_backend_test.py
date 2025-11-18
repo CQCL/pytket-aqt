@@ -23,9 +23,6 @@ from pytket.extensions.aqt.backends.aqt_multi_zone import (
 from pytket.extensions.aqt.multi_zone_architecture.circuit.multizone_circuit import (
     MultiZoneCircuit,
 )
-from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.gate_selection.graph_partition_gate_selection import (
-    PartitionGateSelector,
-)
 from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.routing_config import (
     RoutingConfig,
 )
@@ -192,8 +189,16 @@ def test_compiled_circuit_has_correct_syntax(backend: AQTMultiZoneBackend) -> No
     assert number_initialized_qubits == 8
 
 
-graph_routing = RoutingConfig(gate_selector=PartitionGateSelector())
 greedy_routing = RoutingConfig()
+if MT_KAHYPAR_INSTALLED:
+    from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.gate_selection.graph_partition_gate_selection import (
+        PartitionGateSelector,
+    )
+
+    graph_routing = RoutingConfig(gate_selector=PartitionGateSelector())
+else:
+    graph_routing = greedy_routing
+
 legacy_routing = RoutingConfig(use_legacy_greedy_method=True)
 
 graph_skipif = pytest.mark.skipif(

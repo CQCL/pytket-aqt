@@ -2,9 +2,6 @@ import pytest
 
 from pytket import Circuit
 from pytket.extensions.aqt.backends.aqt_multi_zone import AQTMultiZoneBackend
-from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.gate_selection.graph_partition_gate_selection import (
-    PartitionGateSelector,
-)
 from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.routing_config import (
     RoutingConfig,
 )
@@ -58,17 +55,27 @@ order_init = InitialPlacementSettings(
     max_depth=200,
 )
 
-graph_compilation_settings = CompilationSettings(
-    pytket_optimisation_level=1,
-    initial_placement=order_init,
-    routing=RoutingConfig(gate_selector=PartitionGateSelector()),
-)
-
 greedy_compilation_settings = CompilationSettings(
     pytket_optimisation_level=1,
     initial_placement=order_init,
     routing=RoutingConfig(),
 )
+
+if MT_KAHYPAR_INSTALLED:
+    from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.gate_selection.graph_partition_gate_selection import (
+        PartitionGateSelector,
+    )
+
+    graph_compilation_settings = CompilationSettings(
+        pytket_optimisation_level=1,
+        initial_placement=order_init,
+        routing=RoutingConfig(gate_selector=PartitionGateSelector())
+        if MT_KAHYPAR_INSTALLED
+        else RoutingConfig(),
+    )
+else:
+    graph_compilation_settings = greedy_compilation_settings
+
 
 legacy_compilation_settings = CompilationSettings(
     pytket_optimisation_level=1,

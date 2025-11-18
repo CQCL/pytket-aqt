@@ -4,9 +4,6 @@ import pytest
 
 from pytket import Circuit
 from pytket.extensions.aqt.backends.aqt_multi_zone import AQTMultiZoneBackend
-from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.gate_selection.graph_partition_gate_selection import (
-    PartitionGateSelector,
-)
 from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.routing_config import (
     RoutingConfig,
 )
@@ -107,21 +104,29 @@ order_init = InitialPlacementSettings(
     zone_free_space=2,
     max_depth=200,
 )
-graph_routing = RoutingConfig(
-    gate_selector=PartitionGateSelector(),
-)
-graph_compilation_settings = CompilationSettings(
-    pytket_optimisation_level=1,
-    initial_placement=order_init,
-    routing=graph_routing,
-)
-
 greedy_routing = RoutingConfig()
 greedy_compilation_settings = CompilationSettings(
     pytket_optimisation_level=1,
     initial_placement=order_init,
     routing=greedy_routing,
 )
+
+if MT_KAHYPAR_INSTALLED:
+    from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.gate_selection.graph_partition_gate_selection import (
+        PartitionGateSelector,
+    )
+
+    graph_routing = RoutingConfig(
+        gate_selector=PartitionGateSelector(),
+    )
+    graph_compilation_settings = CompilationSettings(
+        pytket_optimisation_level=1,
+        initial_placement=order_init,
+        routing=graph_routing,
+    )
+else:
+    graph_compilation_settings = greedy_compilation_settings
+
 
 legacy_routing = RoutingConfig(use_legacy_greedy_method=True)
 greedy_routing = RoutingConfig()
