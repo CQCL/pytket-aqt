@@ -1,8 +1,9 @@
 import itertools
 from collections import defaultdict
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from copy import deepcopy
 from dataclasses import dataclass
+from typing import Any
 
 from ...circuit.helpers import ZonePlacement, get_qubit_to_zone
 from ...trap_architecture.architecture import PortId
@@ -61,11 +62,11 @@ class GeneralRouter(Router):
             starting_config.n_qubits, starting_config.zone_placement, target_placement
         )
 
-        def free_space_in_zone_func(zon: int):
+        def free_space_in_zone_func(zon: int) -> int:
             # use the transport limit - 1 >= gate limit as the base capacity,
             # The -1 ensures that the implementation of a move group doesn't
             # leave the target zone in a blocked state
-            return dyn_arch.transport_free_space[zon] - 1
+            return int(dyn_arch.transport_free_space[zon]) - 1
 
         total_cost = 0
         move_ops: list[RoutingOp] = [RoutingBarrier()]
@@ -142,32 +143,31 @@ class GeneralRouter(Router):
         move_result_1 = self._cost_model.move_cost_src_port_1(
             dyn_arch, qubits_indx_1, src, trg
         )
-
-        match (move_result_0 is not None, move_result_1 is not None):
-            case (True, True):
-                if move_result_0.path_cost <= move_result_1.path_cost:
-                    return (
-                        qubits_indx_0,
-                        move_result_0.optimal_path,
-                        move_result_0.path_cost,
-                    )
-                return (
-                    qubits_indx_1,
-                    move_result_1.optimal_path,
-                    move_result_1.path_cost,
-                )
-            case (True, False):
+        if move_result_0 and move_result_1:
+            if move_result_0.path_cost <= move_result_1.path_cost:
                 return (
                     qubits_indx_0,
                     move_result_0.optimal_path,
                     move_result_0.path_cost,
                 )
-            case (False, True):
-                return (
-                    qubits_indx_1,
-                    move_result_1.optimal_path,
-                    move_result_1.path_cost,
-                )
+            return (
+                qubits_indx_1,
+                move_result_1.optimal_path,
+                move_result_1.path_cost,
+            )
+        if move_result_0:
+            return (
+                qubits_indx_0,
+                move_result_0.optimal_path,
+                move_result_0.path_cost,
+            )
+        if move_result_1:
+            return (
+                qubits_indx_1,
+                move_result_1.optimal_path,
+                move_result_1.path_cost,
+            )
+        return None
 
 
 def implement_move_group_result(
@@ -239,14 +239,16 @@ def swap_through_zone_and_shuttle_internal_qubits(
     zones: tuple[int, int],
     ports: tuple[int, int],
     zone_qubits: list[int],
-):
+) -> list[RoutingOp]:
     ops: list[RoutingOp] = []
     qubits_index_to_move = [(q, dyn_arch.qubit_to_zone_pos[q, 1]) for q in all_qubits]
     if ports[0] == 0:
         qubits_zone = list(reversed(zone_qubits))
         last_indx = len(zone_qubits) - 1
         # update indices to reflect reversed ordering
-        qubit_src_iter = [(q, last_indx - indx) for q, indx in qubits_index_to_move]
+        qubit_src_iter: Iterable[tuple[int, Any]] = [
+            (q, last_indx - indx) for q, indx in qubits_index_to_move
+        ]
     else:
         # reversing makes logic same for moving to port 1 instead of port 0
         qubit_src_iter = reversed(qubits_index_to_move)
@@ -278,13 +280,13 @@ def swap_through_zone_and_shuttle_edge_qubits(
     zones: tuple[int, int],
     ports: tuple[int, int],
     zone_qubits: list[int],
-):
+) -> list[RoutingOp]:
     ops: list[RoutingOp] = []
 
     # 01 -> move qubits
     # abc -> occupants
     if ports[0] == 0:
-        move_qubits_iter = move_qubits
+        move_qubits_iter: Iterable[int] = move_qubits
         current_zone_iter = list(reversed(zone_qubits))
         # [abc01] -> [ab0c1] -> [a0bc1] -> [0abc1] -> [0ab1c] -> [0a1bc] -> [01abc]
     else:

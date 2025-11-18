@@ -15,7 +15,7 @@
 from dataclasses import dataclass
 from typing import cast
 
-from networkx import (  # type: ignore
+from networkx import (
     Graph,
     single_source_dijkstra,
 )
@@ -36,7 +36,7 @@ class MacroZoneData:
 
 class MultiZoneArch:
     def __init__(self, spec: MultiZoneArchitectureSpec):
-        self.zone_graph = Graph()
+        self.zone_graph: Graph = Graph()
         self.shortest_paths: dict[tuple[int, int], tuple[int, list[int]] | None] = {}
         self.zone_connections: list[list[int]] = [[]] * spec.n_zones
         self.connection_ports: dict[tuple[int, int], tuple[PortId, PortId]] = {}

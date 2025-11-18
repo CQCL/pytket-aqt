@@ -44,7 +44,7 @@ from .qubit_tracker import QubitTracker
 logger = logging.getLogger(__name__)
 
 
-def log_depth_list(depth_list):
+def log_depth_list(depth_list: list[list[tuple[int, int]]]) -> None:
     logger.debug("--- Depth List ---")
     for i in range(min(4, len(depth_list))):
         msg = f"{depth_list[i]}"
@@ -219,14 +219,13 @@ class PartitionGateSelector(GateSelector):
         move_result_1 = self._cost_model.move_cost_src_port_1(
             dyn_arch, [qubit], src_zone, trg_zone
         )
-        match (move_result_0 is not None, move_result_1 is not None):
-            case (True, True):
-                return min(
-                    move_result_0.path_cost,
-                    move_result_1.path_cost,
-                )
-            case (True, False):
-                return move_result_0.path_cost
-            case (False, True):
-                return move_result_1.path_cost
+        if move_result_0 and move_result_1:
+            return min(
+                move_result_0.path_cost,
+                move_result_1.path_cost,
+            )
+        if move_result_0:
+            return move_result_0.path_cost
+        if move_result_1:
+            return move_result_1.path_cost
         raise ValueError("Could note determine path")

@@ -64,14 +64,19 @@ class Zone(BaseModel):
     """Processor Zone within the architecture"""
 
     max_ions_gate_op: int
-    max_ions_transport_op: int | None = None
+    max_ions_transport_op: int = -1
     memory_only: bool = False
     swap_cost: int = 1
 
     @model_validator(mode="after")
     def set_and_validate(self) -> Self:
-        if self.max_ions_transport_op is None:
+        if self.max_ions_transport_op == -1:
             self.max_ions_transport_op = self.max_ions_gate_op + 1
+        if self.max_ions_gate_op < 1:
+            raise ValueError(
+                f"'max_ions_gate_op' must be at least 1."
+                f" Got max_ions_transport_op={self.max_ions_gate_op},"
+            )
         if self.max_ions_transport_op <= self.max_ions_gate_op:
             raise ValueError(
                 f"'max_ions_transport_op' must be greater than 'max_ions_gate_op'."

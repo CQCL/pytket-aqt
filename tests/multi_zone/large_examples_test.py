@@ -47,7 +47,7 @@ def quantum_advantage_circuit(Lx: int, Ly: int) -> Circuit:
     hx = 2
     J = 1
 
-    def c(x, y):
+    def c(x: int, y: int) -> int:
         if (x - y) % N == Lx or (y - x) % N == Lx:
             return 1
         if x // Lx == y // Lx and x == y - (y % Lx) + (((y % Lx) + 1) % Lx):
@@ -150,7 +150,7 @@ adv_precomp = racetrack_backend.compile_circuit(
 )
 def test_quantum_advantage_racetrack_all_gate_zone(
     compilation_settings: CompilationSettings,
-):
+) -> None:
     racetrack_backend.route_compiled(adv_precomp, compilation_settings)
 
 
@@ -197,7 +197,7 @@ adv_precomp3 = grid_backend.compile_circuit(
 )
 def test_quantum_advantage_grid_12_gate_zone(
     compilation_settings: CompilationSettings,
-):
+) -> None:
     grid_backend.route_compiled(
         adv_precomp3,
         compilation_settings,
@@ -222,7 +222,7 @@ adv_precomp4 = grid_mod_backend.compile_circuit(
 )
 def test_quantum_advantage_grid_4_gate_zone(
     compilation_settings: CompilationSettings,
-):
+) -> None:
     grid_mod_backend.route_compiled(
         adv_precomp4,
         compilation_settings,

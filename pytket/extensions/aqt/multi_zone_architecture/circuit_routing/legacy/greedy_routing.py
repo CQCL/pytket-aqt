@@ -13,7 +13,7 @@
 # limitations under the License.
 from copy import deepcopy
 
-from networkx import bfs_layers  # type: ignore[import-untyped]
+from networkx import bfs_layers
 
 from pytket.circuit import Circuit, Command, OpType, Qubit
 
@@ -38,7 +38,7 @@ class QubitTracker:
         self._current_qubit_to_zone = get_qubit_to_zone(n_qubits, initial_placement)
 
     def current_zone(self, qubit: int) -> int:
-        return self._current_qubit_to_zone[qubit]
+        return int(self._current_qubit_to_zone[qubit])
 
     def zone_occupants(self, zone: int) -> list[int]:
         return self._current_placement[zone]

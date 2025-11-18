@@ -491,7 +491,7 @@ class MultiZoneCircuit:
                 multi_op.append_to_circuit(self)
         self.pytket_circuit.add_barrier(barrier_qubits)
 
-    def add_routing_ops(self, ops: list[RoutingOp]):
+    def add_routing_ops(self, ops: list[RoutingOp]) -> None:
         all_qubits = [qubit for qubit in range(self.pytket_circuit.n_qubits)]  # noqa: C416
         for op in ops:
             if isinstance(op, RoutingBarrier):
@@ -600,13 +600,13 @@ class MultiZoneCircuit:
         )
         commands = self.pytket_circuit.get_commands()
 
-        def check_transport_limit(zone_id: int, message: str):
+        def check_transport_limit(zone_id: int, message: str) -> None:
             if len(
                 current_placement[zone_id]
             ) > self.architecture.get_zone_max_ions_transport(zone_id):
                 raise ValidationError(message)
 
-        def check_gate_limit(zone_id: int, message: str):
+        def check_gate_limit(zone_id: int, message: str) -> None:
             if len(
                 current_placement[zone_id]
             ) > self.architecture.get_zone_max_ions_gates(zone_id):

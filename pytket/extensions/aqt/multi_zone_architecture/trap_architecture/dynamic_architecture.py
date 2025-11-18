@@ -69,7 +69,7 @@ class DynamicArch:
 
     def shortest_port_path_length(
         self, src_zone: int, src_port: int, trg_zone: int, n_move: int
-    ):
+    ) -> tuple[list[int], int, int] | tuple[None, None, None]:
         return self._port_graph.shortest_port_path_length(
             src_zone, src_port, trg_zone, n_move
         )
@@ -95,12 +95,12 @@ class DynamicArch:
         return self._macro_arch.gate_zones
 
     @property
-    def trap_configuration(self):
+    def trap_configuration(self) -> TrapConfiguration:
         return self._current_config
 
     def move_qubits(
         self, qubits: list[int], src_zone: int, trg_zone: int, trg_port: int
-    ):
+    ) -> None:
         # update config
         for qubit in qubits:
             self._current_config.zone_placement[src_zone].remove(qubit)

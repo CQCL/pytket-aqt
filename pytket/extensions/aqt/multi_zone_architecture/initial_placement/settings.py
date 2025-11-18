@@ -18,7 +18,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
-    from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.legacy.route_circuit import (
+    from ..circuit_routing.legacy.route_circuit import (
         ZonePlacement,
     )
 
@@ -40,7 +40,7 @@ MIN_ZONE_FREE_SPACE: Final = 0
 class InitialPlacementSettings:
     algorithm: InitialPlacementAlg = InitialPlacementAlg.qubit_order
     zone_free_space: int = 1
-    manual_placement: ZonePlacement | None = None
+    manual_placement: ZonePlacement | dict[int, list[int]] | None = None
     max_depth: int = 200
 
     def __post_init__(self) -> None:

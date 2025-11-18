@@ -106,13 +106,13 @@ class GreedyGateSelector(GateSelector):
         dyn_arch: DynamicArch,
         depth_list: list[list[tuple[int, int]]],
         qubit_tracker: QubitTracker,
-    ):
+    ) -> None:
         n_qubits = dyn_arch.n_qubits
         # locked qubits have already been assigned a zone in the new config and should therefore not move again
         locked_qubits = []
         # must wait qubits have had a 2 qubit gate that could not be implemented in the new config
         # thus any following 2 qubit gate involving them will not be implementable in the new config
-        must_wait_qubits = []
+        must_wait_qubits: list[int] = []
         for depth in depth_list:
             for pair in depth:
                 # If all qubits must wait or no more spots are available in gate zones, we can stop

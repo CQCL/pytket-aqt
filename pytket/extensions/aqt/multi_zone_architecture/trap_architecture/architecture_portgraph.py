@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from collections.abc import Callable
 
-from networkx import (  # type: ignore
+from networkx import (
     Graph,
     single_source_dijkstra,
 )
@@ -47,6 +48,18 @@ def port_path_to_zone_path(port_path: list[int]) -> list[int]:
     return result
 
 
+def shortest_path_and_its_length(
+    g: Graph,
+    source: int,
+    target: int,
+    weight: str | Callable[[int, int, dict[str, int]], int | None],
+) -> tuple[int, list[int]]:
+    length, path = single_source_dijkstra(g, source, target, weight=weight)
+    assert isinstance(length, int)
+    assert isinstance(path, list)
+    return length, path
+
+
 class MultiZonePortGraph:
     def __init__(
         self, spec: MultiZoneArchitectureSpec, start_config: TrapConfiguration
@@ -54,7 +67,7 @@ class MultiZonePortGraph:
         # TODO: Get swap cost(s) from spec (possibly zone dependent)
         self.swap_costs = [zone.swap_cost for zone in spec.zones]
 
-        self.port_graph = Graph()
+        self.port_graph: Graph[int] = Graph()
         placement = start_config.zone_placement
 
         # Add "capacity" edges between the two ports of a single zone.
@@ -95,7 +108,7 @@ class MultiZonePortGraph:
             tuple[list[int], int, int] | tuple[None, None, None],
         ] = {}
 
-    def update_zone_occupancy_weight(self, zone: int, zone_occupancy: int):
+    def update_zone_occupancy_weight(self, zone: int, zone_occupancy: int) -> None:
         edge_dict = self.port_graph.edges[
             zone_port_to_port_id(zone, 0), zone_port_to_port_id(zone, 1)
         ]
@@ -163,7 +176,7 @@ class MultiZonePortGraph:
         port_idt0 = zone_port_to_port_id(targ_zone, 0)
         port_idt1 = zone_port_to_port_id(targ_zone, 1)
 
-        def move_weight(u: int, v: int, d: dict[str, int]) -> float | int:
+        def move_weight(u: int, v: int, d: dict[str, int]) -> int | None:
             if d["is_shuttle_edge"]:
                 return d["transport_cost"]
             return (
@@ -173,12 +186,14 @@ class MultiZonePortGraph:
             )
 
         if n_move == 1:
-            length_s0t0, path_s0t0 = single_source_dijkstra(
+            length_s0t0, path_s0t0 = shortest_path_and_its_length(
                 self.port_graph, port_id_start, port_idt0, weight="transport_cost"
             )
-            length_s0t1, path_s0t1 = single_source_dijkstra(
+
+            length_s0t1, path_s0t1 = shortest_path_and_its_length(
                 self.port_graph, port_id_start, port_idt1, weight="transport_cost"
             )
+            assert isinstance(length_s0t1, int)
             return (
                 (port_path_to_zone_path(path_s0t0), length_s0t0, 0)
                 if length_s0t0 <= length_s0t1
@@ -187,14 +202,14 @@ class MultiZonePortGraph:
         path_exists0 = True
         path_exists1 = True
         try:
-            length_s0t0, path_s0t0 = single_source_dijkstra(
+            length_s0t0, path_s0t0 = shortest_path_and_its_length(
                 self.port_graph, port_id_start, port_idt0, weight=move_weight
             )
         except NetworkXNoPath:
             length_s0t0, path_s0t0 = 0, []
             path_exists0 = False
         try:
-            length_s0t1, path_s0t1 = single_source_dijkstra(
+            length_s0t1, path_s0t1 = shortest_path_and_its_length(
                 self.port_graph, port_id_start, port_idt1, weight=move_weight
             )
         except NetworkXNoPath:

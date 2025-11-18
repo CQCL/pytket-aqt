@@ -29,7 +29,9 @@ class ShortNameFormatter(logging.Formatter):
         return super().format(record)
 
 
-def configure_logging(level: int = logging.WARNING, to_stdout=True, to_file=None):
+def configure_logging(
+    level: int = logging.WARNING, to_stdout: bool = True, to_file: str | None = None
+) -> logging.Logger:
     """
     Configures logging for pytket_aqt
 

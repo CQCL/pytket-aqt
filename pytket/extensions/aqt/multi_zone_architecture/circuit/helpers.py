@@ -14,24 +14,24 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 import numpy as np
-
-if TYPE_CHECKING:
-    from numpy.typing import NDArray
 
 ZonePlacement = list[list[int]]
 
 
-def get_qubit_to_zone(n_qubits: int, placement: ZonePlacement) -> NDArray[np.int64]:
+def get_qubit_to_zone(
+    n_qubits: int, placement: ZonePlacement
+) -> np.ndarray[tuple[int], np.dtype[np.uint64]]:
     qubit_to_zone = np.zeros(n_qubits, dtype=np.uint64)
     for zone, qubits in enumerate(placement):
         qubit_to_zone[qubits] = zone
     return qubit_to_zone
 
 
-def get_qubit_to_zone_pos(n_qubits: int, placement: ZonePlacement) -> NDArray[np.int64]:
+def get_qubit_to_zone_pos(
+    n_qubits: int, placement: ZonePlacement
+) -> np.ndarray[tuple[int, int], np.dtype[np.uint64]]:
     qubit_to_zone = np.zeros((n_qubits, 2), dtype=np.uint64)
     for zone, qubits in enumerate(placement):
         if qubits:

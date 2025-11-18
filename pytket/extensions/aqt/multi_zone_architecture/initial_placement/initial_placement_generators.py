@@ -54,7 +54,7 @@ class ManualInitialPlacement(InitialPlacementGenerator):
     ) -> ZonePlacement:
         _check_n_qubits(circuit, arch)
         placed_qubits = []
-        placement_list = [[] for _ in range(arch.n_zones)]
+        placement_list: list[list[int]] = [[] for _ in range(arch.n_zones)]
         if isinstance(self.placement, dict):
             for zone, qubits in self.placement.items():
                 placement_list[zone] = qubits

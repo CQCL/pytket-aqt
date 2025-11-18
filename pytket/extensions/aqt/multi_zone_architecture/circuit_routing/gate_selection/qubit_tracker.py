@@ -11,11 +11,11 @@ class QubitTracker:
         self._new_placement: ZonePlacement = [[] for _ in initial_placement]
         self._current_qubit_to_zone = get_qubit_to_zone(n_qubits, initial_placement)
 
-    def new_placement(self):
+    def new_placement(self) -> ZonePlacement:
         return self._new_placement
 
     def current_zone(self, qubit: int) -> int:
-        return self._current_qubit_to_zone[qubit]
+        return int(self._current_qubit_to_zone[qubit])
 
     def old_zone_occupants(self, zone: int) -> list[int]:
         return self._current_placement[zone]

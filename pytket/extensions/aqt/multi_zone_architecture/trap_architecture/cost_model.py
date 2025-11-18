@@ -111,15 +111,14 @@ class ShuttlePSwapCostModel:
             raise ValueError("All qubits must be src_zone")
         move_result_0 = self._move_cost_src_port_0(dyn_arch, qubits, src_zone, trg_zone)
         move_result_1 = self._move_cost_src_port_1(dyn_arch, qubits, src_zone, trg_zone)
-        match (move_result_0 is not None, move_result_1 is not None):
-            case (True, True):
-                if move_result_0.path_cost <= move_result_1.path_cost:
-                    return move_result_0
-                return move_result_1
-            case (True, False):
+        if move_result_0 and move_result_1:
+            if move_result_0.path_cost <= move_result_1.path_cost:
                 return move_result_0
-            case (False, True):
-                return move_result_1
+            return move_result_1
+        if move_result_0:
+            return move_result_0
+        if move_result_1:
+            return move_result_1
         return None
 
     def move_cost_src_port_0(
@@ -153,6 +152,8 @@ class ShuttlePSwapCostModel:
         )
         if shortest_path_port0 is None:
             return None
+        assert targ_port0 is not None
+        assert path_length0 is not None
 
         qubit_zone_pos = dyn_arch.qubit_to_zone_pos[qubits]
         swap_cost_src_zone = dyn_arch.zone_swap_costs[src_zone]
@@ -174,6 +175,8 @@ class ShuttlePSwapCostModel:
         )
         if shortest_path_port1 is None:
             return None
+        assert targ_port1 is not None
+        assert path_length1 is not None
 
         edge_pos_src = dyn_arch.zone_occupancy[src_zone] - 1
         qubit_zone_pos = dyn_arch.qubit_to_zone_pos[qubits]
