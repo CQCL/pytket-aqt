@@ -4,7 +4,7 @@ exclude = [
     "examples/*"
 ]
 
-target-version = "py312"
+target-version = "py311"
 
 lint.select = [
     "A",

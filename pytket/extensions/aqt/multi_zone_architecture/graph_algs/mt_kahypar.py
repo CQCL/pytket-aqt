@@ -16,9 +16,9 @@ from logging import getLogger
 
 import mtkahypar  # type: ignore
 
-from pytket.extensions.aqt.multi_zone_architecture.graph_algs.graph import GraphData
+from ...multi_zone_architecture.graph_algs.graph import GraphData
 
-logger = getLogger()
+logger = getLogger(__name__)
 
 
 @dataclass
@@ -46,18 +46,12 @@ def configure_mtkahypar(
 
 
 class MtKahyparPartitioner:
-    """Class that performs graph partitioning using mt-kahypar
+    """Class that performs graph partitioning using mt-kahypar"""
 
-    :param n_threads: The number of threads to use for partitioning algorithms
-    :param log_level: How much partitioning information to log, 0 == silent
-
-    """
-
-    def __init__(self, log_level: int = 0):
+    def __init__(self) -> None:
         self.mtk = configure_mtkahypar(MtKahyparConfig(), warn_configured=False)
         self.context = self.mtk.context_from_preset(mtkahypar.PresetType.DEFAULT)
         self.context.logging = False
-        self.log_level = log_level
 
     def graph_data_to_mtkahypar_graph(self, graph_data: GraphData) -> mtkahypar.Graph:
         return self.mtk.create_graph(
@@ -104,8 +98,8 @@ class MtKahyparPartitioner:
         if graph_data.part_max_sizes:
             self.context.set_individual_target_block_weights(graph_data.part_max_sizes)
         part_graph = graph.partition(self.context)
-        if self.log_level > 0:
-            print("cut_cost: ", part_graph.cut())  # noqa: T201
+        dbg_msg = f"cut_cost: {part_graph.cut()}"
+        logger.debug(dbg_msg)
         vertex_part_id: list[int] = []
         for vertex in range(graph_data.n_vertices):
             vertex_part_id.append(part_graph.block_id(vertex))  # noqa: PERF401

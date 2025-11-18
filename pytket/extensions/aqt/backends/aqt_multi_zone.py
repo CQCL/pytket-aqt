@@ -11,10 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import itertools
 import json
 from collections.abc import Sequence
 from copy import deepcopy
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from pytket.backends import Backend, CircuitStatus, ResultHandle, StatusEnum
 from pytket.backends.backend import KwargTypes
@@ -42,21 +43,26 @@ from pytket.predicates import (
     NoSymbolsPredicate,
     Predicate,
 )
-from pytket.unit_id import UnitID  # noqa: TC001
 
 from ..backends.config import AQTConfig
 from ..extension_version import __extension_version__
-from ..multi_zone_architecture.architecture import MultiZoneArchitectureSpec
 from ..multi_zone_architecture.circuit.multizone_circuit import (
     MultiZoneCircuit,
 )
-from ..multi_zone_architecture.circuit_routing.route_circuit import (
-    route_circuit,
+from ..multi_zone_architecture.circuit_routing.legacy.route_circuit import (
+    route_circuit_legacy,
 )
+from ..multi_zone_architecture.circuit_routing.route_circuit import route_circuit
 from ..multi_zone_architecture.compilation_settings import CompilationSettings
 from ..multi_zone_architecture.initial_placement.initial_placement_generators import (
     get_initial_placement,
 )
+from ..multi_zone_architecture.trap_architecture.architecture import (
+    MultiZoneArchitectureSpec,
+)
+
+if TYPE_CHECKING:
+    from pytket.unit_id import UnitID
 
 AQT_URL_PREFIX = "https://gateway.aqt.eu/marmot/"
 
@@ -79,6 +85,8 @@ _STATUS_MAP = {
     "error": StatusEnum.ERROR,
     "queued": StatusEnum.QUEUED,
 }
+
+_DEFAULT_COMPILATION_SETTINGS = CompilationSettings()
 
 
 class AqtAuthenticationError(Exception):
@@ -241,10 +249,10 @@ class AQTMultiZoneBackend(Backend):
         """
         raise NotImplementedError
 
-    def precompile_circuit(
+    def compile_circuit(
         self,
         circuit: Circuit,
-        compilation_settings: CompilationSettings = CompilationSettings.default(),  # noqa: B008
+        compilation_settings: CompilationSettings = _DEFAULT_COMPILATION_SETTINGS,
     ) -> Circuit:
         """
         Compile a pytket Circuit assuming all to all connectivity
@@ -266,10 +274,10 @@ class AQTMultiZoneBackend(Backend):
         compiled.rename_units(qubit_map)
         return compiled
 
-    def route_precompiled(
+    def route_compiled(
         self,
-        precompiled: Circuit,
-        compilation_settings: CompilationSettings = CompilationSettings.default(),  # noqa: B008
+        compiled_circuit: Circuit,
+        compilation_settings: CompilationSettings = _DEFAULT_COMPILATION_SETTINGS,
     ) -> MultiZoneCircuit:
         """
         Route a pytket Circuit to the backend architecture
@@ -279,22 +287,32 @@ class AQTMultiZoneBackend(Backend):
 
         """
         initial_placement = get_initial_placement(
-            compilation_settings.initial_placement, precompiled, self._architecture
+            compilation_settings.initial_placement, compiled_circuit, self._architecture
         )
-        routed = route_circuit(
-            compilation_settings.routing,
-            precompiled,
-            self._architecture,
-            initial_placement,
-        )
+        if compilation_settings.routing.use_legacy_greedy_method:
+            routed = route_circuit_legacy(
+                compiled_circuit,
+                self._architecture,
+                initial_placement,
+            )
+        else:
+            routed = route_circuit(
+                compiled_circuit,
+                self._architecture,
+                initial_placement,
+                compilation_settings.routing,
+            )
+
         routed.is_compiled = True
         routed.validate()
         return routed
 
-    def compile_circuit_with_routing(
+    def compile_and_route_circuit(
         self,
         circuit: Circuit,
-        compilation_settings: CompilationSettings = CompilationSettings.default(),  # noqa: B008
+        compilation_settings: CompilationSettings = _DEFAULT_COMPILATION_SETTINGS,
+        *,
+        use_legacy_routing: bool = False,
     ) -> MultiZoneCircuit:
         """
         Compile a pytket Circuit and route it to the backend architecture
@@ -314,7 +332,7 @@ class AQTMultiZoneBackend(Backend):
         }
         compiled.rename_units(qubit_map)
 
-        return self.route_precompiled(compiled, compilation_settings)
+        return self.route_compiled(compiled, compilation_settings)
 
     def compile_manually_routed_multi_zone_circuit(
         self,
@@ -472,53 +490,86 @@ def _translate_aqt(circ: Circuit) -> tuple[list[list], str]:  # noqa: PLR0912, P
                 gates.append(["PSWAP", [zop(qubit_1), zop(qubit_2)]])
                 swap_position(qubit_1, qubit_2)
             elif "SHUTTLE" in op_string:
-                qubit = cmd.args[0].index[0]
-                (source_zone, source_position) = qubit_to_zone_position[qubit]
+                qubits = [q.index[0] for q in cmd.args]
+                n_shuttle = len(qubits)
+                qubit_zones_positions = [
+                    qubit_to_zone_position[qubit] for qubit in qubits
+                ]
+                if not all(
+                    i[0] == j[0] and i[1] == j[1] - 1
+                    for i, j in itertools.pairwise(qubit_zones_positions)
+                ):
+                    raise Exception(
+                        "Multi-Shuttle only possible for adjacent qubits in same zone"
+                    )
+                source_zone = qubit_zones_positions[0][0]
                 (source_occupancy, source_offset) = zone_to_occupancy_offset[
                     source_zone
                 ]
-                target_zone = int(op.params[0])
+                source_zone_spec = int(op.params[0])
+                if source_zone != source_zone_spec:
+                    raise Exception("Faulty source zone spec")
+                target_zone = int(op.params[1])
                 (target_occupancy, target_offset) = zone_to_occupancy_offset[
                     target_zone
                 ]
-                source_edge_encoding = int(round(op.params[1]))  # noqa: RUF046
-                target_edge_encoding = int(round(op.params[2]))  # noqa: RUF046
+                source_edge_encoding = round(op.params[2])
+                target_edge_encoding = round(op.params[3])
                 if source_edge_encoding == 0:
                     zone_to_occupancy_offset[source_zone] = (
-                        source_occupancy - 1,
-                        source_offset + 1,
+                        source_occupancy - n_shuttle,
+                        source_offset + n_shuttle,
                     )
                 elif source_edge_encoding == 1:
                     zone_to_occupancy_offset[source_zone] = (
-                        source_occupancy - 1,
+                        source_occupancy - n_shuttle,
                         source_offset,
                     )
                 else:
                     raise Exception("Error in Shuttle command source port")
                 if target_edge_encoding == 0:
                     zone_to_occupancy_offset[target_zone] = (
-                        target_occupancy + 1,
-                        target_offset - 1,
+                        target_occupancy + n_shuttle,
+                        target_offset - n_shuttle,
                     )
-                    qubit_to_zone_position[qubit] = (target_zone, target_offset - 1)
+                    for i, qubit in enumerate(qubits):
+                        qubit_to_zone_position[qubit] = (
+                            target_zone,
+                            target_offset - n_shuttle + i,
+                        )
                 elif target_edge_encoding == 1:
                     zone_to_occupancy_offset[target_zone] = (
-                        target_occupancy + 1,
+                        target_occupancy + n_shuttle,
                         target_offset,
                     )
-                    qubit_to_zone_position[qubit] = (
-                        target_zone,
-                        target_occupancy + target_offset,
-                    )
+                    for i, qubit in enumerate(qubits):
+                        qubit_to_zone_position[qubit] = (
+                            target_zone,
+                            target_occupancy + target_offset + i,
+                        )
                 else:
                     raise Exception("Error in Shuttle command target port")
 
-                zop_source = [
+                zops_source = [
                     source_zone,
                     source_occupancy,
-                    source_position - source_offset,
+                    [
+                        source_position - source_offset
+                        for _, source_position in qubit_zones_positions
+                    ],
                 ]
-                gates.append(["SHUTTLE", 1, [zop_source, zop(qubit)]])
+                zops_target_l = [zop(qubit) for qubit in qubits]
+                if not all(
+                    i[0] == j[0] and i[1] == j[1] and i[2] == j[2] - 1
+                    for i, j in itertools.pairwise(zops_target_l)
+                ):
+                    raise Exception("Error in target definition")
+                zops_target = [
+                    zops_target_l[0][0],
+                    zops_target_l[0][1],
+                    [zops_target_l[i][2] for i, _ in enumerate(qubits)],
+                ]
+                gates.append(["SHUTTLE", 1, [zops_source, zops_target]])
 
         elif optype == OpType.Measure:
             # predicate has already checked format is correct, so

@@ -18,9 +18,10 @@ from dataclasses import dataclass
 from getpass import getpass
 from typing import Any, ClassVar
 
+from pytket.config import PytketExtConfig
 from qiskit_aqt_provider.aqt_provider import AQTProvider
 
-from pytket.config import PytketExtConfig
+logger = logging.getLogger()
 
 
 @dataclass
@@ -76,7 +77,7 @@ class AQTAccessToken:
                 "Use pytket.extensions.aqt.AQTAccessToken.reset()"
                 " to reset token."
             )
-            logging.warning(warning)  # noqa: LOG015
+            logger.warning(warning)
             cls._access_token = "unspecified"
 
     @classmethod

@@ -18,7 +18,6 @@ from typing import Protocol
 
 from pytket.circuit import Circuit
 
-from ..architecture import MultiZoneArchitectureSpec
 from ..circuit.helpers import ZonePlacement
 from ..depth_list.depth_list import DepthList, get_initial_depth_list
 from ..graph_algs.graph import GraphData
@@ -26,9 +25,13 @@ from ..graph_algs.mt_kahypar_check import (
     MT_KAHYPAR_INSTALLED,
     MissingMtKahyparInstallError,
 )
+from ..trap_architecture.architecture import MultiZoneArchitectureSpec
 from .settings import InitialPlacementAlg, InitialPlacementSettings
 
-logger = getLogger("initial_placement_logger")
+if MT_KAHYPAR_INSTALLED:
+    from ..graph_algs.mt_kahypar import MtKahyparPartitioner
+
+logger = getLogger(__name__)
 
 
 class InitialPlacementError(Exception):
@@ -47,19 +50,26 @@ class InitialPlacementGenerator(Protocol):
 class ManualInitialPlacement(InitialPlacementGenerator):
     """Used to generate an initial placement from manual input"""
 
-    placement: ZonePlacement
+    placement: ZonePlacement | dict[int, list[int]]
 
     def initial_placement(
         self, circuit: Circuit, arch: MultiZoneArchitectureSpec
     ) -> ZonePlacement:
         _check_n_qubits(circuit, arch)
         placed_qubits = []
-        for zone, qubits in self.placement.items():
+        placement_list: list[list[int]] = [[] for _ in range(arch.n_zones)]
+        if isinstance(self.placement, dict):
+            for zone, qubits in self.placement.items():
+                placement_list[zone] = qubits
+        elif isinstance(self.placement, list):
+            for zone, qubits in enumerate(self.placement):
+                placement_list[zone] = qubits
+        for zone, qubits in enumerate(placement_list):
             placed_qubits.extend(qubits)
-            if len(qubits) > arch.get_zone_max_ions(zone):
+            if len(qubits) > arch.get_zone_max_ions_gates(zone):
                 raise InitialPlacementError(
                     f"Specified manual initial placement is faulty, zone {zone},"
-                    f" can hold {arch.get_zone_max_ions(zone)} qubits, but"
+                    f" can hold {arch.get_zone_max_ions_gates(zone)} qubits, but"
                     f" {len(qubits)} were placed"
                 )
         counts = [placed_qubits.count(i) for i in range(circuit.n_qubits)]
@@ -81,10 +91,7 @@ class ManualInitialPlacement(InitialPlacementGenerator):
                 f"Some qubits missing in manual initial placement."
                 f" Missing qubits: {unplaced_qubits}"
             )
-        for zone in range(arch.n_zones):
-            if zone not in self.placement:
-                self.placement[zone] = []
-        return self.placement
+        return placement_list
 
 
 @dataclass
@@ -101,10 +108,10 @@ class QubitOrderInitialPlacement(InitialPlacementGenerator):
         self, circuit: Circuit, arch: MultiZoneArchitectureSpec
     ) -> ZonePlacement:
         _check_n_qubits(circuit, arch)
-        placement: ZonePlacement = {}
+        placement: ZonePlacement = [[] for _ in range(arch.n_zones)]
         i_start = 0
         for zone in range(arch.n_zones):
-            places_avail = arch.get_zone_max_ions(zone) - self.zone_free_space
+            places_avail = arch.get_zone_max_ions_gates(zone) - self.zone_free_space
             i_end = min(i_start + places_avail, circuit.n_qubits)
             placement[zone] = [i for i in range(i_start, i_end)]  # noqa: C416
             i_start = i_end
@@ -126,15 +133,6 @@ class GraphMapInitialPlacement(InitialPlacementGenerator):
         circuit: Circuit,
         arch: MultiZoneArchitectureSpec,
     ) -> ZonePlacement:
-        try:
-            from ..graph_algs.mt_kahypar import MtKahyparPartitioner
-        except ImportError as e:
-            logger.error(
-                "Using graph partitioning algorithms requires"
-                " the installation of mt-kahypar python bindings, "
-                "see installation instructions for details"
-            )
-            raise e
         _check_n_qubits(circuit, arch)
         n_parts = arch.n_zones
         n_qubits = circuit.n_qubits
@@ -146,7 +144,7 @@ class GraphMapInitialPlacement(InitialPlacementGenerator):
             circuit_graph_data, arch_graph_data
         )
         qubit_to_part = vertex_to_part[:n_qubits]
-        placement: ZonePlacement = {i: [] for i in range(n_parts)}
+        placement: ZonePlacement = [[] for _ in range(n_parts)]
         for qubit, part in enumerate(qubit_to_part):
             placement[part].append(qubit)
         return placement
@@ -156,15 +154,13 @@ class GraphMapInitialPlacement(InitialPlacementGenerator):
     ) -> GraphData:
         # Vertices up to n_qubit represent qubits,
         # the rest available spaces for qubits in the arch
-        places_per_zone = [arch.get_zone_max_ions(i) for i, _ in enumerate(arch.zones)]
-        free_places_per_zone = [
-            self.zone_free_space if places_avail > 3 else 1  # noqa: PLR2004
-            for places_avail in places_per_zone
-        ]
-        block_weights = [
-            max(0, places_per_zone[i] - free_places_per_zone[i])
+        places_per_zone = [
+            max(arch.get_zone_max_ions_gates(i) - self.zone_free_space, 0)
             for i, _ in enumerate(arch.zones)
         ]
+        # need to check if sum of places per zone is enough to accomodate all qubits, if not, the user set zone_free_space to high!
+
+        block_weights = [max(0, places_per_zone[i]) for i, _ in enumerate(arch.zones)]
         num_vertices = sum(block_weights)
         vertex_weights = [1 for _ in range(num_vertices)]
 

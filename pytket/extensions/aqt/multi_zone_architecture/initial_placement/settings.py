@@ -18,7 +18,9 @@ from enum import Enum
 from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
-    from ..circuit_routing.route_circuit import ZonePlacement
+    from ..circuit_routing.legacy.route_circuit import (
+        ZonePlacement,
+    )
 
 
 class InitialPlacementSettingsError(Exception):
@@ -31,14 +33,14 @@ class InitialPlacementAlg(Enum):
     graph_partition = 2
 
 
-MIN_ZONE_FREE_SPACE: Final = 1
+MIN_ZONE_FREE_SPACE: Final = 0
 
 
 @dataclass
 class InitialPlacementSettings:
     algorithm: InitialPlacementAlg = InitialPlacementAlg.qubit_order
-    zone_free_space: int = 2
-    manual_placement: ZonePlacement | None = None
+    zone_free_space: int = 1
+    manual_placement: ZonePlacement | dict[int, list[int]] | None = None
     max_depth: int = 200
 
     def __post_init__(self) -> None:

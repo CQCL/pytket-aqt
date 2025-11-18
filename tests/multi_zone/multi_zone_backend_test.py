@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import pytest
-
 from pytket.backends import ResultHandle
 from pytket.circuit import Circuit
+
 from pytket.extensions.aqt.backends.aqt_multi_zone import (
     AQTMultiZoneBackend,
     get_aqt_json_syntax_for_compiled_circuit,
@@ -23,9 +23,8 @@ from pytket.extensions.aqt.backends.aqt_multi_zone import (
 from pytket.extensions.aqt.multi_zone_architecture.circuit.multizone_circuit import (
     MultiZoneCircuit,
 )
-from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.settings import (
-    RoutingAlg,
-    RoutingSettings,
+from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.routing_config import (
+    RoutingConfig,
 )
 from pytket.extensions.aqt.multi_zone_architecture.compilation_settings import (
     CompilationSettings,
@@ -37,7 +36,7 @@ from pytket.extensions.aqt.multi_zone_architecture.initial_placement.settings im
     InitialPlacementAlg,
     InitialPlacementSettings,
 )
-from pytket.extensions.aqt.multi_zone_architecture.named_architectures import (
+from pytket.extensions.aqt.multi_zone_architecture.trap_architecture.named_architectures import (
     four_zones_in_a_line,
 )
 
@@ -97,7 +96,7 @@ def test_circuit_compiles(backend: AQTMultiZoneBackend) -> None:
     circuit.CX(0, 1).CX(2, 3).CX(4, 5).CX(6, 7)
     circuit.CX(1, 2).CX(3, 4).CX(5, 6).CX(7, 0)
     circuit.measure_all()
-    backend.compile_circuit_with_routing(circuit)
+    backend.compile_and_route_circuit(circuit)
 
 
 def test_invalid_circuit_does_not_compile(backend: AQTMultiZoneBackend) -> None:
@@ -152,7 +151,7 @@ def test_compiled_circuit_has_correct_syntax(backend: AQTMultiZoneBackend) -> No
     initialized_zones: list[int] = []
     number_initialized_qubits: int = 0
     for i, operation in enumerate(aqt_operation_list):
-        if i < 2:
+        if i < circuit.architecture.n_zones:
             assert operation[0] == "INIT"
         else:
             assert operation[0] != "INIT"
@@ -186,12 +185,22 @@ def test_compiled_circuit_has_correct_syntax(backend: AQTMultiZoneBackend) -> No
             assert _is_valid_zop(operation[1][1], initialized_zones)
         else:
             raise Exception(f"Detected invalid operation type: {operation[0]}")
-    assert initialized_zones == [zone for zone in initial_placement]  # noqa: C416
+    assert initialized_zones == [zone for zone in range(circuit.architecture.n_zones)]  # noqa: C416
     assert number_initialized_qubits == 8
 
 
-graph_routing = RoutingSettings(algorithm=RoutingAlg.graph_partition, debug_level=0)
-greedy_routing = RoutingSettings(algorithm=RoutingAlg.greedy)
+greedy_routing = RoutingConfig()
+if MT_KAHYPAR_INSTALLED:
+    from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.gate_selection.graph_partition_gate_selection import (
+        PartitionGateSelector,
+    )
+
+    graph_routing = RoutingConfig(gate_selector=PartitionGateSelector())
+else:
+    graph_routing = greedy_routing
+
+legacy_routing = RoutingConfig(use_legacy_greedy_method=True)
+
 graph_skipif = pytest.mark.skipif(
     not MT_KAHYPAR_INSTALLED, reason="mtkahypar required for testing graph partitioning"
 )
@@ -203,7 +212,7 @@ graph_skipif = pytest.mark.skipif(
 )
 def test_automatically_routed_circuit_has_correct_syntax(  # noqa: PLR0915
     backend: AQTMultiZoneBackend,
-    routing_settings: RoutingSettings,
+    routing_settings: RoutingConfig,
 ) -> None:
     initial_placement = {0: [0, 1, 2, 3], 1: [4, 5, 6, 7]}
     circuit = Circuit(8)
@@ -219,7 +228,7 @@ def test_automatically_routed_circuit_has_correct_syntax(  # noqa: PLR0915
     compilation_settings = CompilationSettings(
         initial_placement=init_pl_settings, routing=routing_settings
     )
-    mz_circuit = backend.compile_circuit_with_routing(circuit, compilation_settings)
+    mz_circuit = backend.compile_and_route_circuit(circuit, compilation_settings)
 
     n_shuttles = mz_circuit.get_n_shuttles()
     n_pswaps = mz_circuit.get_n_pswaps()
@@ -231,7 +240,7 @@ def test_automatically_routed_circuit_has_correct_syntax(  # noqa: PLR0915
     aqt_shuttles = 0
     aqt_pswaps = 0
     for i, operation in enumerate(aqt_operation_list):
-        if i < backend._architecture.n_zones:  # noqa: SLF001
+        if i < mz_circuit.architecture.n_zones:
             assert operation[0] == "INIT"
         else:
             assert operation[0] != "INIT"
@@ -269,7 +278,7 @@ def test_automatically_routed_circuit_has_correct_syntax(  # noqa: PLR0915
             raise Exception(f"Detected invalid operation type: {operation[0]}")
     assert n_pswaps == aqt_pswaps
     assert n_shuttles == aqt_shuttles
-    assert initialized_zones == [zone for zone in initial_placement]  # noqa: C416
+    assert initialized_zones == list(range(mz_circuit.architecture.n_zones))
     assert number_initialized_qubits == 8
 
 
@@ -279,8 +288,10 @@ def _is_valid_zop(zop: list, zone_list: list[int]) -> bool:
             len(zop) == 3,
             zop[0] in zone_list,
             zop[1] > 0,
-            zop[2] >= 0,
-            zop[2] < zop[1],
+            zop[2] >= 0 if isinstance(zop[2], int) else all(val >= 0 for val in zop[2]),
+            zop[2] < zop[1]
+            if isinstance(zop[2], int)
+            else all(val < zop[1] for val in zop[2]),
         ]
     )
 

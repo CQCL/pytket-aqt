@@ -11,33 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from __future__ import annotations
-
 from dataclasses import dataclass
-from enum import Enum
+from typing import Protocol
 
-
-class RoutingSettingsError(Exception):
-    pass
-
-
-class RoutingAlg(Enum):
-    greedy = 0
-    graph_partition = 1
+from ...circuit.helpers import ZonePlacement
+from ...trap_architecture.dynamic_architecture import DynamicArch
+from ..routing_ops import RoutingOp
 
 
 @dataclass
-class RoutingSettings:
-    algorithm: RoutingAlg = RoutingAlg.greedy
-    max_depth: int = 50
-    debug_level: int = 0
+class RoutingResult:
+    cost_estimate: float
+    routing_ops: list[RoutingOp]
 
-    def __post_init__(self) -> None:
-        if not isinstance(self.algorithm, RoutingAlg):
-            raise RoutingSettingsError(
-                f"{self.algorithm.__name__} must be of type {RoutingAlg.__name__}"
-            )
 
-    @classmethod
-    def default(cls) -> RoutingSettings:
-        return RoutingSettings()
+class Router(Protocol):
+    def route_source_to_target_config(
+        self, dyn_arch: DynamicArch, target_placement: ZonePlacement
+    ) -> RoutingResult: ...

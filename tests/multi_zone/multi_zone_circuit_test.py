@@ -13,15 +13,15 @@
 # limitations under the License.
 
 import pytest
-
 from pytket.circuit import Circuit, OpType
+
 from pytket.extensions.aqt.multi_zone_architecture.circuit.multizone_circuit import (
     AcrossZoneOperationError,
     MoveError,
     MultiZoneCircuit,
     QubitPlacementError,
 )
-from pytket.extensions.aqt.multi_zone_architecture.named_architectures import (
+from pytket.extensions.aqt.multi_zone_architecture.trap_architecture.named_architectures import (
     four_zones_in_a_line,
 )
 
@@ -62,6 +62,9 @@ def test_circuit_has_correct_init_gates_at_beginning(
         gate_zone = int(op.params[0])
         gate_qubits = [q.index[0] for q in gate.args]
         circuit_placement[gate_zone] = gate_qubits
+    for zone in range(fix_circuit.architecture.n_zones):
+        if zone not in initial_placement:
+            initial_placement[zone] = []
     assert circuit_placement == initial_placement
 
 

@@ -11,12 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations
 
-from pytket.extensions.aqt.multi_zone_architecture.trap_architecture.named_architectures import (
-    four_zones_in_a_line,
-)
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+from .gate_selection.greedy_gate_selection import GreedyGateSelector
+from .qubit_routing.general_router import GeneralRouter
+
+if TYPE_CHECKING:
+    from .gate_selection.gate_selector_protocol import GateSelector
+    from .qubit_routing.router import Router
 
 
-def test_architecture_str() -> None:
-    four_zones_in_a_line_str = four_zones_in_a_line.__str__()
-    assert isinstance(four_zones_in_a_line_str, str)
+@dataclass
+class RoutingConfig:
+    use_legacy_greedy_method: bool = False
+    router: Router = field(default=GeneralRouter())
+    gate_selector: GateSelector = field(default=GreedyGateSelector())

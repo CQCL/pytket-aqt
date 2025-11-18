@@ -11,12 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Protocol
 
-from pytket.extensions.aqt.multi_zone_architecture.trap_architecture.named_architectures import (
-    four_zones_in_a_line,
-)
+from pytket.circuit import Command
+
+from ...circuit.helpers import ZonePlacement
+from ...trap_architecture.dynamic_architecture import DynamicArch
 
 
-def test_architecture_str() -> None:
-    four_zones_in_a_line_str = four_zones_in_a_line.__str__()
-    assert isinstance(four_zones_in_a_line_str, str)
+class GateSelector(Protocol):
+    """A class protocol for calculating the optimal placement of ions in zones to implement upcoming gates"""
+
+    def next_config(
+        self, dyn_arch: DynamicArch, remaining_circuit: list[Command]
+    ) -> ZonePlacement: ...
+
+    """Returns the optimal placement of qubits in zones (no ordering within zones)"""

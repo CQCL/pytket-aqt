@@ -1,0 +1,55 @@
+# Copyright Quantinuum
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+from dataclasses import dataclass
+
+from ..trap_architecture.architecture import PortId
+
+
+class RoutingOp:
+    pass
+
+
+@dataclass
+class PSwap(RoutingOp):
+    zone_nr: int
+    qubit0: int
+    qubit1: int
+
+
+@dataclass
+class LSwap(RoutingOp):
+    zone_nr: int
+    qubit0: int
+    qubit1: int
+
+
+@dataclass
+class Shuttle(RoutingOp):
+    qubits: list[int]
+    src_zone: int
+    targ_zone: int
+    src_port: PortId
+    targ_port: PortId
+
+
+@dataclass
+class RoutingBarrier(RoutingOp):
+    # This is used to mark where a barrier over all qubits should be placed
+    # This should generally be done at the beginning of routing and at the end
+    # of each "move group"
+    # Technically the barrier between move groups could be replaced by a lock on
+    # movement through the zones that the group moves through. Move groups that go
+    # through only other zones could be done in different order or in parallel. This
+    # is not currently possible to express within the pytket circuit object
+    pass

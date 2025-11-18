@@ -12,25 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pytest
-
 from pytket.circuit import Circuit
+
 from pytket.extensions.aqt.backends.aqt_multi_zone import AQTMultiZoneBackend
-from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.settings import (
-    RoutingAlg,
-    RoutingSettings,
+from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.routing_config import (
+    RoutingConfig,
 )
 from pytket.extensions.aqt.multi_zone_architecture.compilation_settings import (
     CompilationSettings,
 )
 from pytket.extensions.aqt.multi_zone_architecture.graph_algs.mt_kahypar_check import (
     MT_KAHYPAR_INSTALLED,
-    MissingMtKahyparInstallError,
 )
 from pytket.extensions.aqt.multi_zone_architecture.initial_placement.settings import (
     InitialPlacementAlg,
     InitialPlacementSettings,
 )
-from pytket.extensions.aqt.multi_zone_architecture.named_architectures import (
+from pytket.extensions.aqt.multi_zone_architecture.trap_architecture.named_architectures import (
     four_zones_in_a_line,
     grid12,
 )
@@ -64,9 +62,16 @@ ordered_placement = InitialPlacementSettings(
     algorithm=InitialPlacementAlg.qubit_order, zone_free_space=2
 )
 
-graph_routing = RoutingSettings(algorithm=RoutingAlg.graph_partition, debug_level=0)
+if MT_KAHYPAR_INSTALLED:
+    from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.gate_selection.graph_partition_gate_selection import (
+        PartitionGateSelector,
+    )
 
-greedy_routing = RoutingSettings(algorithm=RoutingAlg.greedy)
+    graph_routing = RoutingConfig(gate_selector=PartitionGateSelector())
+else:
+    graph_routing = RoutingConfig()
+
+greedy_routing = RoutingConfig()
 
 graph_skipif = pytest.mark.skipif(
     not MT_KAHYPAR_INSTALLED, reason="mtkahypar required for testing graph partitioning"
@@ -87,7 +92,7 @@ graph_skipif = pytest.mark.skipif(
 def test_compilation_settings_linearch(
     opt_level: int,
     initial_pl_settings: InitialPlacementSettings,
-    routing_settings: RoutingSettings,
+    routing_settings: RoutingConfig,
     ghz_circuit: Circuit,
 ) -> None:
     backend = AQTMultiZoneBackend(
@@ -98,38 +103,8 @@ def test_compilation_settings_linearch(
         initial_placement=initial_pl_settings,
         routing=routing_settings,
     )
-    compiled = backend.compile_circuit_with_routing(ghz_circuit, compilation_settings)
+    compiled = backend.compile_and_route_circuit(ghz_circuit, compilation_settings)
     print("Shuttles: ", compiled.get_n_shuttles())  # noqa: T201
-
-
-mtkahypar_skipif = pytest.mark.skipif(
-    MT_KAHYPAR_INSTALLED, reason="mtkahypar is installed, so won't raise"
-)
-
-
-@pytest.mark.parametrize(
-    "opt_level, initial_pl_settings, routing_settings",
-    [
-        pytest.param(0, ordered_placement, graph_routing, marks=mtkahypar_skipif),
-        pytest.param(0, graph_placement, greedy_routing, marks=mtkahypar_skipif),
-    ],
-)
-def test_throws_mtkahypar_missing_if_graph_partition_without_mtkahypar(
-    opt_level: int,
-    initial_pl_settings: InitialPlacementSettings,
-    routing_settings: RoutingSettings,
-    ghz_circuit: Circuit,
-) -> None:
-    backend = AQTMultiZoneBackend(
-        architecture=four_zones_in_a_line, access_token="invalid"
-    )
-    compilation_settings = CompilationSettings(
-        pytket_optimisation_level=opt_level,
-        initial_placement=initial_pl_settings,
-        routing=routing_settings,
-    )
-    with pytest.raises(MissingMtKahyparInstallError):
-        backend.compile_circuit_with_routing(ghz_circuit, compilation_settings)
 
 
 manual_placement_grid = InitialPlacementSettings(
@@ -159,7 +134,7 @@ manual_placement_grid = InitialPlacementSettings(
 def test_compilation_settings_gridarch(
     opt_level: int,
     initial_pl_settings: InitialPlacementSettings,
-    routing_settings: RoutingSettings,
+    routing_settings: RoutingConfig,
     ghz_circuit: Circuit,
 ) -> None:
     backend = AQTMultiZoneBackend(architecture=grid12, access_token="invalid")
@@ -168,5 +143,5 @@ def test_compilation_settings_gridarch(
         initial_placement=initial_pl_settings,
         routing=routing_settings,
     )
-    compiled = backend.compile_circuit_with_routing(ghz_circuit, compilation_settings)
+    compiled = backend.compile_and_route_circuit(ghz_circuit, compilation_settings)
     print("Shuttles: ", compiled.get_n_shuttles())  # noqa: T201

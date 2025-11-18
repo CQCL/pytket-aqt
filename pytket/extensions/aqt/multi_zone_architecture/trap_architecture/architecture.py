@@ -14,8 +14,9 @@
 
 import os
 from enum import Enum
+from typing import Self
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 
 class PortId(Enum):
@@ -62,8 +63,27 @@ class Operation(BaseModel):
 class Zone(BaseModel):
     """Processor Zone within the architecture"""
 
-    max_ions: int
+    max_ions_gate_op: int
+    max_ions_transport_op: int = -1
     memory_only: bool = False
+    swap_cost: int = 1
+
+    @model_validator(mode="after")
+    def set_and_validate(self) -> Self:
+        if self.max_ions_transport_op == -1:
+            self.max_ions_transport_op = self.max_ions_gate_op + 1
+        if self.max_ions_gate_op < 1:
+            raise ValueError(
+                f"'max_ions_gate_op' must be at least 1."
+                f" Got max_ions_transport_op={self.max_ions_gate_op},"
+            )
+        if self.max_ions_transport_op <= self.max_ions_gate_op:
+            raise ValueError(
+                f"'max_ions_transport_op' must be greater than 'max_ions_gate_op'."
+                f" Got max_ions_transport_op={self.max_ions_transport_op},"
+                f" max_ions_gate_op={self.max_ions_gate_op}"
+            )
+        return self
 
 
 class MultiZoneArchitectureSpec(BaseModel):
@@ -74,9 +94,13 @@ class MultiZoneArchitectureSpec(BaseModel):
     zones: list[Zone]
     connections: list[ZoneConnection]
 
-    def get_zone_max_ions(self, zone_index: int) -> int:
+    def get_zone_max_ions_gates(self, zone_index: int) -> int:
         zone = self.zones[zone_index]
-        return zone.max_ions
+        return zone.max_ions_gate_op
+
+    def get_zone_max_ions_transport(self, zone_index: int) -> int:
+        zone = self.zones[zone_index]
+        return zone.max_ions_transport_op
 
     def __str__(self) -> str:
         arch_spec_lines = [
@@ -101,7 +125,7 @@ class MultiZoneArchitectureSpec(BaseModel):
             arch_spec_lines.extend(
                 [
                     f"Zone {zone_id}:",
-                    f"    Max qubits {zone.max_ions}",
+                    f"    Max qubits {zone.max_ions_gate_op}",
                     "    Connections:",
                 ]
             )

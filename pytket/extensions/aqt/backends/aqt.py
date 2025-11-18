@@ -18,9 +18,6 @@ from collections.abc import Sequence
 from typing import Any, assert_never, cast
 
 import numpy
-from qiskit_aqt_provider.api_client import models, models_generated
-from qiskit_aqt_provider.aqt_provider import OFFLINE_SIMULATORS
-
 from pytket.backends import Backend, CircuitStatus, ResultHandle, StatusEnum
 from pytket.backends.backend import KwargTypes
 from pytket.backends.backend_exceptions import CircuitNotRunError, CircuitNotValidError
@@ -51,6 +48,8 @@ from pytket.predicates import (
 )
 from pytket.utils import prepare_circuit
 from pytket.utils.outcomearray import OutcomeArray
+from qiskit_aqt_provider.api_client import models, models_generated
+from qiskit_aqt_provider.aqt_provider import OFFLINE_SIMULATORS
 
 from ..extension_version import __extension_version__
 from .aqt_api import (

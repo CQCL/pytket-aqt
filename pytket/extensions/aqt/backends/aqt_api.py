@@ -134,6 +134,7 @@ class AqtOfflineApi(AqtApi):
                 resource_id=simulator.id,
                 resource_name=simulator.name,
                 resource_type="offline_simulator",
+                available_qubits=20,
             ),
             with_noise_model=simulator.noisy,
         )
