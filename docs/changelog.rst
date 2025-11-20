@@ -3,6 +3,12 @@
 Changelog
 ~~~~~~~~~
 
+0.38.0 (November 2025)
+----------------------
+
+* New greedy gate selection algorithm
+* Updated pytket version requirement to 2.5.
+
 0.37.0 (June 2025)
 ------------------
 
