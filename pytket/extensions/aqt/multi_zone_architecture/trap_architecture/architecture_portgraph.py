@@ -75,7 +75,7 @@ class MultiZonePortGraph:
         for zone_id, zone in enumerate(spec.zones):
             zone_port0_id = zone_port_to_port_id(zone_id, 0)
             zone_port1_id = zone_port_to_port_id(zone_id, 1)
-            occupancy = len(placement)
+            occupancy = len(placement[zone_id])
             transport_max_cap = zone.max_ions_transport_op
             transport_capacity = transport_max_cap - occupancy
             self.port_graph.add_node(zone_port0_id)
