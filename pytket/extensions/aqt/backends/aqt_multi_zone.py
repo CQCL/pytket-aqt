@@ -569,7 +569,7 @@ def _translate_aqt(circ: Circuit) -> tuple[list[list], str]:  # noqa: PLR0912, P
                     zops_target_l[0][1],
                     [zops_target_l[i][2] for i, _ in enumerate(qubits)],
                 ]
-                gates.append(["SHUTTLE", 1, [zops_source, zops_target]])
+                gates.append(["SHUTTLE", n_shuttle, [zops_source, zops_target]])
 
         elif optype == OpType.Measure:
             # predicate has already checked format is correct, so
