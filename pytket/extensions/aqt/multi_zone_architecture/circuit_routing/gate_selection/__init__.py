@@ -1,9 +1,19 @@
-from .graph_partition_gate_selection import GraphPartitionGateSelector
+from ...graph_algs.mt_kahypar_check import MT_KAHYPAR_INSTALLED
 from .greedy_gate_selection import GreedyGateSelector
-from .hypergraph_partition_gate_selection import HypergraphPartitionGateSelector
+
+if MT_KAHYPAR_INSTALLED:
+    from .graph_partition_gate_selection import GraphPartitionGateSelector
+    from .hypergraph_partition_gate_selection import HypergraphPartitionGateSelector
+
 
 __all__ = [
-    "GraphPartitionGateSelector",
     "GreedyGateSelector",
-    "HypergraphPartitionGateSelector",
 ]
+
+if MT_KAHYPAR_INSTALLED:
+    __all__.extend(
+        [
+            "GraphPartitionGateSelector",
+            "HypergraphPartitionGateSelector",
+        ]
+    )
