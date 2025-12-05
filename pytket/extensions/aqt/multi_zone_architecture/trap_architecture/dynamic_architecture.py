@@ -57,9 +57,11 @@ class DynamicArch:
             [len(zone) for zone in self._current_config.zone_placement], dtype=np.int64
         )
         self.transport_free_space = self.zone_max_transport_cap - self.zone_occupancy
-        self._n_gate_zone_spots = sum(
-            self.zone_max_gate_cap[gate_zone]
-            for gate_zone in self._macro_arch.gate_zones
+        self._n_gate_zone_spots = int(
+            sum(
+                self.zone_max_gate_cap[gate_zone]
+                for gate_zone in self._macro_arch.gate_zones
+            )
         )
         self._largest_gate_zone_max_capacity = int(
             max(
