@@ -3,6 +3,12 @@
 Changelog
 ~~~~~~~~~
 
+unreleased
+----------
+
+* Add depth block analysis
+* Add hypergraph partitioning based gate selection
+
 0.38.0 (November 2025)
 ----------------------
 
