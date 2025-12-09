@@ -26,8 +26,17 @@ classifiers = [
     "Topic :: Scientific/Engineering",
 ]
 dependencies = [
-    "pytket >= 2.7.0",
-    "TODOPYTKETEXT",
+    "pytket >=2.5",
+    "requests >=2.22",
+    "types-requests",
+    "pydantic >=2.0",
+    "networkx >=3.0",
+    "sympy >=1.6",
+    "qiskit-aqt-provider >=1.10.0",
+    "mtkahypar >=1.5; sys_platform != 'win32'",
+    "numpy (>=2.3.4,<3.0.0)",
+    "notebook (>=7.4.7,<8.0.0)",
+    "types-networkx (>=3.5.0.20251106)",
 ]
 
 [project.optional-dependencies]
@@ -58,5 +67,6 @@ dev-dependencies = [
     "hypothesis >=6.111.1,<7",
     "pre-commit >=3.8.0,<4",
     "pyupgrade >=2.29,<4.0",
-    "TODOPYTKETEXT",
+    "pytest-httpx",
+    "requests_mock",
 ]
