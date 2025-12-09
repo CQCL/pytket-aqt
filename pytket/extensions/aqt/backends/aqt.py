@@ -15,7 +15,7 @@ import json
 import logging
 import time
 from collections.abc import Sequence
-from typing import Any, assert_never, cast
+from typing import Any, assert_never, cast  # type: ignore
 
 import numpy
 from qiskit_aqt_provider.api_client import models, models_generated
@@ -52,7 +52,6 @@ from pytket.predicates import (
 from pytket.utils import prepare_circuit
 from pytket.utils.outcomearray import OutcomeArray
 
-from ..extension_version import __extension_version__
 from .aqt_api import (
     AQT_MOCK_DEVICES,
     AqtApi,
@@ -171,7 +170,7 @@ class AQTBackend(Backend):
         self._backend_info = fully_connected_backendinfo(
             type(self).__name__,
             aqt_resource_id,
-            __extension_version__,
+            "0.0.1",
             _AQT_MAX_QUBITS,
             _GATE_SET,
             misc={
@@ -223,7 +222,7 @@ class AQTBackend(Backend):
             fully_connected_backendinfo(
                 cls.__name__,
                 aqt_device.resource_id,
-                __extension_version__,
+                "0.0.1",
                 _AQT_MAX_QUBITS,
                 _GATE_SET,
                 misc={
@@ -459,7 +458,7 @@ class AQTBackend(Backend):
         if isinstance(payload, models_generated.JobResponseRRCancelled):
             return CircuitStatus(StatusEnum.CANCELLED, "")
 
-        assert_never(payload)
+        assert_never(payload)  # type: ignore
 
     def get_result(self, handle: ResultHandle, **kwargs: KwargTypes) -> BackendResult:
         """

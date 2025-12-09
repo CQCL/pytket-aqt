@@ -14,7 +14,7 @@
 
 import os
 from enum import Enum
-from typing import Self
+from typing import Self  # type: ignore
 
 from pydantic import BaseModel, model_validator
 
