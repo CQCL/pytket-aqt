@@ -15,9 +15,10 @@ import json
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
+from qiskit_aqt_provider.api_client import models
+
 from pytket.backends import ResultHandle
 from pytket.circuit import Circuit
-from qiskit_aqt_provider.api_client import models
 
 
 @dataclass
