@@ -45,7 +45,6 @@ from pytket.predicates import (
 )
 
 from ..backends.config import AQTConfig
-from ..extension_version import __extension_version__
 from ..multi_zone_architecture.circuit.multizone_circuit import (
     MultiZoneCircuit,
 )
@@ -146,7 +145,7 @@ class AQTMultiZoneBackend(Backend):
         self._backend_info = fully_connected_backendinfo(
             type(self).__name__,
             device_name,
-            __extension_version__,
+            "0.0.1",
             architecture.n_qubits_max,
             _GATE_SET,
         )
