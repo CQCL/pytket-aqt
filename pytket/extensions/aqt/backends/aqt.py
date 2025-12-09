@@ -15,7 +15,7 @@ import json
 import logging
 import time
 from collections.abc import Sequence
-from typing import Any, assert_never, cast
+from typing import Any, assert_never, cast  # type: ignore
 
 import numpy
 from qiskit_aqt_provider.api_client import models, models_generated
@@ -459,7 +459,7 @@ class AQTBackend(Backend):
         if isinstance(payload, models_generated.JobResponseRRCancelled):
             return CircuitStatus(StatusEnum.CANCELLED, "")
 
-        assert_never(payload)
+        assert_never(payload)  # type: ignore
 
     def get_result(self, handle: ResultHandle, **kwargs: KwargTypes) -> BackendResult:
         """
