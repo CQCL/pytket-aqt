@@ -19,8 +19,9 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, TypeAlias
 
-from pytket.circuit import Circuit, CustomGateDef, OpType, UnitID
 from sympy import Expr, symbols
+
+from pytket.circuit import Circuit, CustomGateDef, OpType, UnitID
 
 from ..circuit_routing.routing_ops import PSwap, RoutingBarrier, RoutingOp
 from ..circuit_routing.routing_ops import Shuttle as ShuttleOp
