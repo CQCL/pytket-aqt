@@ -39,10 +39,6 @@ dependencies = [
     "types-networkx (>=3.5.0.20251106)",
 ]
 
-[project.optional-dependencies]
-TODOOPTDEP = ["pytket >= 2.7.0"]
-
-
 [project.urls]
 documentation = "https://tket.quantinuum.com/extensions/pytket-aqt/index.html"
 source = "https://github.com/Quantinuum/pytket-aqt"
