@@ -7,7 +7,7 @@
 with tket, a quantum computing toolkit and optimising compiler developed by Quantinuum.
 
 `pytket-aqt` is an extension to `pytket` that allows `pytket` circuits to be
-executed on .
+executed on AQT's ([Alpine Quantum Technologies'](https://www.aqt.eu/)) quantum devices and simulators.
 
 Some useful links:
 
