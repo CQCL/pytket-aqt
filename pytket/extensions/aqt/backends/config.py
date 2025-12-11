@@ -18,8 +18,9 @@ from dataclasses import dataclass
 from getpass import getpass
 from typing import Any, ClassVar
 
-from pytket.config import PytketExtConfig
 from qiskit_aqt_provider.aqt_provider import AQTProvider
+
+from pytket.config import PytketExtConfig
 
 logger = logging.getLogger()
 
@@ -118,4 +119,4 @@ def print_available_devices(access_token: str | None = None) -> None:
     backends = aqt_provider.backends()
     backends.headers[1] = "Device ID"
     backends.headers[3] = "Device type"
-    print(backends)  # noqa: T201
+    print(backends)

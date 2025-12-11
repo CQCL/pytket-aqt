@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pytest
-from pytket.circuit import Circuit
 
+from pytket.circuit import Circuit
 from pytket.extensions.aqt.backends.aqt_multi_zone import AQTMultiZoneBackend
 from pytket.extensions.aqt.multi_zone_architecture.circuit_routing.routing_config import (
     RoutingConfig,
@@ -104,7 +104,7 @@ def test_compilation_settings_linearch(
         routing=routing_settings,
     )
     compiled = backend.compile_and_route_circuit(ghz_circuit, compilation_settings)
-    print("Shuttles: ", compiled.get_n_shuttles())  # noqa: T201
+    print("Shuttles: ", compiled.get_n_shuttles())
 
 
 manual_placement_grid = InitialPlacementSettings(
@@ -144,4 +144,4 @@ def test_compilation_settings_gridarch(
         routing=routing_settings,
     )
     compiled = backend.compile_and_route_circuit(ghz_circuit, compilation_settings)
-    print("Shuttles: ", compiled.get_n_shuttles())  # noqa: T201
+    print("Shuttles: ", compiled.get_n_shuttles())
